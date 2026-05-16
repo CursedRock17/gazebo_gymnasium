@@ -1,0 +1,8 @@
+prepend-non-duplicate;GZ_SIM_RESOURCE_PATH;share;@CMAKE_INSTALL_PREFIX@/share
+prepend-non-duplicate;GZ_SIM_RESOURCE_PATH;share/@PROJECT_NAME@/worlds
+
+prepend-non-duplicate;GZ_SIM_SYSTEM_PLUGIN_PATH;lib/@PROJECT_NAME@/
+prepend-non-duplicate;GZ_SIM_SYSTEM_PLUGIN_PATH;share/@PROJECT_NAME@/plugins
+
+prepend-non-duplicate;GZ_SIM_SYSTEM_PLUGIN_PATH;../gazebo_gymnasium_bridge/lib/gazebo_gymnasium_bridge/
+prepend-non-duplicate;GZ_SIM_SYSTEM_PLUGIN_PATH;../gazebo_gymnasium_reinforcement_learning/lib/
