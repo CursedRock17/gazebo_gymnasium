@@ -20,9 +20,9 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(ros_gz_sim_share, 'launch', 'gz_sim.launch.py')
         ),
-        # -r  : run (start the simulation clock)
-        # -p  : start paused so the external training script controls stepping
-        launch_arguments={'gz_args': ['-r -p ', world_path]}.items(),
+        # No -r flag: Gazebo starts paused by default, giving the external
+        # training script deterministic control over simulation stepping.
+        launch_arguments={'gz_args': world_path}.items(),
     )
 
     return LaunchDescription([gz_sim])

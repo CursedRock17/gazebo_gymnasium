@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import gymnasium as gym
@@ -6,7 +6,7 @@ import gymnasium as gym
 from .world_control import WorldController
 
 
-class GazeboEnv(gym.Env):
+class GazeboEnv(gym.Env, ABC):
     """
     Base class for Gymnasium environments backed by a running Gazebo simulation.
 

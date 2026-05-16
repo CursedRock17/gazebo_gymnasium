@@ -3,7 +3,7 @@
 Train CartPole in Gazebo using Stable-Baselines3.
 
 Requires Gazebo to already be running with the cartpole world:
-    ros2 launch gazebo_gymnasium_examples cartpole/launch/cartpole.launch.py
+    ros2 launch gazebo_gymnasium_examples cartpole.launch.py
 
 Then run this script:
     python3 train_sb3.py [--timesteps N] [--check-only]
@@ -11,6 +11,11 @@ Then run this script:
 To use a different RL library, import CartPoleEnv into your own script instead.
 """
 import argparse
+import os
+import sys
+
+# Ensure cartpole_env is importable when this script is run from any directory
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 from stable_baselines3 import PPO

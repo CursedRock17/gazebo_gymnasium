@@ -16,7 +16,6 @@ setup(
     maintainer_email='mtglucas1@gmail.com',
     description='Gymnasium interface for Gazebo Sim',
     license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [],
     },

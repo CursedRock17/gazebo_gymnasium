@@ -20,7 +20,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(ros_gz_sim_share, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments={'gz_args': ['-r -p ', world_path]}.items(),
+        launch_arguments={'gz_args': world_path}.items(),
     )
 
     train_script = os.path.join(

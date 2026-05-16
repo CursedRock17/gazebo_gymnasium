@@ -46,11 +46,42 @@ Gazebo steps physics exactly N ticks per `env.step()` call via the `WorldControl
 | ros_gz | jazzy branch | [github.com/gazebosim/ros_gz](https://github.com/gazebosim/ros_gz/tree/jazzy) |
 | Python | ≥ 3.10 | included with ROS 2 Jazzy |
 
-Python package dependencies (installed via rosdep or pip):
+Python package dependencies — install inside the virtual environment (see below):
 
 ```bash
+source ~/gym_ws/venv/bin/activate
 pip install gymnasium stable-baselines3
 ```
+
+---
+
+## Virtual Environment (recommended)
+
+Using a `virtualenv` with `--system-site-packages` gives you an isolated space for RL libraries (gymnasium, stable-baselines3, etc.) while still inheriting ROS 2 and Gazebo Python bindings that live in the system Python.
+
+```bash
+# Install virtualenv if you don't have it
+pip install virtualenv
+
+# Create the venv inside the workspace (it is gitignored)
+cd ~/gym_ws
+virtualenv --system-site-packages venv
+
+# Activate it (run this in every new terminal before using the workspace)
+source ~/gym_ws/venv/bin/activate
+
+# Install RL dependencies into the venv
+pip install gymnasium stable-baselines3
+```
+
+> **Every terminal session:** activate the venv first, then source ROS 2:
+> ```bash
+> source ~/gym_ws/venv/bin/activate
+> source /opt/ros/jazzy/setup.bash
+> source ~/gym_ws/install/setup.bash
+> ```
+
+The `venv/` directory lives at the workspace root and is excluded from the repository via `.gitignore`.
 
 ---
 
@@ -62,7 +93,8 @@ mkdir -p ~/gym_ws/src
 cd ~/gym_ws/src
 git clone <repo-url> .
 
-# 2. Source ROS 2
+# 2. Activate the virtual environment (see above) and source ROS 2
+source ~/gym_ws/venv/bin/activate
 source /opt/ros/jazzy/setup.bash
 
 # 3. Install system dependencies via rosdep
@@ -82,24 +114,30 @@ source install/setup.bash
 
 **Terminal 1 — launch Gazebo:**
 ```bash
+source ~/gym_ws/venv/bin/activate
 source ~/gym_ws/install/setup.bash
-ros2 launch gazebo_gymnasium_examples cartpole/launch/cartpole.launch.py
+ros2 launch gazebo_gymnasium_examples cartpole.launch.py
 ```
 
 **Terminal 2 — run SB3 training:**
 ```bash
+source ~/gym_ws/venv/bin/activate
 source ~/gym_ws/install/setup.bash
-python3 install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples/cartpole/train_sb3.py
+python3 ~/gym_ws/install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples/cartpole/train_sb3.py
 ```
 
-Or launch both together:
+Or launch both together (activate the venv first — the launch file inherits the calling shell's Python):
 ```bash
-ros2 launch gazebo_gymnasium_examples cartpole/launch/cartpole_train_sb3.launch.py
+source ~/gym_ws/venv/bin/activate
+source ~/gym_ws/install/setup.bash
+ros2 launch gazebo_gymnasium_examples cartpole_train_sb3.launch.py
 ```
 
 Validate the environment with random actions before training:
 ```bash
-python3 train_sb3.py --check-only
+source ~/gym_ws/venv/bin/activate
+source ~/gym_ws/install/setup.bash
+python3 ~/gym_ws/install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples/cartpole/train_sb3.py --check-only
 ```
 
 ---

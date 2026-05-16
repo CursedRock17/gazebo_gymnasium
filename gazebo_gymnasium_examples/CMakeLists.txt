@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.10)
 project(gazebo_gymnasium_examples)
 
 find_package(ament_cmake REQUIRED)
@@ -11,7 +11,7 @@ install(DIRECTORY cartpole/worlds/
   DESTINATION share/${PROJECT_NAME}/cartpole/worlds
 )
 install(DIRECTORY cartpole/launch/
-  DESTINATION share/${PROJECT_NAME}/cartpole/launch
+  DESTINATION share/${PROJECT_NAME}/launch
 )
 install(PROGRAMS
   cartpole/scripts/cartpole_env.py
