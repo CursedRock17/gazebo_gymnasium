@@ -6,7 +6,10 @@ Requires Gazebo to already be running with the cartpole world:
     ros2 launch gazebo_gymnasium_examples cartpole.launch.py
 
 Then run this script:
-    python3 train_sb3.py [--timesteps N] [--check-only]
+    python3 train_sb3.py [--timesteps N] [--check-only] [--tensorboard-log DIR]
+
+To view training curves live:
+    tensorboard --logdir ./tb_logs
 
 To use a different RL library, import CartPoleEnv into your own script instead.
 """
@@ -19,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.evaluation import evaluate_policy
 
@@ -33,6 +37,10 @@ def parse_args():
                    help="Run environment checker with random actions then exit")
     p.add_argument("--save-path", default="cartpole_ppo",
                    help="Path to save trained model (default: cartpole_ppo)")
+    p.add_argument("--tensorboard-log", default="./tb_logs",
+                   help="Directory for TensorBoard logs (default: ./tb_logs)")
+    p.add_argument("--eval-freq", type=int, default=10_000,
+                   help="Evaluate and checkpoint the best model every N steps (default: 10000)")
     return p.parse_args()
 
 
@@ -73,13 +81,29 @@ def main():
         gae_lambda=0.95,
         clip_range=0.2,
         ent_coef=0.0,
+        tensorboard_log=args.tensorboard_log,
+    )
+
+    # EvalCallback periodically evaluates the current policy and saves the best
+    # model seen so far. The best model is saved separately from the final model.
+    eval_callback = EvalCallback(
+        env,
+        best_model_save_path=f"{args.save_path}_best",
+        log_path=args.tensorboard_log,
+        eval_freq=args.eval_freq,
+        n_eval_episodes=5,
+        deterministic=True,
+        render=False,
     )
 
     print(f"Training for {args.timesteps} timesteps...")
-    model.learn(total_timesteps=args.timesteps)
+    print(f"TensorBoard logs → {args.tensorboard_log}")
+    print("  View live: tensorboard --logdir " + args.tensorboard_log)
+    model.learn(total_timesteps=args.timesteps, callback=eval_callback)
 
     model.save(args.save_path)
     print(f"Model saved to {args.save_path}.zip")
+    print(f"Best model saved to {args.save_path}_best/")
 
     # Quick evaluation after training
     mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)

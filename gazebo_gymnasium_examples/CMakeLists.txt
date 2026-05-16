@@ -18,6 +18,11 @@ install(PROGRAMS
   cartpole/scripts/train_sb3.py
   DESTINATION lib/${PROJECT_NAME}/cartpole
 )
+# ros2 run entry point — delegates to the scripts in the cartpole/ subdirectory
+install(PROGRAMS
+  cartpole/scripts/cartpole_train_sb3
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 # --- Add new examples above this line following the same pattern ---
 

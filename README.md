@@ -119,10 +119,19 @@ source ~/gym_ws/install/setup.bash
 ros2 launch gazebo_gymnasium_examples cartpole.launch.py
 ```
 
-**Terminal 2 — run SB3 training:**
+**Terminal 2 — run SB3 training (three equivalent ways):**
+
 ```bash
 source ~/gym_ws/venv/bin/activate
 source ~/gym_ws/install/setup.bash
+
+# Option A: ros2 run (recommended after colcon build)
+ros2 run gazebo_gymnasium_examples cartpole_train_sb3
+
+# Option B: run directly from the source tree (no build needed)
+python3 ~/gym_ws/src/gazebo_gymnasium/gazebo_gymnasium_examples/cartpole/scripts/train_sb3.py
+
+# Option C: full install path (explicit)
 python3 ~/gym_ws/install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples/cartpole/train_sb3.py
 ```
 
@@ -135,9 +144,12 @@ ros2 launch gazebo_gymnasium_examples cartpole_train_sb3.launch.py
 
 Validate the environment with random actions before training:
 ```bash
-source ~/gym_ws/venv/bin/activate
-source ~/gym_ws/install/setup.bash
-python3 ~/gym_ws/install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples/cartpole/train_sb3.py --check-only
+ros2 run gazebo_gymnasium_examples cartpole_train_sb3 --check-only
+```
+
+View TensorBoard training curves (logs written to `./tb_logs` by default):
+```bash
+tensorboard --logdir ./tb_logs
 ```
 
 ---
@@ -167,6 +179,46 @@ python3 ~/gym_ws/install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples
    | `is_terminated()` | True if episode ended (failure/success) |
    | `is_truncated()` | True if episode hit time limit |
    | `set_default_observation()` | Reset internal state, return initial obs |
+
+---
+
+## PyPI Distribution
+
+`gazebo_gymnasium` can be published to PyPI so users can `pip install gazebo-gymnasium`. Because the package is also an ament_python package, `pyproject.toml` cannot live inside the ament package directory (it conflicts with colcon's setup.py introspection). The publishing workflow uses a thin wrapper `pyproject.toml` placed at the **repo root** that points at the package source:
+
+```toml
+# pyproject.toml (repo root — not checked in; create when ready to publish)
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gazebo-gymnasium"
+version = "0.1.0"
+description = "Gymnasium interface for Gazebo Sim (Harmonic)"
+readme = "gazebo_gymnasium/README.md"
+license = "Apache-2.0"
+authors = [{name = "Lucas Wendland", email = "mtglucas1@gmail.com"}]
+requires-python = ">=3.10"
+keywords = ["robotics", "reinforcement-learning", "gazebo", "gymnasium", "ros2"]
+dependencies = ["gymnasium>=0.29.0", "numpy>=1.21.0"]
+
+[project.optional-dependencies]
+sb3 = ["stable-baselines3>=2.0.0"]
+
+[tool.setuptools.packages.find]
+where = ["gazebo_gymnasium"]
+include = ["gazebo_gymnasium*"]
+```
+
+> **Note:** `gz.transport13` and `gz.msgs10` are Gazebo system packages and are not available on PyPI. Users must install Gazebo Harmonic separately (`sudo apt install gz-harmonic`).
+
+Publish:
+```bash
+pip install build twine
+python -m build
+twine upload dist/*
+```
 
 ---
 

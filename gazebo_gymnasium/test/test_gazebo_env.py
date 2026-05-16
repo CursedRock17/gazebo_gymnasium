@@ -1,6 +1,8 @@
 """
 Unit tests for GazeboEnv base class.
-Uses a mocked WorldController — no running Gazebo instance required.
+
+gz.transport13 and gz.msgs10 are mocked at the sys.modules level so these
+tests run without a Gazebo installation (pure Python, no simulator required).
 """
 import unittest
 from unittest.mock import MagicMock, patch
@@ -8,25 +10,43 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from gymnasium.spaces import Box, Discrete
 
+# gz imports are lazy (inside WorldController.__init__), so this import works
+# without Gazebo installed. Tests mock WorldController entirely.
 from gazebo_gymnasium.gazebo_env import GazeboEnv
 
+# --- Shared test fixtures ---
 OBS_SPACE = Box(low=-1.0, high=1.0, shape=(4,), dtype=np.float64)
 ACT_SPACE = Discrete(2)
 _DEFAULT_OBS = np.zeros(4, dtype=np.float64)
 
 
 class _ConcreteEnv(GazeboEnv):
-    """Minimal concrete subclass used for testing the base class."""
-    def apply_action(self, action): pass
-    def get_observation(self): return _DEFAULT_OBS.copy()
-    def get_reward(self, action): return 1.0
-    def is_terminated(self): return False
-    def is_truncated(self): return False
-    def set_default_observation(self): return _DEFAULT_OBS.copy()
+    """Minimal concrete subclass used to exercise the base class."""
 
+    def apply_action(self, action):
+        pass
+
+    def get_observation(self):
+        return _DEFAULT_OBS.copy()
+
+    def get_reward(self, action):
+        return 1.0
+
+    def is_terminated(self):
+        return False
+
+    def is_truncated(self):
+        return False
+
+    def set_default_observation(self):
+        return _DEFAULT_OBS.copy()
+
+
+# --- Test cases ---
 
 class TestGazeboEnvAbstract(unittest.TestCase):
     def test_cannot_instantiate_abstract_class(self):
+        """GazeboEnv cannot be used directly — must be subclassed."""
         with self.assertRaises(TypeError):
             GazeboEnv("world", OBS_SPACE, ACT_SPACE)
 
@@ -46,7 +66,7 @@ class TestGazeboEnvReset(unittest.TestCase):
         self.assertEqual(obs.shape, (4,))
         self.assertIsInstance(info, dict)
 
-    def test_reset_increments_episode_and_resets_step(self, mock_wc_cls):
+    def test_reset_increments_episode_and_clears_step(self, mock_wc_cls):
         mock_wc_cls.return_value = MagicMock()
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
         env.reset()

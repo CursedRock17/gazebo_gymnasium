@@ -22,9 +22,12 @@ MODEL_NAME = "cartpole"
 _CMD_TOPIC = f"/model/{MODEL_NAME}/joint/slider_to_cart/0/cmd_pos"
 _JOINT_STATE_TOPIC = f"/world/{WORLD_NAME}/model/{MODEL_NAME}/joint_state"
 
-# Action positions sent to the joint position controller
-_POS_LEFT = -2.5
-_POS_RIGHT = 2.5
+# Target positions for the joint position controller.
+# Keep these well inside the termination bounds (±2.4 m) so that position
+# termination is a last resort, not the default failure mode.  A ±0.5 m nudge
+# produces force-impulse-like behaviour similar to the classic CartPole env.
+_POS_LEFT = -0.5
+_POS_RIGHT = 0.5
 
 # Episode termination thresholds (matching CartPole-v1)
 _MAX_CART_POS = 2.4      # meters
