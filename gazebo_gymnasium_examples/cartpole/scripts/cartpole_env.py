@@ -50,9 +50,14 @@ class CartPoleEnv(GazeboEnv):
     """
 
     def __init__(self, steps_per_action: int = 10):
+        # Bounds must cover all values the physics sim can produce during a single
+        # action step (steps_per_action ticks of 10ms = 100ms).  The pole can swing
+        # far past the 12° termination threshold in that window, so we use ±π for
+        # angle and ±inf for velocities.  Termination still fires at 12°; these are
+        # just the observation space limits used by SB3 for normalisation checks.
         obs_space = Box(
-            low=np.array([-4.8, -np.inf, -0.41887903, -np.inf], dtype=np.float64),
-            high=np.array([4.8,  np.inf,  0.41887903,  np.inf], dtype=np.float64),
+            low=np.array([-4.8, -np.inf, -np.pi, -np.inf], dtype=np.float32),
+            high=np.array([4.8,  np.inf,  np.pi,  np.inf], dtype=np.float32),
         )
         super().__init__(WORLD_NAME, obs_space, Discrete(2), steps_per_action)
 
@@ -96,7 +101,7 @@ class CartPoleEnv(GazeboEnv):
             self._cart_velocity,
             self._pole_angle,
             self._pole_ang_velocity,
-        ], dtype=np.float64)
+        ], dtype=np.float32)
 
     def get_reward(self, action) -> float:
         return 1.0
@@ -119,8 +124,8 @@ class CartPoleEnv(GazeboEnv):
 
     def get_info(self) -> dict:
         return {
-            "episode": self._current_episode,
-            "step": self._current_step,
+            "gz_episode": self._current_episode,  # "episode" is reserved by SB3
+            "gz_step": self._current_step,
             # Required by SB3 for correct value estimates at truncation boundaries
             "TimeLimit.truncated": self.is_truncated(),
         }

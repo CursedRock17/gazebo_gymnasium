@@ -20,6 +20,15 @@ import sys
 # Ensure cartpole_env is importable when this script is run from any directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+try:
+    import tensorboard  # noqa: F401
+except ImportError:
+    sys.exit(
+        "tensorboard is required for training.\n"
+        "Install it with: pip install tensorboard"
+    )
+
+import torch
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
@@ -41,6 +50,8 @@ def parse_args():
                    help="Directory for TensorBoard logs (default: ./tb_logs)")
     p.add_argument("--eval-freq", type=int, default=10_000,
                    help="Evaluate and checkpoint the best model every N steps (default: 10000)")
+    p.add_argument("--device", default="auto",
+                   help="PyTorch device: 'auto' (default), 'cpu', 'cuda', 'cuda:0', etc.")
     return p.parse_args()
 
 
@@ -67,13 +78,20 @@ def main():
             print(f"  Episode {ep + 1}: reward = {total_reward}")
         return
 
+    # Report which device PyTorch will use. SB3 "auto" picks CUDA if available.
+    if args.device == "auto":
+        resolved = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        resolved = args.device
+    print(f"PyTorch device: {resolved}" +
+          (" (CUDA available)" if torch.cuda.is_available() else " (no CUDA detected)"))
+
     # PPO is a strong default for CartPole's discrete action space.
-    # The observation space has known bounds on position/angle but unbounded
-    # velocities, so we rely on PPO's internal advantage normalization.
     model = PPO(
         "MlpPolicy",
         env,
         verbose=1,
+        device=args.device,
         n_steps=2048,
         batch_size=64,
         n_epochs=10,
