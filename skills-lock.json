@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "skills": {
+    "additional-context": {
+      "source": "/home/cursedrock17/Documents/open_source/ros2/gazebo_gymnasium/gazebo_gymnasium/.claude/AdditionalContext",
+      "sourceType": "local",
+      "computedHash": "7b7824fbd385eda8e8d703f4f782a9d11cc6ec94ad028da496bef89105a40c8c"
+    },
+    "custom-gymnasium": {
+      "source": "/home/cursedrock17/Documents/open_source/ros2/gazebo_gymnasium/gazebo_gymnasium/.claude/CustomGymnasium",
+      "sourceType": "local",
+      "computedHash": "e83fe2dc71be563a792ab76a6b194ace3678d6eec0c236e6c8a0c15fcc0b4782"
+    },
+    "gazebo-structure": {
+      "source": "/home/cursedrock17/Documents/open_source/ros2/gazebo_gymnasium/gazebo_gymnasium/.claude/GazeboStructure",
+      "sourceType": "local",
+      "computedHash": "8c2a8b0bdb8628e6ff056de023826a76a306721779f59856a42a664f1588616d"
+    },
+    "stable-baselines-context": {
+      "source": "/home/cursedrock17/Documents/open_source/ros2/gazebo_gymnasium/gazebo_gymnasium/.claude/StableBaselines3",
+      "sourceType": "local",
+      "computedHash": "787c8a311dad412444f044e77a1b0456923c3db9c1c6693cd1b857d885b37a41"
+    }
+  }
+}

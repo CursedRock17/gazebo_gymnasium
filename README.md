@@ -1,38 +1,151 @@
 # Gazebo Gymnasium
-------------------------
-This repository reserves as integration between OpenAI's [Gymnasium](https://gymnasium.farama.org/)
-package along with ROS 2 & [Gazebo](https://gazebosim.org/docs/latest/getstarted/).
-It allows user to engage reinforcement learning through simulation, then port that data to real 
-life, allowing for an easier integration process of a robot model.
 
-## Installation Process
-Ensure you have the correct version of ROS 2 & Gazebo for this template.
+A library that connects [Farama Gymnasium](https://gymnasium.farama.org/) to [Gazebo Sim](https://gazebosim.org/docs/harmonic/getstarted/), enabling reinforcement learning agents to train directly inside a physics simulation.
 
-#### Prerequisites
-Install [ROS 2](https://docs.ros.org/en/jazzy/Installation.html) Jazzy
-Install [Gazebo](https://gazebosim.org/docs/harmonic/install/) Harmonic
-Install [ROS-GZ](https://github.com/gazebosim/ros_gz/tree/jazzy) bridge
+The RL training loop runs as a **standalone Python process** and drives Gazebo externally over `gz.transport` — no custom Gazebo plugins required. Any Gymnasium-compatible RL library (SB3, RLlib, CleanRL, custom) works out of the box.
 
-#### Create Workspace
+---
+
+## Architecture
+
 ```
+┌──────────────────────────────────┐       gz.transport (ZeroMQ)
+│         Gazebo Server            │ ◄─────────────────────────────┐
+│  JointPositionController         │ ◄── action commands (topics)  │
+│  JointStatePublisher             │ ──► state observations        │
+│  UserCommands (world control)    │ ◄── step / reset (services)   │
+└──────────────────────────────────┘                               │
+                                                                   │
+┌──────────────────────────────────┐                               │
+│   Your training script           │ ──────────────────────────────┘
+│   (any RL library)               │
+│     env = CartPoleEnv()          │
+│     model.learn(env)             │
+└──────────────────────────────────┘
+```
+
+Gazebo steps physics exactly N ticks per `env.step()` call via the `WorldControl` service, then pauses — giving the training loop deterministic control over simulation time.
+
+---
+
+## Packages
+
+| Package | Type | Purpose |
+|---|---|---|
+| `gazebo_gymnasium` | ament_python | Core library: `GazeboEnv` base class + `WorldController` |
+| `gazebo_gymnasium_examples` | ament_cmake | Example environments (CartPole, ...) |
+
+---
+
+## Prerequisites
+
+| Dependency | Version | Install |
+|---|---|---|
+| ROS 2 | Jazzy | [docs.ros.org](https://docs.ros.org/en/jazzy/Installation.html) |
+| Gazebo | Harmonic | [gazebosim.org](https://gazebosim.org/docs/harmonic/install/) |
+| ros_gz | jazzy branch | [github.com/gazebosim/ros_gz](https://github.com/gazebosim/ros_gz/tree/jazzy) |
+| Python | ≥ 3.10 | included with ROS 2 Jazzy |
+
+Python package dependencies (installed via rosdep or pip):
+
+```bash
+pip install gymnasium stable-baselines3
+```
+
+---
+
+## Build
+
+```bash
+# 1. Create a colcon workspace
 mkdir -p ~/gym_ws/src
 cd ~/gym_ws/src
-git clone 
-```
+git clone <repo-url> .
 
-#### Install Depdencies
-```
-sudo rosdep init
-rosdep update
-rosdep install --from-paths src --ignore-src -r -i -y --rosdistro jazzy
-```
-
-#### Build Workspace
-```
+# 2. Source ROS 2
 source /opt/ros/jazzy/setup.bash
-colcon build --packages-ignore gazebo_gymnasium_bringup
-source install/setup.bash
-colcon build --packages-select gazebo_gymnasium_bringup
+
+# 3. Install system dependencies via rosdep
+sudo rosdep init        # skip if already done
+rosdep update
+rosdep install --from-paths . --ignore-src -r -y
+
+# 4. Build
+cd ~/gym_ws
+colcon build
 source install/setup.bash
 ```
 
+---
+
+## Running the CartPole Example
+
+**Terminal 1 — launch Gazebo:**
+```bash
+source ~/gym_ws/install/setup.bash
+ros2 launch gazebo_gymnasium_examples cartpole/launch/cartpole.launch.py
+```
+
+**Terminal 2 — run SB3 training:**
+```bash
+source ~/gym_ws/install/setup.bash
+python3 install/gazebo_gymnasium_examples/lib/gazebo_gymnasium_examples/cartpole/train_sb3.py
+```
+
+Or launch both together:
+```bash
+ros2 launch gazebo_gymnasium_examples cartpole/launch/cartpole_train_sb3.launch.py
+```
+
+Validate the environment with random actions before training:
+```bash
+python3 train_sb3.py --check-only
+```
+
+---
+
+## Adding a New Environment
+
+1. Create a subdirectory under `gazebo_gymnasium_examples/`:
+   ```
+   gazebo_gymnasium_examples/
+   └── my_robot/
+       ├── models/my_robot/model.config + model.sdf
+       ├── worlds/my_robot.sdf
+       ├── scripts/my_robot_env.py      ← subclass GazeboEnv
+       ├── scripts/train_sb3.py         ← or any RL library
+       └── launch/my_robot.launch.py
+   ```
+
+2. Add three install blocks to `gazebo_gymnasium_examples/CMakeLists.txt` following the CartPole pattern.
+
+3. Implement `MyRobotEnv(GazeboEnv)` by overriding the six abstract methods:
+
+   | Method | Purpose |
+   |---|---|
+   | `apply_action(action)` | Publish command to Gazebo topic |
+   | `get_observation()` | Read state from Gazebo topics |
+   | `get_reward(action)` | Compute step reward |
+   | `is_terminated()` | True if episode ended (failure/success) |
+   | `is_truncated()` | True if episode hit time limit |
+   | `set_default_observation()` | Reset internal state, return initial obs |
+
+---
+
+## Compatibility
+
+`GazeboEnv` is a standard `gymnasium.Env`. Any library that accepts a Gymnasium environment works:
+
+```python
+# SB3
+from stable_baselines3 import PPO, SAC, TD3
+model = PPO("MlpPolicy", env, verbose=1)
+
+# RLlib
+from ray.rllib.algorithms.ppo import PPOConfig
+algo = PPOConfig().environment(env=MyRobotEnv).build()
+
+# CleanRL / custom
+obs, info = env.reset()
+obs, reward, terminated, truncated, info = env.step(action)
+```
