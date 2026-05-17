@@ -31,11 +31,43 @@ except ImportError:
 import torch
 import numpy as np
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import BaseCallback, EvalCallback, CallbackList
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.evaluation import evaluate_policy
 
+import cartpole_env as _cartpole_env_mod
 from cartpole_env import CartPoleEnv
+
+
+class EpisodeLogger(BaseCallback):
+    """Print per-episode reward and length to stdout as they complete.
+
+    SB3's built-in verbose=1 output only appears at the end of each rollout
+    buffer (every n_steps steps).  This callback gives immediate feedback
+    after every individual episode so you can see whether the agent is
+    learning without waiting for the next rollout to complete.
+    """
+
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self._ep_reward = 0.0
+        self._ep_len = 0
+        self._ep_count = 0
+
+    def _on_step(self) -> bool:
+        self._ep_reward += self.locals["rewards"][0]
+        self._ep_len += 1
+        if self.locals["dones"][0]:
+            self._ep_count += 1
+            print(
+                f"  ep {self._ep_count:4d} | "
+                f"steps={self._ep_len:4d} | "
+                f"reward={self._ep_reward:.0f} | "
+                f"total_steps={self.num_timesteps}"
+            )
+            self._ep_reward = 0.0
+            self._ep_len = 0
+        return True
 
 
 def parse_args():
@@ -48,16 +80,24 @@ def parse_args():
                    help="Path to save trained model (default: cartpole_ppo)")
     p.add_argument("--tensorboard-log", default="./tb_logs",
                    help="Directory for TensorBoard logs (default: ./tb_logs)")
-    p.add_argument("--eval-freq", type=int, default=10_000,
-                   help="Evaluate and checkpoint the best model every N steps (default: 10000)")
+    p.add_argument("--eval-freq", type=int, default=5_000,
+                   help="Evaluate and checkpoint the best model every N steps (default: 5000)")
     p.add_argument("--device", default="auto",
                    help="PyTorch device: 'auto' (default), 'cpu', 'cuda', 'cuda:0', etc.")
+    p.add_argument("--debug", action="store_true",
+                   help="Enable verbose per-callback/per-step tracing in CartPoleEnv")
     return p.parse_args()
 
 
 def main():
     args = parse_args()
-    env = CartPoleEnv(steps_per_action=10)
+    if args.debug:
+        _cartpole_env_mod.DEBUG = True
+        print("[train] CartPoleEnv debug tracing ENABLED")
+    # steps_per_action=5 → 50 ms per action step.  Halving this from 10 gives
+    # the termination check twice as many chances to fire before the pole falls
+    # past the 12° threshold, so episodes end sooner and more accurately.
+    env = CartPoleEnv(steps_per_action=5)
 
     # Validate the environment follows the Gymnasium interface before training
     print("Checking environment...")
@@ -87,12 +127,15 @@ def main():
           (" (CUDA available)" if torch.cuda.is_available() else " (no CUDA detected)"))
 
     # PPO is a strong default for CartPole's discrete action space.
+    # n_steps=256: SB3 only writes TensorBoard events at the end of each rollout
+    # buffer, so a smaller buffer means more frequent live updates in TensorBoard.
+    # 256 still gives enough samples for stable gradient estimates.
     model = PPO(
         "MlpPolicy",
         env,
         verbose=1,
         device=args.device,
-        n_steps=2048,
+        n_steps=256,
         batch_size=64,
         n_epochs=10,
         gamma=0.99,
@@ -102,8 +145,8 @@ def main():
         tensorboard_log=args.tensorboard_log,
     )
 
-    # EvalCallback periodically evaluates the current policy and saves the best
-    # model seen so far. The best model is saved separately from the final model.
+    # EvalCallback: periodically evaluate the current policy and save the best model.
+    # eval_freq halved from 10 000 to 5 000 to match the more frequent rollouts.
     eval_callback = EvalCallback(
         env,
         best_model_save_path=f"{args.save_path}_best",
@@ -114,10 +157,17 @@ def main():
         render=False,
     )
 
+    # EpisodeLogger: print per-episode stats immediately after each episode ends,
+    # independent of the rollout buffer size.
+    episode_logger = EpisodeLogger()
+
     print(f"Training for {args.timesteps} timesteps...")
     print(f"TensorBoard logs → {args.tensorboard_log}")
     print("  View live: tensorboard --logdir " + args.tensorboard_log)
-    model.learn(total_timesteps=args.timesteps, callback=eval_callback)
+    model.learn(
+        total_timesteps=args.timesteps,
+        callback=CallbackList([eval_callback, episode_logger]),
+    )
 
     model.save(args.save_path)
     print(f"Model saved to {args.save_path}.zip")

@@ -4,8 +4,38 @@ CartPole environment backed by Gazebo Sim.
 
 Matches the classic CartPole-v1 interface. Compatible with any Gymnasium-compatible
 RL library — SB3, RLlib, CleanRL, or a hand-rolled agent.
+
+SDF kinematic summary (cartpole.sdf)
+-------------------------------------
+  Model origin   : z = +0.10 m above the Gazebo world ground plane
+  Cart slide axis: Y  (joint slider_to_cart, axis 0 1 0)
+  Pole hinge     : at x = +0.12 m from the cart centre (joint cart_to_pole)
+  Pole rotation  : about X  (axis 1 0 0)
+  Pole geometry  : 1 m long box, centred at z = +0.47 m from the hinge
+                   → tip is at z = 0.97 m from the hinge
+
+ROS 2 / TF integration (optional)
+----------------------------------
+When ROS 2 is available, joint states are published to /tf every step for
+visualisation in RViz2 (no URDF or /robot_description required).
+
+  ros2 run rviz2 rviz2   # Fixed Frame = "world", add a TF display
+
+Published TF tree:
+    world                          (Gazebo world origin)
+    └─ cartpole/base_link          (model origin, z=+0.10 m)
+       └─ cartpole/cart            (translates along Y by cart_position)
+          └─ cartpole/pole_hinge   (fixed at x=+0.12 m from cart centre)
+             └─ cartpole/pole_tip  (tip of pole, rotates about X by pole_angle,
+                                    translated 0.97 m along pole's local Z)
+
+TF publishing is silently disabled if rclpy is unavailable or takes more than
+_TF_INIT_TIMEOUT_S to initialise (e.g. slow DDS discovery).
 """
+import math
 import time
+import threading
+import concurrent.futures
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
@@ -16,6 +46,16 @@ from gz.msgs10.model_pb2 import Model
 
 from gazebo_gymnasium import GazeboEnv
 
+# Set to True via --debug flag in train_sb3.py to enable verbose tracing.
+# Prints every callback, every step, and every termination event.
+DEBUG = False
+
+
+def _dbg(msg: str) -> None:
+    if DEBUG:
+        print(f"[DBG] {msg}", flush=True)
+
+
 WORLD_NAME = "cartpole"
 MODEL_NAME = "cartpole"
 
@@ -23,17 +63,74 @@ _CMD_TOPIC = f"/model/{MODEL_NAME}/joint/slider_to_cart/0/cmd_pos"
 _JOINT_STATE_TOPIC = f"/world/{WORLD_NAME}/model/{MODEL_NAME}/joint_state"
 
 # Target positions for the joint position controller.
-# Keep these well inside the termination bounds (±2.4 m) so that position
-# termination is a last resort, not the default failure mode.  A ±0.5 m nudge
-# produces force-impulse-like behaviour similar to the classic CartPole env.
+# Values are in metres along the Y axis.  ±0.5 m keeps the cart well inside
+# the ±2.4 m termination bound while producing a meaningful control impulse.
 _POS_LEFT = -0.5
 _POS_RIGHT = 0.5
 
 # Episode termination thresholds (matching CartPole-v1)
-_MAX_CART_POS = 2.4      # meters
-_MAX_POLE_ANGLE = 0.20944  # ~12 degrees in radians
+_MAX_CART_POS = 2.4      # metres (measured along Y)
+_MAX_POLE_ANGLE = 0.20944  # ~12 degrees in radians (rotation about X)
 _MAX_STEPS = 500
 
+# How long to wait for a fresh joint-state message after each physics step.
+_OBS_TIMEOUT_S = 0.2
+
+# If ROS 2 TF initialisation takes longer than this, skip TF publishing.
+# DDS middleware discovery can block for 30+ seconds on some systems.
+_TF_INIT_TIMEOUT_S = 3.0
+
+# Pole geometry from the SDF: visual box centred at z=0.47 m, length 1 m.
+# Tip = 0.47 + 0.5 = 0.97 m from the pole hinge along the pole's local Z axis.
+_POLE_TIP_Z = 0.97
+
+# Model origin is 0.10 m above the Gazebo world ground plane.
+_MODEL_ORIGIN_Z = 0.10
+
+# Pole hinge is offset 0.12 m along X from the cart centre.
+_HINGE_OFFSET_X = 0.12
+
+
+# ---------------------------------------------------------------------------
+# ROS 2 TF helpers
+# ---------------------------------------------------------------------------
+
+def _init_tf_impl():
+    """Create a ROS 2 node and TF broadcaster (blocking — called in a thread)."""
+    import rclpy
+    from tf2_ros import TransformBroadcaster
+    try:
+        rclpy.init()
+    except RuntimeError:
+        pass  # already initialised by the caller
+    node = rclpy.create_node("cartpole_tf_broadcaster")
+    return node, TransformBroadcaster(node)
+
+
+def _try_init_tf():
+    """Non-blocking ROS 2 init: returns (node, broadcaster) or (None, None)."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_init_tf_impl)
+        try:
+            return future.result(timeout=_TF_INIT_TIMEOUT_S)
+        except Exception:
+            return None, None
+
+
+def _wall_clock_stamp():
+    """Current wall-clock time as builtin_interfaces/Time.
+
+    self._ros_node.get_clock() returns time 0 without rclpy.spin(), which
+    causes tf2/RViz2 to silently discard transforms as 'too old'.
+    """
+    from builtin_interfaces.msg import Time
+    t = time.time()
+    return Time(sec=int(t), nanosec=int((t % 1) * 1_000_000_000))
+
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
 
 class CartPoleEnv(GazeboEnv):
     """
@@ -41,20 +138,18 @@ class CartPoleEnv(GazeboEnv):
         [cart_position, cart_velocity, pole_angle, pole_angular_velocity]
 
     Action space (Discrete 2):
-        0 — push cart left
-        1 — push cart right
+        0 — push cart left  (target Y = -0.5 m)
+        1 — push cart right (target Y = +0.5 m)
 
     Reward: +1 for every step the pole remains upright.
-    Terminated: pole angle > 12° or cart position > 2.4m from center.
+    Terminated: pole angle > 12° or |cart_position| > 2.4 m.
     Truncated: episode exceeds _MAX_STEPS steps.
     """
 
-    def __init__(self, steps_per_action: int = 10):
-        # Bounds must cover all values the physics sim can produce during a single
-        # action step (steps_per_action ticks of 10ms = 100ms).  The pole can swing
-        # far past the 12° termination threshold in that window, so we use ±π for
-        # angle and ±inf for velocities.  Termination still fires at 12°; these are
-        # just the observation space limits used by SB3 for normalisation checks.
+    def __init__(self, steps_per_action: int = 5):
+        # Obs bounds must accommodate values that can arise during the full
+        # steps_per_action window (5 × 10 ms = 50 ms).  The pole can swing
+        # past 12° in that window, so we use ±π, not ±0.20944.
         obs_space = Box(
             low=np.array([-4.8, -np.inf, -np.pi, -np.inf], dtype=np.float32),
             high=np.array([4.8,  np.inf,  np.pi,  np.inf], dtype=np.float32),
@@ -65,8 +160,12 @@ class CartPoleEnv(GazeboEnv):
         self._cmd_node = Node()
         self._cmd_pub = self._cmd_node.advertise(_CMD_TOPIC, Double, AdvertiseMessageOptions())
 
-        # Subscriber: read joint positions and velocities after each physics step
+        # Subscriber: joint positions/velocities updated by Gazebo after each step.
+        # _joint_state_ready blocks get_observation() until fresh data arrives,
+        # preventing stale-observation bugs where we check is_terminated() against
+        # values from the previous step.
         self._state_node = Node()
+        self._joint_state_ready = threading.Event()
         self._state_node.subscribe(Model, _JOINT_STATE_TOPIC, self._on_joint_state)
 
         self._cart_position = 0.0
@@ -74,28 +173,219 @@ class CartPoleEnv(GazeboEnv):
         self._pole_angle = 0.0
         self._pole_ang_velocity = 0.0
 
-        # Allow subscriber to establish connection before training starts
-        time.sleep(0.5)
+        # Gate that lets _on_joint_state discard stale callbacks from previous
+        # episodes.  Set True only during an active settle step or action step;
+        # False between reset() and the first apply_action() of each episode.
+        self._callbacks_enabled = True
+
+        # Optional ROS 2 TF publishing — disabled gracefully if unavailable
+        self._ros_node, self._tf_broadcaster = _try_init_tf()
+        if self._tf_broadcaster is not None:
+            print("[CartPoleEnv] ROS 2 available — publishing /tf")
+        else:
+            print("[CartPoleEnv] ROS 2 unavailable or timed out — TF disabled")
+
+        # Allow gz.transport to discover services before pinging.
+        # A freshly-created Node needs time for service advertisement to
+        # propagate; without this delay ping() fails even when the service
+        # is running.
+        time.sleep(1.0)
+
+        # Verify the WorldControl service is reachable before training starts.
+        # If this fails, Gazebo is either not running or the gz.transport
+        # namespace doesn't match (check GZ_PARTITION env var on both sides).
+        import os as _os
+        _gz_partition = _os.environ.get("GZ_PARTITION", "<not set>")
+        print(f"[CartPoleEnv] Pinging WorldControl service... (GZ_PARTITION={_gz_partition})", flush=True)
+        if not self._world_control.ping():
+            raise RuntimeError(
+                f"Cannot reach WorldControl service at "
+                f"/world/{WORLD_NAME}/control\n"
+                f"  Current GZ_PARTITION={_gz_partition}\n"
+                f"  • Is Gazebo running?  ros2 launch gazebo_gymnasium_examples cartpole.launch.py\n"
+                f"  • GZ_PARTITION must match on BOTH sides:\n"
+                f"      export GZ_PARTITION=0   (set before launching Gazebo AND this script)\n"
+                f"  • Verify the service exists:  gz service --list | grep control"
+            )
+        print("[CartPoleEnv] WorldControl service OK", flush=True)
 
     # --- gz.transport callback ---
 
     def _on_joint_state(self, msg: Model):
+        if not self._callbacks_enabled:
+            _dbg("callback DISCARDED (between episodes)")
+            return
         for joint in msg.joint:
             if joint.name == "slider_to_cart":
-                self._cart_position = joint.axis1.position
-                self._cart_velocity = joint.axis1.velocity
+                pos = joint.axis1.position
+                vel = joint.axis1.velocity
+                if math.isnan(pos) or math.isnan(vel):
+                    print(f"[WARN] NaN in slider_to_cart: pos={pos}  vel={vel}", flush=True)
+                    return
+                self._cart_position = pos
+                self._cart_velocity = vel
             elif joint.name == "cart_to_pole":
-                self._pole_angle = joint.axis1.position
-                self._pole_ang_velocity = joint.axis1.velocity
+                pos = joint.axis1.position
+                vel = joint.axis1.velocity
+                if math.isnan(pos) or math.isnan(vel):
+                    print(f"[WARN] NaN in cart_to_pole: pos={pos}  vel={vel}", flush=True)
+                    return
+                self._pole_angle = pos
+                self._pole_ang_velocity = vel
+        _dbg(f"callback  cart={self._cart_position:+.4f}  pole={self._pole_angle:+.4f}  "
+             f"cart_vel={self._cart_velocity:+.4f}  pole_vel={self._pole_ang_velocity:+.4f}")
+        self._joint_state_ready.set()
 
-    # --- GazeboEnv abstract methods ---
+    # --- TF publishing ---
+
+    def _publish_tf(self):
+        """Publish the full TF tree to /tf (no-op when ROS 2 is unavailable).
+
+        Axes match the SDF exactly:
+          - Cart slides along Y (slider_to_cart axis: 0 1 0)
+          - Pole rotates about X (cart_to_pole axis: 1 0 0)
+          - Pole hinge is at x=+0.12 m from the cart centre
+          - Pole tip is at z=+0.97 m along the pole's local Z axis
+        """
+        if self._tf_broadcaster is None:
+            return
+
+        from geometry_msgs.msg import TransformStamped
+
+        stamp = _wall_clock_stamp()
+        half = self._pole_angle / 2.0
+        transforms = []
+
+        # world → cartpole/base_link
+        # The SDF model origin is 0.10 m above the Gazebo world ground plane.
+        t_base = TransformStamped()
+        t_base.header.stamp = stamp
+        t_base.header.frame_id = "world"
+        t_base.child_frame_id = "cartpole/base_link"
+        t_base.transform.translation.z = _MODEL_ORIGIN_Z
+        t_base.transform.rotation.w = 1.0
+        transforms.append(t_base)
+
+        # cartpole/base_link → cartpole/cart
+        # Cart position is the prismatic joint displacement along Y.
+        t_cart = TransformStamped()
+        t_cart.header.stamp = stamp
+        t_cart.header.frame_id = "cartpole/base_link"
+        t_cart.child_frame_id = "cartpole/cart"
+        t_cart.transform.translation.y = float(self._cart_position)
+        t_cart.transform.rotation.w = 1.0
+        transforms.append(t_cart)
+
+        # cartpole/cart → cartpole/pole_hinge
+        # The revolute joint (cart_to_pole) is at x=+0.12 m from the cart centre.
+        t_hinge = TransformStamped()
+        t_hinge.header.stamp = stamp
+        t_hinge.header.frame_id = "cartpole/cart"
+        t_hinge.child_frame_id = "cartpole/pole_hinge"
+        t_hinge.transform.translation.x = _HINGE_OFFSET_X
+        t_hinge.transform.rotation.w = 1.0
+        transforms.append(t_hinge)
+
+        # cartpole/pole_hinge → cartpole/pole_tip
+        # Rotation: about X axis by pole_angle. Quaternion for R_x(θ):
+        #   qx = sin(θ/2),  qy = qz = 0,  qw = cos(θ/2)
+        # Translation: pole tip is 0.97 m along the pole's local Z axis,
+        # expressed in the pole_hinge frame (BEFORE rotation is applied the
+        # translation is in the child frame, so z=0.97 in pole-local space).
+        t_tip = TransformStamped()
+        t_tip.header.stamp = stamp
+        t_tip.header.frame_id = "cartpole/pole_hinge"
+        t_tip.child_frame_id = "cartpole/pole_tip"
+        t_tip.transform.translation.z = _POLE_TIP_Z
+        t_tip.transform.rotation.x = math.sin(half)
+        t_tip.transform.rotation.w = math.cos(half)
+        transforms.append(t_tip)
+
+        self._tf_broadcaster.sendTransform(transforms)
+
+    # --- GazeboEnv overrides ---
+
+    def step(self, action):
+        self.apply_action(action)               # enables callbacks, publishes command
+        ok = self._world_control.step()         # runs physics, callbacks fire here
+        if not ok:
+            print(f"[WARN] world_control.step() FAILED "
+                  f"ep={self._current_episode} step={self._current_step}", flush=True)
+        self._current_step += 1
+        obs = self.get_observation()            # waits for callback result
+        reward = self.get_reward(action)
+        terminated = self.is_terminated()
+        truncated = self.is_truncated()
+        _dbg(f"step done  step={self._current_step}  term={terminated}  trunc={truncated}")
+        return obs, reward, terminated, truncated, self.get_info()
+
+    def reset(self, seed=None, options=None):
+        # Always print so the user can confirm Gazebo is being reset each episode
+        print(f"[reset] ep={self._current_episode + 1}  triggering world_control.reset()", flush=True)
+        _dbg(f"reset() called, episode={self._current_episode}")
+        obs, info = super().reset(seed=seed, options=options)
+        # super() calls world_control.reset() — its return value is checked/warned there
+
+        # world_control.reset() resets physics (pose + velocity) but does NOT
+        # reset the JointPositionController's target.  Publish zero so the
+        # controller aims for y=0 on the next step.
+        zero = Double()
+        zero.data = 0.0
+        self._cmd_pub.publish(zero)
+
+        # The controller reads its command topic in PreUpdate, which fires at the
+        # start of each physics step.  Publishing zero and immediately calling
+        # _world_control.step() is a race: if the zero message hasn't reached
+        # Gazebo's receive buffer before PreUpdate runs, the settle step executes
+        # with the old ±0.5 m setpoint still active.  At max effort (1 000 N) the
+        # cart accelerates hard, the pole tilts past 12°, and is_terminated()
+        # fires on the very first env.step() — giving one-step episodes.
+        # A brief pause lets gz.transport flush the message before the step fires.
+        time.sleep(0.1)
+
+        # Settle step: let the controller apply the zero command for one action
+        # window and trigger a SceneBroadcaster publish so the GUI shows the
+        # upright reset state.  Enable callbacks only for this window.
+        self._callbacks_enabled = True
+        self._joint_state_ready.clear()
+        ok = self._world_control.step()
+        _dbg(f"settle step service returned {ok}")
+        fired = self._joint_state_ready.wait(timeout=_OBS_TIMEOUT_S)
+        # Always print settle result so the user can spot bad settle steps
+        # even without --debug (a bad settle is the most common root cause).
+        print(f"[settle] fired={fired}  pole={self._pole_angle:+.4f}  cart={self._cart_position:+.4f}", flush=True)
+        self._publish_tf()
+
+        # Disable callbacks before zeroing state.  Any gz.transport messages
+        # still in flight from this or a prior episode will be silently dropped
+        # until apply_action() re-enables them for the first real action step.
+        self._callbacks_enabled = False
+        obs = self.set_default_observation()
+        _dbg("reset() done, returning zeros")
+        return obs, info
 
     def apply_action(self, action: int):
+        # Re-enable callbacks first, then clear the event.  Any stale messages
+        # that sneak in between these two lines will set the event, but the
+        # clear() immediately after removes it.  Fresh callbacks from the
+        # upcoming physics step then set it correctly.
+        self._callbacks_enabled = True
+        self._joint_state_ready.clear()
         msg = Double()
         msg.data = _POS_LEFT if action == 0 else _POS_RIGHT
         self._cmd_pub.publish(msg)
+        _dbg(f"apply_action({action}) → target={msg.data:+.3f}")
 
     def get_observation(self):
+        # Wait for the callback to fire after the physics step completes.
+        fired = self._joint_state_ready.wait(timeout=_OBS_TIMEOUT_S)
+        if not fired:
+            print(f"[WARN] get_observation() TIMEOUT (no callback in {_OBS_TIMEOUT_S}s) "
+                  f"— using stale: pole={self._pole_angle:+.4f}  cart={self._cart_position:+.4f}", flush=True)
+        _dbg(f"get_observation  step={self._current_step}  fired={fired}  "
+             f"cart={self._cart_position:+.4f}  pole={self._pole_angle:+.4f}  "
+             f"cart_vel={self._cart_velocity:+.4f}  pole_vel={self._pole_ang_velocity:+.4f}")
+        self._publish_tf()
         return np.array([
             self._cart_position,
             self._cart_velocity,
@@ -107,25 +397,34 @@ class CartPoleEnv(GazeboEnv):
         return 1.0
 
     def is_terminated(self) -> bool:
-        return (
-            abs(self._pole_angle) > _MAX_POLE_ANGLE
-            or abs(self._cart_position) > _MAX_CART_POS
-        )
+        pole_bad = abs(self._pole_angle) > _MAX_POLE_ANGLE
+        cart_bad = abs(self._cart_position) > _MAX_CART_POS
+        if pole_bad or cart_bad:
+            # Always print so the user can see termination reason without --debug
+            reason = []
+            if pole_bad:
+                reason.append(f"pole={self._pole_angle:+.4f} > ±{_MAX_POLE_ANGLE:.5f}")
+            if cart_bad:
+                reason.append(f"cart={self._cart_position:+.4f} > ±{_MAX_CART_POS}")
+            print(f"[TERM] step={self._current_step}  " + "  ".join(reason), flush=True)
+        return pole_bad or cart_bad
 
     def is_truncated(self) -> bool:
         return self._current_step >= _MAX_STEPS
 
     def set_default_observation(self):
+        # After world reset, no step has occurred so no message is coming.
+        # Return zeros directly without waiting on the event.
         self._cart_position = 0.0
         self._cart_velocity = 0.0
         self._pole_angle = 0.0
         self._pole_ang_velocity = 0.0
-        return self.get_observation()
+        self._joint_state_ready.clear()
+        return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
     def get_info(self) -> dict:
         return {
             "gz_episode": self._current_episode,  # "episode" is reserved by SB3
             "gz_step": self._current_step,
-            # Required by SB3 for correct value estimates at truncation boundaries
             "TimeLimit.truncated": self.is_truncated(),
         }

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "gazebo-gymnasium"
+version = "0.1.0"
+description = "Gymnasium interface for Gazebo Sim (Harmonic)"
+readme = "gazebo_gymnasium/README.md"
+license = { text = "Apache-2.0" }
+maintainers = [{ name = "Lucas Wendland", email = "mtglucas1@gmail.com" }]
+requires-python = ">=3.10"
+
+# Core runtime dependency: only gymnasium.  gz.transport13 / gz.msgs10 ship
+# with Gazebo Harmonic and are not on PyPI, so they cannot be listed here.
+# Install Gazebo Harmonic first: https://gazebosim.org/docs/harmonic/install
+dependencies = [
+    "gymnasium>=0.29",
+]
+
+[project.optional-dependencies]
+# Install training extras: pip install "gazebo-gymnasium[training]"
+training = [
+    "stable-baselines3>=2.0",
+    "tensorboard>=2.14",
+    "torch>=2.0",
+]
+# Install ROS 2 TF extras (tf2_ros and geometry_msgs come from apt, not pip;
+# this entry documents the intent for tools like pip-audit)
+ros = [
+    "gymnasium>=0.29",
+]
+
+[project.urls]
+Repository = "https://github.com/lucawendland/gazebo_gymnasium"
+
+# ---------------------------------------------------------------------------
+# Tell setuptools where to find the Python package.
+# The ament_python package lives at gazebo_gymnasium/gazebo_gymnasium/
+# (one level down from this file), so we point find.where there.
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+where = ["gazebo_gymnasium"]
+include = ["gazebo_gymnasium*"]
+exclude = ["test*"]
