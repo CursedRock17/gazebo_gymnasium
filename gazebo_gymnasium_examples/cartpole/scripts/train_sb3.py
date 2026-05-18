@@ -99,12 +99,10 @@ def main():
     # past the 12° threshold, so episodes end sooner and more accurately.
     env = CartPoleEnv(steps_per_action=5)
 
-    # Validate the environment follows the Gymnasium interface before training
-    print("Checking environment...")
-    check_env(env, warn=True)
-    print("Environment check passed.")
-
     if args.check_only:
+        print("Checking environment...")
+        check_env(env, warn=True)
+        print("Environment check passed.")
         print("Running 5 random-action episodes...")
         for ep in range(5):
             obs, _ = env.reset()
@@ -141,7 +139,7 @@ def main():
         gamma=0.99,
         gae_lambda=0.95,
         clip_range=0.2,
-        ent_coef=0.0,
+        ent_coef=0.01,
         tensorboard_log=args.tensorboard_log,
     )
 

@@ -136,6 +136,15 @@
       <plugin filename="gz-sim-joint-position-controller-system"
               name="gz::sim::systems::JointPositionController">
         <joint_name>slider_to_cart</joint_name>
+        <!-- P=10 gives ~5 N initial force at ±0.5 m target (1 kg cart).
+             Half of classic CartPole-v1 magnitude — enough to tip the pole
+             without slamming the cart into the boundaries.
+             D=1 damps overshoot proportionally. -->
+        <p_gain>10</p_gain>
+        <d_gain>1</d_gain>
+        <i_gain>0</i_gain>
+        <cmd_max>1000</cmd_max>
+        <cmd_min>-1000</cmd_min>
       </plugin>
       <plugin filename="gz-sim-joint-state-publisher-system"
               name="gz::sim::systems::JointStatePublisher">

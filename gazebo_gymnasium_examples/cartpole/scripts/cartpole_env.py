@@ -34,7 +34,6 @@ _TF_INIT_TIMEOUT_S to initialise (e.g. slow DDS discovery).
 """
 import math
 import time
-import threading
 import concurrent.futures
 
 import numpy as np
@@ -160,23 +159,13 @@ class CartPoleEnv(GazeboEnv):
         self._cmd_node = Node()
         self._cmd_pub = self._cmd_node.advertise(_CMD_TOPIC, Double, AdvertiseMessageOptions())
 
-        # Subscriber: joint positions/velocities updated by Gazebo after each step.
-        # _joint_state_ready blocks get_observation() until fresh data arrives,
-        # preventing stale-observation bugs where we check is_terminated() against
-        # values from the previous step.
         self._state_node = Node()
-        self._joint_state_ready = threading.Event()
         self._state_node.subscribe(Model, _JOINT_STATE_TOPIC, self._on_joint_state)
 
         self._cart_position = 0.0
         self._cart_velocity = 0.0
         self._pole_angle = 0.0
         self._pole_ang_velocity = 0.0
-
-        # Gate that lets _on_joint_state discard stale callbacks from previous
-        # episodes.  Set True only during an active settle step or action step;
-        # False between reset() and the first apply_action() of each episode.
-        self._callbacks_enabled = True
 
         # Optional ROS 2 TF publishing — disabled gracefully if unavailable
         self._ros_node, self._tf_broadcaster = _try_init_tf()
@@ -185,36 +174,11 @@ class CartPoleEnv(GazeboEnv):
         else:
             print("[CartPoleEnv] ROS 2 unavailable or timed out — TF disabled")
 
-        # Allow gz.transport to discover services before pinging.
-        # A freshly-created Node needs time for service advertisement to
-        # propagate; without this delay ping() fails even when the service
-        # is running.
-        time.sleep(1.0)
-
-        # Verify the WorldControl service is reachable before training starts.
-        # If this fails, Gazebo is either not running or the gz.transport
-        # namespace doesn't match (check GZ_PARTITION env var on both sides).
-        import os as _os
-        _gz_partition = _os.environ.get("GZ_PARTITION", "<not set>")
-        print(f"[CartPoleEnv] Pinging WorldControl service... (GZ_PARTITION={_gz_partition})", flush=True)
-        if not self._world_control.ping():
-            raise RuntimeError(
-                f"Cannot reach WorldControl service at "
-                f"/world/{WORLD_NAME}/control\n"
-                f"  Current GZ_PARTITION={_gz_partition}\n"
-                f"  • Is Gazebo running?  ros2 launch gazebo_gymnasium_examples cartpole.launch.py\n"
-                f"  • GZ_PARTITION must match on BOTH sides:\n"
-                f"      export GZ_PARTITION=0   (set before launching Gazebo AND this script)\n"
-                f"  • Verify the service exists:  gz service --list | grep control"
-            )
-        print("[CartPoleEnv] WorldControl service OK", flush=True)
+        self._ping_world_control()
 
     # --- gz.transport callback ---
 
     def _on_joint_state(self, msg: Model):
-        if not self._callbacks_enabled:
-            _dbg("callback DISCARDED (between episodes)")
-            return
         for joint in msg.joint:
             if joint.name == "slider_to_cart":
                 pos = joint.axis1.position
@@ -234,7 +198,7 @@ class CartPoleEnv(GazeboEnv):
                 self._pole_ang_velocity = vel
         _dbg(f"callback  cart={self._cart_position:+.4f}  pole={self._pole_angle:+.4f}  "
              f"cart_vel={self._cart_velocity:+.4f}  pole_vel={self._pole_ang_velocity:+.4f}")
-        self._joint_state_ready.set()
+        self._count_physics_step()
 
     # --- TF publishing ---
 
@@ -305,84 +269,38 @@ class CartPoleEnv(GazeboEnv):
 
     # --- GazeboEnv overrides ---
 
-    def step(self, action):
-        self.apply_action(action)               # enables callbacks, publishes command
-        ok = self._world_control.step()         # runs physics, callbacks fire here
-        if not ok:
-            print(f"[WARN] world_control.step() FAILED "
-                  f"ep={self._current_episode} step={self._current_step}", flush=True)
-        self._current_step += 1
-        obs = self.get_observation()            # waits for callback result
-        reward = self.get_reward(action)
-        terminated = self.is_terminated()
-        truncated = self.is_truncated()
-        _dbg(f"step done  step={self._current_step}  term={terminated}  trunc={truncated}")
-        return obs, reward, terminated, truncated, self.get_info()
-
     def reset(self, seed=None, options=None):
-        # Always print so the user can confirm Gazebo is being reset each episode
         print(f"[reset] ep={self._current_episode + 1}  triggering world_control.reset()", flush=True)
         _dbg(f"reset() called, episode={self._current_episode}")
         obs, info = super().reset(seed=seed, options=options)
-        # super() calls world_control.reset() — its return value is checked/warned there
 
-        # world_control.reset() resets physics (pose + velocity) but does NOT
-        # reset the JointPositionController's target.  Publish zero so the
-        # controller aims for y=0 on the next step.
+        # Publish zero target so the position controller aims for y=0.
         zero = Double()
         zero.data = 0.0
         self._cmd_pub.publish(zero)
 
-        # The controller reads its command topic in PreUpdate, which fires at the
-        # start of each physics step.  Publishing zero and immediately calling
-        # _world_control.step() is a race: if the zero message hasn't reached
-        # Gazebo's receive buffer before PreUpdate runs, the settle step executes
-        # with the old ±0.5 m setpoint still active.  At max effort (1 000 N) the
-        # cart accelerates hard, the pole tilts past 12°, and is_terminated()
-        # fires on the very first env.step() — giving one-step episodes.
-        # A brief pause lets gz.transport flush the message before the step fires.
-        time.sleep(0.1)
+        # Brief pause lets gz.transport flush the zero command into Gazebo's
+        # receive buffer before the settle step fires.
+        time.sleep(0.05)
 
-        # Settle step: let the controller apply the zero command for one action
-        # window and trigger a SceneBroadcaster publish so the GUI shows the
-        # upright reset state.  Enable callbacks only for this window.
-        self._callbacks_enabled = True
-        self._joint_state_ready.clear()
-        ok = self._world_control.step()
-        _dbg(f"settle step service returned {ok}")
-        fired = self._joint_state_ready.wait(timeout=_OBS_TIMEOUT_S)
-        # Always print settle result so the user can spot bad settle steps
-        # even without --debug (a bad settle is the most common root cause).
-        print(f"[settle] fired={fired}  pole={self._pole_angle:+.4f}  cart={self._cart_position:+.4f}", flush=True)
+        # Settle step: advance one action window so the controller applies the
+        # zero command and the SceneBroadcaster updates the GUI.
+        self._advance_physics(self._steps_per_action)
+        print(f"[settle]  pole={self._pole_angle:+.4f}  cart={self._cart_position:+.4f}", flush=True)
         self._publish_tf()
 
-        # Disable callbacks before zeroing state.  Any gz.transport messages
-        # still in flight from this or a prior episode will be silently dropped
-        # until apply_action() re-enables them for the first real action step.
-        self._callbacks_enabled = False
         obs = self.set_default_observation()
         _dbg("reset() done, returning zeros")
         return obs, info
 
     def apply_action(self, action: int):
-        # Re-enable callbacks first, then clear the event.  Any stale messages
-        # that sneak in between these two lines will set the event, but the
-        # clear() immediately after removes it.  Fresh callbacks from the
-        # upcoming physics step then set it correctly.
-        self._callbacks_enabled = True
-        self._joint_state_ready.clear()
         msg = Double()
         msg.data = _POS_LEFT if action == 0 else _POS_RIGHT
         self._cmd_pub.publish(msg)
         _dbg(f"apply_action({action}) → target={msg.data:+.3f}")
 
     def get_observation(self):
-        # Wait for the callback to fire after the physics step completes.
-        fired = self._joint_state_ready.wait(timeout=_OBS_TIMEOUT_S)
-        if not fired:
-            print(f"[WARN] get_observation() TIMEOUT (no callback in {_OBS_TIMEOUT_S}s) "
-                  f"— using stale: pole={self._pole_angle:+.4f}  cart={self._cart_position:+.4f}", flush=True)
-        _dbg(f"get_observation  step={self._current_step}  fired={fired}  "
+        _dbg(f"get_observation  step={self._current_step}  "
              f"cart={self._cart_position:+.4f}  pole={self._pole_angle:+.4f}  "
              f"cart_vel={self._cart_velocity:+.4f}  pole_vel={self._pole_ang_velocity:+.4f}")
         self._publish_tf()
@@ -413,13 +331,10 @@ class CartPoleEnv(GazeboEnv):
         return self._current_step >= _MAX_STEPS
 
     def set_default_observation(self):
-        # After world reset, no step has occurred so no message is coming.
-        # Return zeros directly without waiting on the event.
         self._cart_position = 0.0
         self._cart_velocity = 0.0
         self._pole_angle = 0.0
         self._pole_ang_velocity = 0.0
-        self._joint_state_ready.clear()
         return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
     def get_info(self) -> dict:

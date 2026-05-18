@@ -4,16 +4,22 @@ Unit tests for CartPoleEnv.
 All gz.transport and rclpy calls are mocked so these tests run without
 Gazebo installed and without ROS 2 sourced (pure Python, no simulator).
 
+Architecture notes (new pattern):
+  - _on_joint_state() calls _count_physics_step() — no _joint_state_ready event
+  - get_observation() reads state directly — no blocking wait
+  - apply_action() just publishes — no event manipulation
+  - set_default_observation() zeros state — no event
+  - reset() calls _advance_physics() for the settle step (mocked in tests)
+
 Run with:
     python3 -m unittest test_cartpole_env -v
 """
 import os
 import sys
-import threading
 import time
 import types
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 import numpy as np
 
@@ -32,7 +38,6 @@ def _make_gz_stubs():
     double_mod = types.ModuleType("gz.msgs10.double_pb2")
     model_mod = types.ModuleType("gz.msgs10.model_pb2")
 
-    # Minimal stub classes
     class _Double:
         data = 0.0
 
@@ -55,18 +60,20 @@ _make_gz_stubs()
 
 
 # ---------------------------------------------------------------------------
-# Also stub gazebo_gymnasium so we don't need the full library installed.
+# Stub gazebo_gymnasium so we don't need the full library installed.
 # ---------------------------------------------------------------------------
 
 class _FakeGazeboEnv:
-    """Minimal stand-in for GazeboEnv base class."""
+    """Minimal stand-in for GazeboEnv — matches the new callback-counting API."""
 
     def __init__(self, world_name, obs_space, act_space, steps_per_action):
         self.observation_space = obs_space
         self.action_space = act_space
+        self._world_name = world_name
         self._world_control = MagicMock()
         self._current_step = 0
         self._current_episode = 0
+        self._steps_per_action = steps_per_action
 
     def reset(self, seed=None, options=None):
         self._world_control.reset()
@@ -76,10 +83,22 @@ class _FakeGazeboEnv:
 
     def step(self, action):
         self.apply_action(action)
-        self._world_control.step()
+        self._advance_physics()
         self._current_step += 1
         obs = self.get_observation()
         return obs, self.get_reward(action), self.is_terminated(), self.is_truncated(), self.get_info()
+
+    def _advance_physics(self, n=None):
+        return True
+
+    def _ping_world_control(self):
+        pass
+
+    def _count_physics_step(self):
+        pass
+
+    def _stop_counting(self):
+        pass
 
     def get_info(self):
         return {}
@@ -163,58 +182,66 @@ class TestJointStateCallback(unittest.TestCase):
         env._on_joint_state(_make_joint_msg(pole_pos=0.15))
         self.assertAlmostEqual(env._pole_angle, 0.15)
 
-    def test_callback_sets_ready_event(self):
+    def test_callback_updates_cart_velocity(self):
         env = _make_env()
-        env._joint_state_ready.clear()
+        env._on_joint_state(_make_joint_msg(slider_vel=0.42))
+        self.assertAlmostEqual(env._cart_velocity, 0.42)
+
+    def test_callback_updates_pole_velocity(self):
+        env = _make_env()
+        env._on_joint_state(_make_joint_msg(pole_vel=0.99))
+        self.assertAlmostEqual(env._pole_ang_velocity, 0.99)
+
+    def test_callback_calls_count_physics_step(self):
+        """_on_joint_state must call _count_physics_step() on every message."""
+        env = _make_env()
+        count_mock = MagicMock()
+        env._count_physics_step = count_mock
         env._on_joint_state(_make_joint_msg())
-        self.assertTrue(env._joint_state_ready.is_set())
+        count_mock.assert_called_once()
 
-
-class TestObservationSync(unittest.TestCase):
-    def test_get_observation_blocks_until_event(self):
-        """get_observation() must wait for _joint_state_ready before returning."""
+    def test_callback_ignores_nan_values(self):
+        """NaN values in joint state must not update internal state."""
         env = _make_env()
-        env._joint_state_ready.clear()
+        env._cart_position = 0.5
+        env._on_joint_state(_make_joint_msg(slider_pos=float("nan"), slider_vel=0.0))
+        self.assertAlmostEqual(env._cart_position, 0.5)
 
-        # Fire the callback from a background thread after a short delay
-        def _fire():
-            time.sleep(0.05)
-            env._on_joint_state(_make_joint_msg(slider_pos=0.5, pole_pos=0.1))
 
-        t = threading.Thread(target=_fire)
-        t.start()
-
+class TestGetObservation(unittest.TestCase):
+    def test_get_observation_returns_current_state(self):
+        """get_observation() reads state directly — no blocking."""
+        env = _make_env()
+        env._cart_position = 0.5
+        env._cart_velocity = 0.1
+        env._pole_angle = 0.2
+        env._pole_ang_velocity = 0.3
         obs = env.get_observation()
-        t.join()
-
-        self.assertAlmostEqual(obs[0], 0.5, places=5)  # cart_position
-        self.assertAlmostEqual(obs[2], 0.1, places=5)  # pole_angle
+        np.testing.assert_array_almost_equal(obs, [0.5, 0.1, 0.2, 0.3], decimal=5)
 
     def test_get_observation_returns_float32(self):
         env = _make_env()
-        env._joint_state_ready.set()
         obs = env.get_observation()
         self.assertEqual(obs.dtype, np.float32)
 
     def test_get_observation_shape(self):
         env = _make_env()
-        env._joint_state_ready.set()
         obs = env.get_observation()
         self.assertEqual(obs.shape, (4,))
 
+    def test_get_observation_does_not_block(self):
+        """get_observation() must return immediately — no event wait."""
+        env = _make_env()
+        start = time.time()
+        env.get_observation()
+        elapsed = time.time() - start
+        self.assertLess(elapsed, 0.05)
+
 
 class TestApplyAction(unittest.TestCase):
-    def test_apply_action_clears_event(self):
-        """apply_action must clear the ready event before the physics step."""
-        env = _make_env()
-        env._joint_state_ready.set()  # pretend a previous step set it
-        env.apply_action(0)
-        self.assertFalse(env._joint_state_ready.is_set())
-
     def test_apply_action_publishes_left(self):
         env = _make_env()
         env.apply_action(0)
-        # _cmd_pub is a MagicMock; just assert publish was called
         env._cmd_pub.publish.assert_called_once()
         call_arg = env._cmd_pub.publish.call_args[0][0]
         self.assertLess(call_arg.data, 0)  # left → negative Y position
@@ -229,25 +256,24 @@ class TestApplyAction(unittest.TestCase):
 
 class TestReset(unittest.TestCase):
     def test_reset_publishes_zero_command(self):
-        """reset() must zero the controller target after world_control.reset()."""
+        """reset() must publish data=0.0 to centre the cart after world reset."""
         env = _make_env()
-        env._joint_state_ready.set()  # prevent blocking in settle step wait
+        env._cmd_pub.publish.reset_mock()
         env.reset()
-        # The last publish call after world_control.reset() should be data=0
-        last_call = env._cmd_pub.publish.call_args[0][0]
-        self.assertEqual(last_call.data, 0.0)
+        # First publish in reset() is the zero command
+        first_call_arg = env._cmd_pub.publish.call_args_list[0][0][0]
+        self.assertEqual(first_call_arg.data, 0.0)
 
-    def test_reset_triggers_settle_step(self):
-        """reset() must call world_control.step() once for the settle step."""
+    def test_reset_calls_advance_physics_for_settle(self):
+        """reset() must call _advance_physics() to apply the zero command."""
         env = _make_env()
-        env._joint_state_ready.set()
-        env._world_control.step.reset_mock()
+        advance_mock = MagicMock(return_value=True)
+        env._advance_physics = advance_mock
         env.reset()
-        env._world_control.step.assert_called_once()
+        advance_mock.assert_called_once()
 
     def test_reset_returns_zeros_observation(self):
         env = _make_env()
-        env._joint_state_ready.set()
         obs, info = env.reset()
         np.testing.assert_array_equal(obs, np.zeros(4, dtype=np.float32))
 
@@ -288,20 +314,24 @@ class TestDefaultObservation(unittest.TestCase):
         obs = env.set_default_observation()
         np.testing.assert_array_equal(obs, np.zeros(4, dtype=np.float32))
 
-    def test_set_default_observation_clears_event(self):
+    def test_set_default_observation_zeros_internal_state(self):
         env = _make_env()
-        env._joint_state_ready.set()
+        env._cart_position = 1.0
+        env._cart_velocity = 2.0
+        env._pole_angle = 0.5
+        env._pole_ang_velocity = 0.3
         env.set_default_observation()
-        self.assertFalse(env._joint_state_ready.is_set())
+        self.assertEqual(env._cart_position, 0.0)
+        self.assertEqual(env._cart_velocity, 0.0)
+        self.assertEqual(env._pole_angle, 0.0)
+        self.assertEqual(env._pole_ang_velocity, 0.0)
 
     def test_set_default_observation_does_not_block(self):
-        """Must return immediately even when no joint-state message is coming."""
+        """Must return immediately."""
         env = _make_env()
-        env._joint_state_ready.clear()
         start = time.time()
         env.set_default_observation()
         elapsed = time.time() - start
-        # Should return in well under the _OBS_TIMEOUT_S window
         self.assertLess(elapsed, 0.05)
 
 

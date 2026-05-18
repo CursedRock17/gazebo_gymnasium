@@ -1,0 +1,175 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="reacher">
+
+    <physics name="fast" type="ignored">
+      <max_step_size>0.01</max_step_size>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"           name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"     name="gz::sim::systems::UserCommands"/>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!--
+      Reacher: 2D arm mounted to the world at (0,0,0.01) — XY plane.
+      Two links connected in-plane (Z-axis rotation).
+      Target is a separate small sphere that the env repositions via UserCommands.
+
+      Joint structure (from reacher.xml):
+        body0 at (0,0,0.01): joint0 (Z-hinge, unlimited) — shoulder
+        body1 at (0.1,0,0) from body0: joint1 (Z-hinge, ±3 rad) — elbow
+        fingertip at (0.11,0,0) from body1
+
+      Gear=200 for both joints.
+    -->
+    <model name="reacher">
+      <pose>0 0 0 0 0 0</pose>
+
+      <!-- Fixed mount (root) anchored to world -->
+      <link name="mount">
+        <inertial>
+          <mass>1</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.001</izz></inertia>
+        </inertial>
+        <!-- Small cylinder as visual anchor -->
+        <visual name="mount_visual">
+          <pose>0 0 0.01 0 0 0</pose>
+          <geometry><cylinder><radius>0.011</radius><length>0.02</length></cylinder></geometry>
+          <material><diffuse>0.9 0.4 0.6 1</diffuse><ambient>0.9 0.4 0.6 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- Fix mount to world -->
+      <joint name="mount_fixed" type="fixed">
+        <parent>world</parent>
+        <child>mount</child>
+      </joint>
+
+      <!-- Shoulder joint: unlimited Z rotation -->
+      <joint name="joint0" type="revolute">
+        <pose relative_to="mount">0 0 0.01 0 0 0</pose>
+        <parent>mount</parent>
+        <child>body0</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e16</lower>
+            <upper>1e16</upper>
+            <effort>200</effort>
+            <velocity>100</velocity>
+          </limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+
+      <!-- Link 0: first arm segment, horizontal, L=0.1 m along X -->
+      <link name="body0">
+        <pose relative_to="joint0">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0.05 0 0 0 0 0</pose>
+          <mass>0.035</mass>
+          <inertia><ixx>0.000029</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.000029</iyy><iyz>0</iyz><izz>0.0000058</izz></inertia>
+        </inertial>
+        <collision name="body0_collision">
+          <pose>0.05 0 0 0 1.5708 0</pose>
+          <geometry><capsule><radius>0.01</radius><length>0.1</length></capsule></geometry>
+        </collision>
+        <visual name="body0_visual">
+          <pose>0.05 0 0 0 1.5708 0</pose>
+          <geometry><capsule><radius>0.01</radius><length>0.1</length></capsule></geometry>
+          <material><diffuse>0.0 0.4 0.6 1</diffuse><ambient>0.0 0.4 0.6 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- Elbow joint: ±3 rad Z rotation -->
+      <joint name="joint1" type="revolute">
+        <pose relative_to="body0">0.1 0 0 0 0 0</pose>
+        <parent>body0</parent>
+        <child>body1</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-3.0</lower>
+            <upper>3.0</upper>
+            <effort>200</effort>
+            <velocity>100</velocity>
+          </limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+
+      <!-- Link 1: second arm segment, L=0.1 m along X, plus fingertip -->
+      <link name="body1">
+        <pose relative_to="joint1">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0.05 0 0 0 0 0</pose>
+          <mass>0.035</mass>
+          <inertia><ixx>0.000029</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.000029</iyy><iyz>0</iyz><izz>0.0000058</izz></inertia>
+        </inertial>
+        <collision name="body1_collision">
+          <pose>0.05 0 0 0 1.5708 0</pose>
+          <geometry><capsule><radius>0.01</radius><length>0.1</length></capsule></geometry>
+        </collision>
+        <visual name="body1_visual">
+          <pose>0.05 0 0 0 1.5708 0</pose>
+          <geometry><capsule><radius>0.01</radius><length>0.1</length></capsule></geometry>
+          <material><diffuse>0.0 0.4 0.6 1</diffuse><ambient>0.0 0.4 0.6 1</ambient></material>
+        </visual>
+        <!-- Fingertip sphere at (0.11,0,0) from body1 link origin -->
+        <visual name="fingertip_visual">
+          <pose>0.11 0 0 0 0 0</pose>
+          <geometry><sphere><radius>0.01</radius></sphere></geometry>
+          <material><diffuse>0.0 0.8 0.6 1</diffuse><ambient>0.0 0.8 0.6 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- Force controllers: /model/reacher/joint/{joint0,joint1}/cmd_force -->
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>joint0</joint_name>
+        <use_force_commands>true</use_force_commands>
+        <cmd_max>200</cmd_max><cmd_min>-200</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>joint1</joint_name>
+        <use_force_commands>true</use_force_commands>
+        <cmd_max>200</cmd_max><cmd_min>-200</cmd_min>
+      </plugin>
+
+      <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+        <joint_name>joint0</joint_name>
+        <joint_name>joint1</joint_name>
+      </plugin>
+    </model>
+
+    <!--
+      Target: a small sphere that the env moves to random positions.
+      The env updates its position by sending a model_state via gz.transport.
+      Starts at (0.1, -0.1, 0.01) — the MuJoCo initial target position.
+    -->
+    <model name="reacher_target">
+      <pose>0.1 -0.1 0.01 0 0 0</pose>
+      <link name="target_link">
+        <inertial>
+          <mass>0.001</mass>
+          <inertia><ixx>0.000001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.000001</iyy><iyz>0</iyz><izz>0.000001</izz></inertia>
+        </inertial>
+        <visual name="target_visual">
+          <geometry><sphere><radius>0.009</radius></sphere></geometry>
+          <material><diffuse>0.9 0.2 0.2 1</diffuse><ambient>0.9 0.2 0.2 1</ambient></material>
+        </visual>
+        <!-- No collision — target is visual-only -->
+      </link>
+    </model>
+
+  </world>
+</sdf>

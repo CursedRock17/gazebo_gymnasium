@@ -4,8 +4,9 @@ Unit tests for GazeboEnv base class.
 gz.transport13 and gz.msgs10 are mocked at the sys.modules level so these
 tests run without a Gazebo installation (pure Python, no simulator required).
 """
+import threading
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
@@ -70,8 +71,8 @@ class TestGazeboEnvReset(unittest.TestCase):
         mock_wc_cls.return_value = MagicMock()
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
         env.reset()
-        env.step(0)
-        env.step(1)
+        # Advance step counter manually (step() would block waiting for physics)
+        env._current_step = 2
         env.reset()
         self.assertEqual(env._current_episode, 2)
         self.assertEqual(env._current_step, 0)
@@ -79,27 +80,46 @@ class TestGazeboEnvReset(unittest.TestCase):
 
 @patch("gazebo_gymnasium.gazebo_env.WorldController")
 class TestGazeboEnvStep(unittest.TestCase):
-    def test_step_calls_world_step(self, mock_wc_cls):
+    def test_step_calls_unpause_and_pause(self, mock_wc_cls):
+        """step() must unpause before counting and pause after."""
         mock_wc = MagicMock()
         mock_wc_cls.return_value = mock_wc
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
         env.reset()
+
+        # Fire physics event from a background thread so _advance_physics() completes.
+        def _fire():
+            import time
+            time.sleep(0.01)
+            with env._phys_lock:
+                env._phys_steps = env._phys_target
+                env._phys_event.set()
+
+        t = threading.Thread(target=_fire, daemon=True)
+        t.start()
         env.step(0)
-        mock_wc.step.assert_called_once()
+        t.join(timeout=2.0)
+
+        mock_wc.unpause.assert_called()
+        mock_wc.pause.assert_called()
 
     def test_step_increments_step_count(self, mock_wc_cls):
         mock_wc_cls.return_value = MagicMock()
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
         env.reset()
-        env.step(0)
-        env.step(1)
+
+        with patch.object(env, '_advance_physics', return_value=True):
+            env.step(0)
+            env.step(1)
         self.assertEqual(env._current_step, 2)
 
     def test_step_returns_five_tuple(self, mock_wc_cls):
         mock_wc_cls.return_value = MagicMock()
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
         env.reset()
-        obs, reward, terminated, truncated, info = env.step(0)
+
+        with patch.object(env, '_advance_physics', return_value=True):
+            obs, reward, terminated, truncated, info = env.step(0)
         self.assertEqual(obs.shape, (4,))
         self.assertIsInstance(reward, float)
         self.assertIsInstance(terminated, bool)
@@ -123,6 +143,65 @@ class TestGazeboEnvSpaces(unittest.TestCase):
         mock_wc_cls.return_value = MagicMock()
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
         self.assertEqual(env.get_info(), {})
+
+
+@patch("gazebo_gymnasium.gazebo_env.WorldController")
+class TestPhysicsCountingMechanism(unittest.TestCase):
+    """Test the thread-safe physics step counting used by _advance_physics()."""
+
+    def test_count_physics_step_increments_when_counting(self, mock_wc_cls):
+        mock_wc_cls.return_value = MagicMock()
+        env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
+        with env._phys_lock:
+            env._phys_counting = True
+            env._phys_target = 5
+        env._count_physics_step()
+        with env._phys_lock:
+            self.assertEqual(env._phys_steps, 1)
+
+    def test_count_physics_step_ignored_when_not_counting(self, mock_wc_cls):
+        mock_wc_cls.return_value = MagicMock()
+        env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
+        with env._phys_lock:
+            env._phys_counting = False
+            env._phys_steps = 0
+        env._count_physics_step()
+        with env._phys_lock:
+            self.assertEqual(env._phys_steps, 0)
+
+    def test_count_physics_step_sets_event_at_target(self, mock_wc_cls):
+        mock_wc_cls.return_value = MagicMock()
+        env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
+        with env._phys_lock:
+            env._phys_counting = True
+            env._phys_steps = 0
+            env._phys_target = 1
+            env._phys_event.clear()
+        env._count_physics_step()
+        self.assertTrue(env._phys_event.is_set())
+
+    def test_ping_world_control_calls_ping(self, mock_wc_cls):
+        """_ping_world_control() must call WorldController.ping()."""
+        mock_wc = MagicMock()
+        mock_wc.ping.return_value = True
+        mock_wc_cls.return_value = mock_wc
+
+        with patch("gazebo_gymnasium.gazebo_env.time") as mock_time:
+            env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
+            env._ping_world_control()
+
+        mock_wc.ping.assert_called_once()
+
+    def test_ping_world_control_raises_on_failure(self, mock_wc_cls):
+        """_ping_world_control() must raise RuntimeError if ping fails."""
+        mock_wc = MagicMock()
+        mock_wc.ping.return_value = False
+        mock_wc_cls.return_value = mock_wc
+
+        with patch("gazebo_gymnasium.gazebo_env.time"):
+            env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
+            with self.assertRaises(RuntimeError):
+                env._ping_world_control()
 
 
 if __name__ == "__main__":

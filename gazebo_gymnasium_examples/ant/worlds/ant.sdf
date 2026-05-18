@@ -1,0 +1,407 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="ant">
+
+    <physics name="fast" type="ignored">
+      <max_step_size>0.01</max_step_size>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"           name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-contact-system"           name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"     name="gz::sim::systems::UserCommands"/>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <material><ambient>0.8 0.9 0.8 1</ambient><diffuse>0.8 0.9 0.8 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      Ant model (port of ant.xml).
+      Torso at z=0.75 m (matching MuJoCo init).
+
+      Joint ordering (matching MJCF actuator order):
+        hip_4, ankle_4  (right back)
+        hip_1, ankle_1  (front left)
+        hip_2, ankle_2  (front right)
+        hip_3, ankle_3  (back left)
+
+      All gear=150, ctrlrange=[-1,1] → max 150 N·m per joint.
+
+      Diagonal capsule poses: pitch=π/2 (1.5708) lays capsule in XY plane,
+      yaw rotates it to the correct diagonal direction.
+        front-left  (+x,+y): yaw=+0.7854
+        front-right (-x,+y): yaw=+2.3562
+        back-left   (-x,-y): yaw=-2.3562
+        right-back  (+x,-y): yaw=-0.7854
+
+      Ankle joint initial positions set to mid-range to avoid limit violations.
+    -->
+    <model name="ant">
+      <pose>0 0 0.75 0 0 0</pose>
+
+      <!--
+        Torso: sphere r=0.25, plus 4 rigid diagonal "coxa" geoms
+        connecting torso to hip joints (density=5 kg/m³ per MuJoCo).
+        Combined mass ≈ 0.484 kg.
+      -->
+      <link name="torso">
+        <inertial>
+          <mass>0.484</mass>
+          <inertia>
+            <ixx>0.020</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.020</iyy><iyz>0</iyz>
+            <izz>0.020</izz>
+          </inertia>
+        </inertial>
+        <!-- Torso body sphere -->
+        <collision name="torso_collision">
+          <geometry><sphere><radius>0.25</radius></sphere></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="torso_visual">
+          <geometry><sphere><radius>0.25</radius></sphere></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+        <!-- Rigid coxa geoms: short diagonal capsules from torso to each hip -->
+        <collision name="coxa_1_collision">
+          <pose>0.1 0.1 0 0 1.5708 0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+        </collision>
+        <visual name="coxa_1_visual">
+          <pose>0.1 0.1 0 0 1.5708 0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+        <collision name="coxa_2_collision">
+          <pose>-0.1 0.1 0 0 1.5708 2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+        </collision>
+        <visual name="coxa_2_visual">
+          <pose>-0.1 0.1 0 0 1.5708 2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+        <collision name="coxa_3_collision">
+          <pose>-0.1 -0.1 0 0 1.5708 -2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+        </collision>
+        <visual name="coxa_3_visual">
+          <pose>-0.1 -0.1 0 0 1.5708 -2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+        <collision name="coxa_4_collision">
+          <pose>0.1 -0.1 0 0 1.5708 -0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+        </collision>
+        <visual name="coxa_4_visual">
+          <pose>0.1 -0.1 0 0 1.5708 -0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- =================================================================
+           Front-left leg: hip_1 at (0.2,0.2,0), ankle_1 at (0.2,0.2,0) from hip
+           ================================================================= -->
+      <joint name="hip_1" type="revolute">
+        <pose relative_to="torso">0.2 0.2 0 0 0 0</pose>
+        <parent>torso</parent><child>hip_1_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-0.5236</lower><upper>0.5236</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+      <link name="hip_1_link">
+        <pose relative_to="hip_1">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0.1 0.1 0 0 0 0</pose>
+          <mass>0.0392</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.0003</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>0.1 0.1 0 0 1.5708 0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>0.1 0.1 0 0 1.5708 0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <joint name="ankle_1" type="revolute">
+        <pose relative_to="hip_1_link">0.2 0.2 0 0 0 0</pose>
+        <parent>hip_1_link</parent><child>ankle_1_link</child>
+        <axis>
+          <xyz>-0.7071 0.7071 0</xyz>
+          <limit><lower>0.5236</lower><upper>1.2217</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+          <initial_position>0.8727</initial_position>
+        </axis>
+      </joint>
+      <link name="ankle_1_link">
+        <pose relative_to="ankle_1">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0.2 0.2 0 0 0 0</pose>
+          <mass>0.0676</mass>
+          <inertia><ixx>0.003</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.003</iyy><iyz>0</iyz><izz>0.0005</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>0.2 0.2 0 0 1.5708 0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>0.2 0.2 0 0 1.5708 0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- =================================================================
+           Front-right leg: hip_2 at (-0.2,0.2,0)
+           ================================================================= -->
+      <joint name="hip_2" type="revolute">
+        <pose relative_to="torso">-0.2 0.2 0 0 0 0</pose>
+        <parent>torso</parent><child>hip_2_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-0.5236</lower><upper>0.5236</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+      <link name="hip_2_link">
+        <pose relative_to="hip_2">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>-0.1 0.1 0 0 0 0</pose>
+          <mass>0.0392</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.0003</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>-0.1 0.1 0 0 1.5708 2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>-0.1 0.1 0 0 1.5708 2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <joint name="ankle_2" type="revolute">
+        <pose relative_to="hip_2_link">-0.2 0.2 0 0 0 0</pose>
+        <parent>hip_2_link</parent><child>ankle_2_link</child>
+        <axis>
+          <xyz>0.7071 0.7071 0</xyz>
+          <limit><lower>-1.2217</lower><upper>-0.5236</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+          <initial_position>-0.8727</initial_position>
+        </axis>
+      </joint>
+      <link name="ankle_2_link">
+        <pose relative_to="ankle_2">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>-0.2 0.2 0 0 0 0</pose>
+          <mass>0.0676</mass>
+          <inertia><ixx>0.003</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.003</iyy><iyz>0</iyz><izz>0.0005</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>-0.2 0.2 0 0 1.5708 2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>-0.2 0.2 0 0 1.5708 2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- =================================================================
+           Back-left leg: hip_3 at (-0.2,-0.2,0)
+           ================================================================= -->
+      <joint name="hip_3" type="revolute">
+        <pose relative_to="torso">-0.2 -0.2 0 0 0 0</pose>
+        <parent>torso</parent><child>hip_3_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-0.5236</lower><upper>0.5236</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+      <link name="hip_3_link">
+        <pose relative_to="hip_3">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>-0.1 -0.1 0 0 0 0</pose>
+          <mass>0.0392</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.0003</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>-0.1 -0.1 0 0 1.5708 -2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>-0.1 -0.1 0 0 1.5708 -2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <joint name="ankle_3" type="revolute">
+        <pose relative_to="hip_3_link">-0.2 -0.2 0 0 0 0</pose>
+        <parent>hip_3_link</parent><child>ankle_3_link</child>
+        <axis>
+          <xyz>-0.7071 0.7071 0</xyz>
+          <limit><lower>-1.2217</lower><upper>-0.5236</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+          <initial_position>-0.8727</initial_position>
+        </axis>
+      </joint>
+      <link name="ankle_3_link">
+        <pose relative_to="ankle_3">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>-0.2 -0.2 0 0 0 0</pose>
+          <mass>0.0676</mass>
+          <inertia><ixx>0.003</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.003</iyy><iyz>0</iyz><izz>0.0005</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>-0.2 -0.2 0 0 1.5708 -2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>-0.2 -0.2 0 0 1.5708 -2.3562</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- =================================================================
+           Right-back leg: hip_4 at (0.2,-0.2,0)
+           ================================================================= -->
+      <joint name="hip_4" type="revolute">
+        <pose relative_to="torso">0.2 -0.2 0 0 0 0</pose>
+        <parent>torso</parent><child>hip_4_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-0.5236</lower><upper>0.5236</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+        </axis>
+      </joint>
+      <link name="hip_4_link">
+        <pose relative_to="hip_4">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0.1 -0.1 0 0 0 0</pose>
+          <mass>0.0392</mass>
+          <inertia><ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.001</iyy><iyz>0</iyz><izz>0.0003</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>0.1 -0.1 0 0 1.5708 -0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>0.1 -0.1 0 0 1.5708 -0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.2</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <joint name="ankle_4" type="revolute">
+        <pose relative_to="hip_4_link">0.2 -0.2 0 0 0 0</pose>
+        <parent>hip_4_link</parent><child>ankle_4_link</child>
+        <axis>
+          <xyz>0.7071 0.7071 0</xyz>
+          <limit><lower>0.5236</lower><upper>1.2217</upper><effort>150</effort><velocity>100</velocity></limit>
+          <dynamics><damping>1.0</damping></dynamics>
+          <initial_position>0.8727</initial_position>
+        </axis>
+      </joint>
+      <link name="ankle_4_link">
+        <pose relative_to="ankle_4">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0.2 -0.2 0 0 0 0</pose>
+          <mass>0.0676</mass>
+          <inertia><ixx>0.003</ixx><ixy>0</ixy><ixz>0</ixz><iyy>0.003</iyy><iyz>0</iyz><izz>0.0005</izz></inertia>
+        </inertial>
+        <collision name="col">
+          <pose>0.2 -0.2 0 0 1.5708 -0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <surface><friction><ode><mu>1.0</mu></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <pose>0.2 -0.2 0 0 1.5708 -0.7854</pose>
+          <geometry><capsule><radius>0.08</radius><length>0.45</length></capsule></geometry>
+          <material><diffuse>0.8 0.6 0.4 1</diffuse><ambient>0.8 0.6 0.4 1</ambient></material>
+        </visual>
+      </link>
+
+      <!-- Force controllers (gear=150 each) -->
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>hip_1</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>ankle_1</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>hip_2</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>ankle_2</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>hip_3</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>ankle_3</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>hip_4</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+      <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
+        <joint_name>ankle_4</joint_name><use_force_commands>true</use_force_commands>
+        <cmd_max>150</cmd_max><cmd_min>-150</cmd_min>
+      </plugin>
+
+      <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+        <joint_name>hip_1</joint_name><joint_name>ankle_1</joint_name>
+        <joint_name>hip_2</joint_name><joint_name>ankle_2</joint_name>
+        <joint_name>hip_3</joint_name><joint_name>ankle_3</joint_name>
+        <joint_name>hip_4</joint_name><joint_name>ankle_4</joint_name>
+      </plugin>
+    </model>
+
+  </world>
+</sdf>
