@@ -16,9 +16,11 @@ install(DIRECTORY cartpole/launch/
 install(PROGRAMS
   cartpole/scripts/cartpole_env.py
   cartpole/scripts/cartpole_continuous_env.py
+  cartpole/scripts/cartpole_fixture_env.py
   cartpole/scripts/train_sb3.py
   cartpole/scripts/train_a2c.py
   cartpole/scripts/train_custom_ppo.py
+  cartpole/scripts/train_fixture.py
   DESTINATION lib/${PROJECT_NAME}/cartpole
 )
 # ros2 run entry points — delegate to the scripts in the cartpole/ subdirectory

@@ -16,10 +16,11 @@ class GazeboEnv(gym.Env, ABC):
     """
     Base class for Gymnasium environments backed by a running Gazebo simulation.
 
-    Architecture: Gazebo runs continuously at real_time_update_rate=0 (unlimited
-    speed).  Each env.step() publishes actions then counts N joint-state callbacks
-    from the physics engine before reading state — zero blocking WorldControl
-    service calls in the hot path.
+    Architecture: each env.step() sends WorldControl(multi_step=N) so Gazebo
+    runs exactly N physics ticks then auto-pauses.  The base class counts N
+    joint-state callbacks to detect when those ticks complete, then reads state.
+    This is deterministic: exactly N ticks per step, Gazebo always paused between
+    steps, no race between unpause/pause commands.
 
     Subclasses MUST call _count_physics_step() from their joint-state subscriber
     callback on every message.  The base-class step() handles the rest.
@@ -28,8 +29,8 @@ class GazeboEnv(gym.Env, ABC):
     all subscriptions are established.  This verifies connectivity and surfaces a
     clear error if GZ_PARTITION is wrong or Gazebo is not running.
 
-    Episode resets use a blocking WorldControl.reset() service call, which is
-    acceptable since resets are rare (once per episode, not every step).
+    Episode resets use a blocking WorldControl.reset(pause=True) service call so
+    Gazebo is paused at the initial state before reset() returns.
     """
 
     metadata = {"render_modes": ["human"], "render_fps": 30}
@@ -69,11 +70,15 @@ class GazeboEnv(gym.Env, ABC):
                 self._phys_event.set()
 
     def _advance_physics(self, n: int = None) -> bool:
-        """Unpause Gazebo, count n joint-state callbacks, then pause again.
+        """Step the simulation by n physics ticks and wait for their callbacks.
 
-        Gazebo is paused between calls so no physics runs during Python
-        processing.  unpause/pause return immediately (they just set a flag in
-        Gazebo), so the only blocking wait is the event for the N callbacks.
+        WorldController.step(n) sends WorldControl(multi_step=n).  Gazebo runs
+        exactly n physics ticks and then auto-pauses — no explicit pause() call
+        is needed.  The only blocking wait in this call is the threading.Event
+        for the N joint-state callbacks to arrive over DDS.
+
+        This is more deterministic than unpause/pause because Gazebo guarantees
+        exactly N steps regardless of callback delivery timing.
         """
         if n is None:
             n = self._steps_per_action
@@ -81,9 +86,8 @@ class GazeboEnv(gym.Env, ABC):
             self._phys_target = self._phys_steps + n
             self._phys_event.clear()
             self._phys_counting = True
-        self._world_control.unpause()
+        self._world_control.step(n)  # tells Gazebo to run n steps, then auto-pause
         ok = self._phys_event.wait(timeout=_STEP_TIMEOUT_S)
-        self._world_control.pause()
         with self._phys_lock:
             self._phys_counting = False
         if not ok:

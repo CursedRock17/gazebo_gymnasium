@@ -1,0 +1,126 @@
+<?xml version="1.0"?>
+<!--
+  CartPole world for FixtureEnv (headless RL training).
+
+  Differences from cartpole.sdf:
+    - No JointPositionController: force applied directly via ECM (set_force)
+    - No JointStatePublisher: state read directly via ECM (position/velocity)
+    - No SceneBroadcaster: headless, no GUI connection needed
+    - No UserCommands: training script drives physics via server.run()
+    - No Contact system: CartPole termination is position-checked in Python
+
+  Only the Physics plugin is required — gz.sim8.TestFixture owns the server.
+-->
+<sdf version="1.8">
+  <world name="cartpole">
+
+    <physics name="fast" type="ignored">
+      <!-- 10 ms step at unlimited speed — ECM reads are synchronous, so the
+           real-time factor is irrelevant; wall-clock speed is maximised. -->
+      <max_step_size>0.01</max_step_size>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <model name="cartpole">
+      <pose>0 0 0.10 0 0 0</pose>
+      <self_collide>true</self_collide>
+
+      <link name="slider">
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.00854</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.00667</iyy><iyz>0</iyz>
+            <izz>0.00854</izz>
+          </inertia>
+        </inertial>
+        <collision name="slider_collision">
+          <geometry><box><size>0.03 8 0.03</size></box></geometry>
+        </collision>
+      </link>
+
+      <joint name="slider_to_cart" type="prismatic">
+        <pose relative_to="slider">0 0 0 0 0 0</pose>
+        <parent>slider</parent>
+        <child>cart</child>
+        <axis>
+          <xyz>0 1 0</xyz>
+          <limit>
+            <lower>-4</lower><upper>4</upper>
+            <effort>1000</effort><velocity>100</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+
+      <link name="cart">
+        <pose relative_to="slider_to_cart">0 0 0 0 0 0</pose>
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.00854</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.00667</iyy><iyz>0</iyz>
+            <izz>0.00854</izz>
+          </inertia>
+        </inertial>
+        <collision name="cart_collision">
+          <geometry><box><size>0.2 0.25 0.2</size></box></geometry>
+        </collision>
+      </link>
+
+      <joint name="cart_to_pole" type="revolute">
+        <pose relative_to="cart">0.12 0 0 0 0 0</pose>
+        <parent>cart</parent>
+        <child>pole</child>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>-1e16</lower><upper>1e16</upper>
+            <effort>1000</effort><velocity>8</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+
+      <link name="pole">
+        <pose relative_to="cart_to_pole">0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0.47 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.08363</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.08347</iyy><iyz>0</iyz>
+            <izz>0.000433</izz>
+          </inertia>
+        </inertial>
+        <collision name="pole_collision">
+          <pose>0 0 0.47 0 0 0</pose>
+          <geometry><box><size>0.04 0.06 1</size></box></geometry>
+        </collision>
+      </link>
+
+      <!-- No JointPositionController: we apply force directly in pre_update.
+           No JointStatePublisher: we read state directly in post_update. -->
+
+    </model>
+
+  </world>
+</sdf>

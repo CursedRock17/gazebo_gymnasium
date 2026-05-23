@@ -9,7 +9,7 @@ Architecture notes (new pattern):
   - get_observation() reads state directly — no blocking wait
   - apply_action() just publishes — no event manipulation
   - set_default_observation() zeros state — no event
-  - reset() calls _advance_physics() for the settle step (mocked in tests)
+  - reset() does NOT call _advance_physics() (settle step removed; reset sends pause=True)
 
 Run with:
     python3 -m unittest test_cartpole_env -v
@@ -264,13 +264,18 @@ class TestReset(unittest.TestCase):
         first_call_arg = env._cmd_pub.publish.call_args_list[0][0][0]
         self.assertEqual(first_call_arg.data, 0.0)
 
-    def test_reset_calls_advance_physics_for_settle(self):
-        """reset() must call _advance_physics() to apply the zero command."""
+    def test_reset_does_not_call_advance_physics(self):
+        """reset() must NOT call _advance_physics() (settle step removed).
+
+        WorldController.reset() now sends pause=True so Gazebo is deterministically
+        paused at the initial state.  No settle step is needed — the first env.step()
+        will run physics from the clean reset state.
+        """
         env = _make_env()
         advance_mock = MagicMock(return_value=True)
         env._advance_physics = advance_mock
         env.reset()
-        advance_mock.assert_called_once()
+        advance_mock.assert_not_called()
 
     def test_reset_returns_zeros_observation(self):
         env = _make_env()

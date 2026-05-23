@@ -2,14 +2,23 @@
 
 A library that connects [Farama Gymnasium](https://gymnasium.farama.org/) to [Gazebo Sim](https://gazebosim.org/docs/harmonic/getstarted/), enabling reinforcement learning agents to train directly inside a physics simulation.
 
-The RL training loop runs as a **standalone Python process** and drives Gazebo externally over `gz.transport` — no custom Gazebo plugins required. Any Gymnasium-compatible RL library (SB3, RLlib, CleanRL, custom) works out of the box.
+Two base classes are provided depending on your speed and setup requirements:
+
+| Class | Approach | Speed | Requirements |
+|---|---|---|---|
+| `GazeboEnv` | External Gazebo process driven over `gz.transport` (DDS) | Good | ROS 2 + Gazebo + active Gazebo process |
+| `FixtureEnv` | Gazebo **embedded in the training process** via `gz.sim8.TestFixture` | **Fastest** | Gazebo Harmonic only (no ROS 2, no separate process) |
+
+Any Gymnasium-compatible RL library (SB3, RLlib, CleanRL, custom) works with either base class.
 
 ---
 
 ## Architecture
 
+### GazeboEnv (IPC mode)
+
 ```
-┌──────────────────────────────────┐       gz.transport (ZeroMQ)
+┌──────────────────────────────────┐       gz.transport (ZeroMQ/DDS)
 │         Gazebo Server            │ ◄─────────────────────────────┐
 │  JointPositionController         │ ◄── action commands (topics)  │
 │  JointStatePublisher             │ ──► state observations        │
@@ -18,13 +27,31 @@ The RL training loop runs as a **standalone Python process** and drives Gazebo e
                                                                    │
 ┌──────────────────────────────────┐                               │
 │   Your training script           │ ──────────────────────────────┘
-│   (any RL library)               │
 │     env = CartPoleEnv()          │
 │     model.learn(env)             │
 └──────────────────────────────────┘
 ```
 
-Gazebo steps physics exactly N ticks per `env.step()` call via the `WorldControl` service, then pauses — giving the training loop deterministic control over simulation time.
+Physics steps N ticks per `env.step()` via the `WorldControl` service.  Requires launching a separate Gazebo process and sourcing ROS 2.
+
+### FixtureEnv (in-process mode)
+
+```
+┌──────────────────────────────────────────────────────┐
+│               Your training script                   │
+│                                                      │
+│   env = CartPoleFixtureEnv(sdf_path)                 │
+│   # gz.sim8.TestFixture is embedded here             │
+│   model.learn(env)   ──► env.step()                  │
+│                              │                       │
+│                    server.run(True, N, False)         │
+│                              │                       │
+│                   pre_update  ── apply force (ECM)   │
+│                   post_update ── read state (ECM)    │
+└──────────────────────────────────────────────────────┘
+```
+
+The training process IS the Gazebo server.  Zero IPC, zero DDS, zero threads.  `server.run(True, N, False)` blocks for exactly N physics steps — the fastest possible simulation loop.
 
 ---
 
@@ -32,8 +59,8 @@ Gazebo steps physics exactly N ticks per `env.step()` call via the `WorldControl
 
 | Package | Type | Purpose |
 |---|---|---|
-| `gazebo_gymnasium` | ament_python | Core library: `GazeboEnv` base class + `WorldController` |
-| `gazebo_gymnasium_examples` | ament_cmake | Example environments (CartPole, ...) |
+| `gazebo_gymnasium` | ament_python | Core library: `GazeboEnv`, `FixtureEnv`, `WorldController`, `PPO` |
+| `gazebo_gymnasium_examples` | ament_cmake | Example environments (CartPole) |
 
 ---
 
@@ -154,22 +181,55 @@ tensorboard --logdir ./tb_logs
 
 ---
 
+## Running the CartPole Example — Fixture Mode (Fastest, No ROS 2)
+
+`FixtureEnv` embeds Gazebo directly in the training process.  No separate Gazebo process, no ROS 2 sourcing, no `gz.transport` — just Python and Gazebo Harmonic.
+
+**Requirements (fixture mode only):**
+- Gazebo Harmonic installed (`sudo apt install gz-harmonic`)
+- `gz.sim8` Python bindings on the path (included with Gazebo Harmonic at `/usr/local/lib/python`)
+- Python 3.12 with `gymnasium` and `stable-baselines3` (or the built-in `gazebo_gymnasium.ppo`)
+
+```bash
+# Activate the venv (no ROS 2 source needed)
+source ~/gym_ws/venv/bin/activate
+source ~/gym_ws/install/setup.bash
+
+# Run directly (SDF path auto-resolved relative to the script)
+python3 gazebo_gymnasium_examples/cartpole/scripts/train_fixture.py
+
+# Explicit options
+python3 train_fixture.py \
+    --sdf gazebo_gymnasium_examples/cartpole/worlds/cartpole_fixture.sdf \
+    --timesteps 200000 \
+    --steps-per-action 5 \
+    --device cuda
+```
+
+The script tries SB3 PPO first; if SB3 is not installed, it falls back to the built-in `gazebo_gymnasium.ppo` (PyTorch only).
+
+> **Note:** `LD_LIBRARY_PATH` must include `/usr/local/lib` for gz.sim8 shared libraries.
+> The `train_fixture.py` script sets this automatically if not already set.
+
+---
+
 ## Adding a New Environment
+
+### Option A — GazeboEnv (IPC, requires running Gazebo process)
 
 1. Create a subdirectory under `gazebo_gymnasium_examples/`:
    ```
    gazebo_gymnasium_examples/
    └── my_robot/
-       ├── models/my_robot/model.config + model.sdf
-       ├── worlds/my_robot.sdf
-       ├── scripts/my_robot_env.py      ← subclass GazeboEnv
-       ├── scripts/train_sb3.py         ← or any RL library
+       ├── worlds/my_robot.sdf             ← include JointPositionController + JointStatePublisher
+       ├── scripts/my_robot_env.py         ← subclass GazeboEnv
+       ├── scripts/train_sb3.py            ← or any RL library
        └── launch/my_robot.launch.py
    ```
 
-2. Add three install blocks to `gazebo_gymnasium_examples/CMakeLists.txt` following the CartPole pattern.
+2. Add install blocks to `gazebo_gymnasium_examples/CMakeLists.txt` following the CartPole pattern.
 
-3. Implement `MyRobotEnv(GazeboEnv)` by overriding the six abstract methods:
+3. Subclass `GazeboEnv` and implement:
 
    | Method | Purpose |
    |---|---|
@@ -179,6 +239,31 @@ tensorboard --logdir ./tb_logs
    | `is_terminated()` | True if episode ended (failure/success) |
    | `is_truncated()` | True if episode hit time limit |
    | `set_default_observation()` | Reset internal state, return initial obs |
+
+### Option B — FixtureEnv (in-process, fastest, no ROS 2 needed)
+
+1. Create a stripped SDF (no JointPositionController, no JointStatePublisher, only Physics plugin):
+   ```
+   gazebo_gymnasium_examples/
+   └── my_robot/
+       ├── worlds/my_robot_fixture.sdf     ← Physics plugin only
+       └── scripts/my_robot_fixture_env.py ← subclass FixtureEnv
+   ```
+
+2. Subclass `FixtureEnv` and implement:
+
+   | Method | Purpose |
+   |---|---|
+   | `configure(ecm)` | Look up joint entities; call `enable_position_check(ecm, True)` |
+   | `apply_action_to_ecm(ecm, action)` | Call `joint.set_force(ecm, [f])` |
+   | `apply_reset(ecm)` | Call `joint.reset_position(ecm, [0])` + `reset_velocity` |
+   | `read_observation(ecm)` | Call `joint.position(ecm)` + `velocity(ecm)` → float32 array |
+   | `get_reward(action)` | Compute step reward |
+   | `is_terminated()` | True if episode ended |
+   | `is_truncated()` | True if episode hit time limit |
+   | `set_default_observation()` | Zero internal state, return initial obs |
+
+   See `cartpole_fixture_env.py` for a complete reference implementation.
 
 ---
 

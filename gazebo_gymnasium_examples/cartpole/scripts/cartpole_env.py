@@ -62,14 +62,18 @@ _CMD_TOPIC = f"/model/{MODEL_NAME}/joint/slider_to_cart/0/cmd_pos"
 _JOINT_STATE_TOPIC = f"/world/{WORLD_NAME}/model/{MODEL_NAME}/joint_state"
 
 # Target positions for the joint position controller.
-# Values are in metres along the Y axis.  ±0.5 m keeps the cart well inside
-# the ±2.4 m termination bound while producing a meaningful control impulse.
-_POS_LEFT = -0.5
-_POS_RIGHT = 0.5
+# Values are in metres along the Y axis.  ±0.75 m gives 1.5× the old ±0.5 m
+# amplitude, producing a faster cart movement while staying inside the ±1.2 m
+# termination bound.
+_POS_LEFT = -0.75
+_POS_RIGHT = 0.75
 
-# Episode termination thresholds (matching CartPole-v1)
-_MAX_CART_POS = 2.4      # metres (measured along Y)
-_MAX_POLE_ANGLE = 0.20944  # ~12 degrees in radians (rotation about X)
+# Episode termination thresholds.
+# ±1.2 m cart position matches the tighter CartPole-v1 variant.
+# ±12.5° pole angle (~0.218 rad) is the classic failure threshold.
+# 500 steps = episode success (truncation).
+_MAX_CART_POS = 1.2
+_MAX_POLE_ANGLE = 12.5 * math.pi / 180   # ≈ 0.21817 rad
 _MAX_STEPS = 500
 
 # How long to wait for a fresh joint-state message after each physics step.
@@ -166,6 +170,13 @@ class CartPoleEnv(GazeboEnv):
         self._cart_velocity = 0.0
         self._pole_angle = 0.0
         self._pole_ang_velocity = 0.0
+
+        # Print GZ_PARTITION so the user can verify it matches in both terminals.
+        # If unset, gz.transport defaults to hostname:username — both sides must
+        # be on the same machine with the same user for the default to work.
+        import os as _os
+        gz_part = _os.environ.get("GZ_PARTITION", "<not set — using hostname:username default>")
+        print(f"[CartPoleEnv] GZ_PARTITION={gz_part}", flush=True)
 
         # Optional ROS 2 TF publishing — disabled gracefully if unavailable
         self._ros_node, self._tf_broadcaster = _try_init_tf()
@@ -272,23 +283,23 @@ class CartPoleEnv(GazeboEnv):
     def reset(self, seed=None, options=None):
         print(f"[reset] ep={self._current_episode + 1}  triggering world_control.reset()", flush=True)
         _dbg(f"reset() called, episode={self._current_episode}")
+        # super().reset() calls WorldController.reset() which resets all entities
+        # AND leaves Gazebo paused (pause=True is set in the service request).
+        # This guarantees a deterministic, paused initial state before we return.
         obs, info = super().reset(seed=seed, options=options)
 
-        # Publish zero target so the position controller aims for y=0.
+        # Publish zero target so the position controller aims for y=0 on the
+        # first step after reset.  No settle step needed: Gazebo is paused and
+        # the controller will process this command when physics resumes in step().
         zero = Double()
         zero.data = 0.0
         self._cmd_pub.publish(zero)
 
-        # Brief pause lets gz.transport flush the zero command into Gazebo's
-        # receive buffer before the settle step fires.
+        # Brief sleep lets gz.transport flush the zero command into Gazebo's
+        # receive buffer before the first step fires.
         time.sleep(0.05)
 
-        # Settle step: advance one action window so the controller applies the
-        # zero command and the SceneBroadcaster updates the GUI.
-        self._advance_physics(self._steps_per_action)
-        print(f"[settle]  pole={self._pole_angle:+.4f}  cart={self._cart_position:+.4f}", flush=True)
         self._publish_tf()
-
         obs = self.set_default_observation()
         _dbg("reset() done, returning zeros")
         return obs, info

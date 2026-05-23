@@ -80,8 +80,8 @@ class TestGazeboEnvReset(unittest.TestCase):
 
 @patch("gazebo_gymnasium.gazebo_env.WorldController")
 class TestGazeboEnvStep(unittest.TestCase):
-    def test_step_calls_unpause_and_pause(self, mock_wc_cls):
-        """step() must unpause before counting and pause after."""
+    def test_step_calls_world_controller_step(self, mock_wc_cls):
+        """_advance_physics() must call WorldController.step(n) for multi-step."""
         mock_wc = MagicMock()
         mock_wc_cls.return_value = mock_wc
         env = _ConcreteEnv("world", OBS_SPACE, ACT_SPACE)
@@ -100,8 +100,8 @@ class TestGazeboEnvStep(unittest.TestCase):
         env.step(0)
         t.join(timeout=2.0)
 
-        mock_wc.unpause.assert_called()
-        mock_wc.pause.assert_called()
+        # _advance_physics uses multi_step via WorldController.step(n)
+        mock_wc.step.assert_called()
 
     def test_step_increments_step_count(self, mock_wc_cls):
         mock_wc_cls.return_value = MagicMock()

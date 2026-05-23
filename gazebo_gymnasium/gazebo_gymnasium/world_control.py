@@ -37,17 +37,50 @@ class WorldController:
                 time.sleep(_RETRY_DELAY_S)
         return False
 
+    def step(self, n: int) -> bool:
+        """Advance the simulation by exactly n physics steps, then auto-pause.
+
+        Sends WorldControl(pause=True, multi_step=n).  The pause=True flag is
+        REQUIRED — Gazebo's ProcessWorldControl calls SetPaused(control.pause)
+        FIRST, then checks `if (Paused() && multiStep > 0)`.  If pause is omitted
+        it defaults to False in proto3, which unpauses the simulation and makes
+        the multi_step condition fail, leaving the sim running freely.
+
+        With pause=True, Gazebo:
+          1. Sets paused=True (condition met)
+          2. Adds n to pendingSimIterations
+          3. Internally unpauses to run exactly n steps
+          4. Auto-pauses after the nth step via pendingSimIterations countdown
+
+        Source: gz-sim SimulationRunner.cc ProcessWorldControl()
+        """
+        req = self._WorldControl()
+        req.pause = True   # required: makes Paused() True before multi_step check
+        req.multi_step = n  # Gazebo then internally unpauses and runs n steps
+        result, _ = self._node.request(
+            self._service, req, self._WorldControl, self._Boolean, _TIMEOUT_MS
+        )
+        return result
+
     def ping(self) -> bool:
         """Verify connectivity by pausing Gazebo.  Leaves the sim PAUSED so that
-        _advance_physics() in GazeboEnv controls all stepping via unpause/pause."""
+        _advance_physics() in GazeboEnv controls all stepping via step()."""
         req = self._WorldControl()
         req.pause = True
         return self._request(req)
 
     def reset(self) -> bool:
-        """Reset all entities to initial state (blocking — episode boundary only)."""
+        """Reset all entities to initial state and leave Gazebo PAUSED.
+
+        Sending both reset.all and pause=True in a single service call ensures
+        Gazebo is deterministically paused at the initial state when this call
+        returns.  Without pause=True, Gazebo may start running immediately after
+        reset, causing joint-state callbacks to fire before _advance_physics()
+        starts counting — leading to timeouts and stale observations.
+        """
         req = self._WorldControl()
         req.reset.all = True
+        req.pause = True  # critical: leave sim paused so step counting starts clean
         result = self._request(req)
         if not result:
             print(f"[WARN] WorldController.reset() failed after {_MAX_RETRIES} attempts"
