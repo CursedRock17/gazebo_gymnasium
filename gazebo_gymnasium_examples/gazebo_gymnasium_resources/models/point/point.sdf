@@ -1,0 +1,192 @@
+<?xml version="1.0"?>
+<sdf version='1.11'>
+  <model name='point'>
+    <link name='anchor'>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.9999999999999999e-06</mass>
+        <inertia>
+          <ixx>2.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>2.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>2.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='ballx' type='prismatic'>
+      <pose relative_to='anchor'>0 0 0 0 0 0</pose>
+      <parent>anchor</parent>
+      <child>carrier_x</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-5</lower>
+          <upper>5</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='carrier_x'>
+      <pose relative_to='ballx'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='bally' type='prismatic'>
+      <pose relative_to='carrier_x'>0 0 0 0 0 0</pose>
+      <parent>carrier_x</parent>
+      <child>carrier_y</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-5</lower>
+          <upper>5</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='carrier_y'>
+      <pose relative_to='bally'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='rot' type='revolute'>
+      <pose relative_to='carrier_y'>0 0 0 0 0 0</pose>
+      <parent>carrier_y</parent>
+      <child>body</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-inf</lower>
+          <upper>inf</upper>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='body'>
+      <pose relative_to='rot'>0 0 0 0 0 0</pose>
+      <inertial>
+        <!-- Original converter put 563.6 kg here (MJCF density=100 over an
+             0.524 m³ sphere should have been ~52 kg, but the converter
+             cascaded inertia from the phantom carrier links). Override to
+             a unit mass so the slide joints respond to ±20 N forces with
+             a ~0.5 s time constant instead of the 9+ minute timeconstant
+             the original mass would have given. -->
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.1</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.1</iyy>
+          <iyz>0</iyz>
+          <izz>0.1</izz>
+        </inertia>
+      </inertial>
+      <collision name='body_fixed_joint_lump__torso_collision'>
+        <pose>0 0 0.5 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.5</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='body_fixed_joint_lump__torso_visual'>
+        <pose>0 0 0.5 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.5</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='body_fixed_joint_lump__torso_collision_1'>
+        <pose>0.59999999999999998 0 0.5 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1 0.20000000000000001 0.20000000000000001</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name='body_fixed_joint_lump__torso_1_visual'>
+        <pose>0.59999999999999998 0 0.5 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1 0.20000000000000001 0.20000000000000001</size>
+          </box>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+
+    <!-- Apply joint-force plugins drive ballx + bally (the two prismatic
+         slides) from /env/action. Action [-1, 1] × GEAR=20 = ±20 N drive
+         force. With the body's 563 kg mass and damping=1, that gives
+         a terminal velocity around 0.04 m/s which works for the small
+         arena. -->
+    <plugin
+      filename="gz-sim-apply-joint-force-system"
+      name="gz::sim::systems::ApplyJointForce">
+      <joint_name>ballx</joint_name>
+    </plugin>
+    <plugin
+      filename="gz-sim-apply-joint-force-system"
+      name="gz::sim::systems::ApplyJointForce">
+      <joint_name>bally</joint_name>
+    </plugin>
+    <plugin
+      filename="gz-sim-joint-state-publisher-system"
+      name="gz::sim::systems::JointStatePublisher">
+      <joint_name>ballx</joint_name>
+      <joint_name>bally</joint_name>
+    </plugin>
+</model>
+</sdf>

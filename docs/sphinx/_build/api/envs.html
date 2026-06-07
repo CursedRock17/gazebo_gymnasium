@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gazebo_gymnasium_bridge.envs &mdash; Gazebo Gymnasium 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=86f27845" />
+
+  
+  
+        <script src="../_static/jquery.js?v=8dae8fb0"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Gazebo Gymnasium
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">gazebo_gymnasium_bridge.envs</a><ul>
+<li><a class="reference internal" href="#module-gazebo_gymnasium_bridge.envs.cartpole">CartPole</a><ul>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv</span></code></a><ul>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.close"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.close()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.metadata"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.metadata</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.render"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.render()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.reset"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.reset()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.step"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.step()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-gazebo_gymnasium_bridge.envs">Module index</a><ul>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv</span></code></a><ul>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.close"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.close()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.metadata"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.metadata</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.render"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.render()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.reset"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.reset()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.step"><code class="docutils literal notranslate"><span class="pre">GazeboCartPoleEnv.step()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Gazebo Gymnasium</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">gazebo_gymnasium_bridge.envs</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/envs.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="gazebo-gymnasium-bridge-envs">
+<h1>gazebo_gymnasium_bridge.envs<a class="headerlink" href="#gazebo-gymnasium-bridge-envs" title="Link to this heading"></a></h1>
+<p>Gymnasium <code class="docutils literal notranslate"><span class="pre">Env</span></code> subclasses that drive a running Gazebo world via gz-transport.</p>
+<section id="module-gazebo_gymnasium_bridge.envs.cartpole">
+<span id="cartpole"></span><h2>CartPole<a class="headerlink" href="#module-gazebo_gymnasium_bridge.envs.cartpole" title="Link to this heading"></a></h2>
+<p>GazeboCartPoleEnv — plain Gymnasium env that talks to a running gz sim world.</p>
+<p>Usage (near-identical to MuJoCo):</p>
+<blockquote>
+<div><p>import gymnasium as gym
+from gazebo_gymnasium_bridge.envs import GazeboCartPoleEnv</p>
+<p>env = GazeboCartPoleEnv()
+obs, info = env.reset()
+for _ in range(1000):</p>
+<blockquote>
+<div><p>action = env.action_space.sample()
+obs, reward, terminated, truncated, info = env.step(action)
+if terminated or truncated:</p>
+<blockquote>
+<div><p>obs, info = env.reset()</p>
+</div></blockquote>
+</div></blockquote>
+<p>env.close()</p>
+</div></blockquote>
+<dl class="simple">
+<dt>The world (with the CartPoleSyncGate plugin) must be running. Launch it via:</dt><dd><p>ros2 launch gazebo_gymnasium_bringup cartpole.launch.py</p>
+</dd>
+<dt>Environment variables:</dt><dd><p>GAZEBO_GYM_VERBOSE=true       — emit a per-step debug line
+GAZEBO_GYM_VERBOSE_EVERY=N    — when verbose, only print every Nth step</p>
+</dd>
+</dl>
+<dl class="py class">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">gazebo_gymnasium_bridge.envs.cartpole.</span></span><span class="sig-name descname"><span class="pre">GazeboCartPoleEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Env</span></code></a></p>
+<p>Standalone Gymnasium env for Gazebo CartPole. No plugin code on the agent
+side — communicates with the gz-sim sync-gate plugin via two topics:</p>
+<blockquote>
+<div><p>publishes  /env/action  (Float_V, one element)
+subscribes /env/state   (Float_V, four sensor values)</p>
+</div></blockquote>
+<p><cite>step()</cite> publishes the action and blocks on the next /env/state callback.
+The plugin only publishes state once per frame_skip ticks, so each step
+waits for one full physics window before returning.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.close" title="Link to this definition"></a></dt>
+<dd><p>Nothing to clean up — transport nodes shut down on GC.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'render_fps':</span> <span class="pre">30,</span> <span class="pre">'render_modes':</span> <span class="pre">[]}</span></em><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.metadata" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.render">
+<span class="sig-name descname"><span class="pre">render</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.render"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.render" title="Link to this definition"></a></dt>
+<dd><p>gz sim handles rendering; nothing to do here. To get a rendered
+window, run <cite>gz sim</cite> with the GUI (default behavior of the launch file).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.reset" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.step" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-gazebo_gymnasium_bridge.envs">
+<span id="module-index"></span><h2>Module index<a class="headerlink" href="#module-gazebo_gymnasium_bridge.envs" title="Link to this heading"></a></h2>
+<p>Gymnasium env classes that talk to a running gz sim world.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">gazebo_gymnasium_bridge.envs.</span></span><span class="sig-name descname"><span class="pre">GazeboCartPoleEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://gymnasium.farama.org/api/env/#gymnasium.Env" title="(in Gymnasium)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Env</span></code></a></p>
+<p>Standalone Gymnasium env for Gazebo CartPole. No plugin code on the agent
+side — communicates with the gz-sim sync-gate plugin via two topics:</p>
+<blockquote>
+<div><p>publishes  /env/action  (Float_V, one element)
+subscribes /env/state   (Float_V, four sensor values)</p>
+</div></blockquote>
+<p><cite>step()</cite> publishes the action and blocks on the next /env/state callback.
+The plugin only publishes state once per frame_skip ticks, so each step
+waits for one full physics window before returning.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.close" title="Link to this definition"></a></dt>
+<dd><p>Nothing to clean up — transport nodes shut down on GC.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'render_fps':</span> <span class="pre">30,</span> <span class="pre">'render_modes':</span> <span class="pre">[]}</span></em><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.metadata" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.render">
+<span class="sig-name descname"><span class="pre">render</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.render"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.render" title="Link to this definition"></a></dt>
+<dd><p>gz sim handles rendering; nothing to do here. To get a rendered
+window, run <cite>gz sim</cite> with the GUI (default behavior of the launch file).</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.reset" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/envs/cartpole.html#GazeboCartPoleEnv.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.envs.GazeboCartPoleEnv.step" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Lucas Wendland.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

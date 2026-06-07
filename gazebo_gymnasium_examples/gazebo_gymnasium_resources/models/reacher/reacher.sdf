@@ -1,0 +1,310 @@
+<?xml version="1.0"?>
+<sdf version='1.11'>
+  <model name='reacher'>
+    <link name='base'>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.0030599999999999998</mass>
+        <inertia>
+          <ixx>1e-08</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1e-08</iyy>
+          <iyz>0</iyz>
+          <izz>1e-08</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_fixed_joint_lump__root_collision'>
+        <pose>0 0 0.01 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.010999999999999999</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='base_fixed_joint_lump__root_visual'>
+        <pose>0 0 0.01 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.010999999999999999</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='base_fixed_joint_lump__sideE_collision_1'>
+        <pose>0.29999999999999999 0 0.01 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='base_fixed_joint_lump__sideE_1_visual'>
+        <pose>0.29999999999999999 0 0.01 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='base_fixed_joint_lump__sideN_collision_2'>
+        <pose>0 0.29999999999999999 0.01 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='base_fixed_joint_lump__sideN_2_visual'>
+        <pose>0 0.29999999999999999 0.01 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='base_fixed_joint_lump__sideS_collision_3'>
+        <pose>0 -0.29999999999999999 0.01 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='base_fixed_joint_lump__sideS_3_visual'>
+        <pose>0 -0.29999999999999999 0.01 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='base_fixed_joint_lump__sideW_collision_4'>
+        <pose>-0.29999999999999999 0 0.01 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='base_fixed_joint_lump__sideW_4_visual'>
+        <pose>-0.29999999999999999 0 0.01 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='base_fixed_joint_lump__target_collision_5'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.0089999999999999993</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='base_fixed_joint_lump__target_5_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.0089999999999999993</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint0' type='revolute'>
+      <pose relative_to='base'>0 0 0.01 0 0 0</pose>
+      <parent>base</parent>
+      <child>arm0</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-inf</lower>
+          <upper>inf</upper>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='arm0'>
+      <pose relative_to='joint0'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.049998595545068962 0 0 0 0 0</pose>
+        <mass>0.035601000000000001</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>4.0003499929777239e-05</iyy>
+          <iyz>0</iyz>
+          <izz>4.0003499929777239e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name='arm0_fixed_joint_lump__body0_collision'>
+        <pose>0.050000000000000003 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.01</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='arm0_fixed_joint_lump__body0_visual'>
+        <pose>0.050000000000000003 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.01</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint1' type='revolute'>
+      <pose relative_to='arm0'>0.10000000000000001 0 0 0 0 0</pose>
+      <parent>arm0</parent>
+      <child>arm1</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-3</lower>
+          <upper>3</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='arm1'>
+      <pose relative_to='joint1'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.056316755045110703 0 0 0 0 0</pose>
+        <mass>0.039791</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>5.3499783619411422e-05</iyy>
+          <iyz>0</iyz>
+          <izz>5.3499783619411422e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name='arm1_fixed_joint_lump__body1_collision'>
+        <pose>0.050000000000000003 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.01</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='arm1_fixed_joint_lump__body1_visual'>
+        <pose>0.050000000000000003 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.01</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='arm1_fixed_joint_lump__fingertip_collision_1'>
+        <pose>0.11 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.01</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='arm1_fixed_joint_lump__fingertip_1_visual'>
+        <pose>0.11 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.01</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+
+    <!-- Apply joint-force plugins drive joint0 and joint1 from /env/action.
+         Gear = 200 in the original MJCF — the env class scales [-1, 1]
+         action up by GEAR before publishing the force command. -->
+    <plugin
+      filename="gz-sim-apply-joint-force-system"
+      name="gz::sim::systems::ApplyJointForce">
+      <joint_name>joint0</joint_name>
+    </plugin>
+    <plugin
+      filename="gz-sim-apply-joint-force-system"
+      name="gz::sim::systems::ApplyJointForce">
+      <joint_name>joint1</joint_name>
+    </plugin>
+    <plugin
+      filename="gz-sim-joint-state-publisher-system"
+      name="gz::sim::systems::JointStatePublisher">
+      <joint_name>joint0</joint_name>
+      <joint_name>joint1</joint_name>
+    </plugin>
+</model>
+</sdf>

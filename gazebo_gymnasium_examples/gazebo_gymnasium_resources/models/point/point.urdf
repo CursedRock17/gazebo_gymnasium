@@ -1,0 +1,92 @@
+<?xml version="1.0"?>
+<robot name="point">
+	<link name="link1_1">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="link1_2">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="link1_3">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="link1_4">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="torso">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="563.59878" />
+			<inertia ixx="93.93313" ixy="0" ixz="0" iyy="167.20097" iyz="0" izz="167.20097" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.50000" />
+			<geometry>
+				<sphere radius="0.50000" />
+			</geometry>
+		</collision>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.60000 0.00000 0.50000" />
+			<geometry>
+				<box size="1.00000 0.20000 0.20000" />
+			</geometry>
+		</collision>
+	</link>
+	<joint name="ballx" type="prismatic">
+		<parent link="link1_1" />
+		<child link="link1_2" />
+		<limit effort="0.00000" lower="1.00000" upper="0.00000" velocity="0.00000" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="1.00000 0.00000 0.00000" />
+	</joint>
+	<joint name="bally" type="prismatic">
+		<parent link="link1_2" />
+		<child link="link1_3" />
+		<limit effort="0.00000" lower="1.00000" upper="0.00000" velocity="0.00000" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 1.00000 0.00000" />
+	</joint>
+	<joint name="rot" type="continuous">
+		<parent link="link1_3" />
+		<child link="link1_4" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 1.00000" />
+	</joint>
+	<joint name="jointfix_0_4" type="fixed">
+		<parent link="link1_4" />
+		<child link="torso" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+<link name="floor">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<geometry>
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_floor" type="fixed"><parent link="link1_1" /><child link="floor" /></joint></robot>

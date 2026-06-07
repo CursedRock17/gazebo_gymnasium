@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<sdf version='1.11'>
+  <model name='inverted_pendulum'>
+    <joint name='world_to_rail' type='fixed'>
+      <pose relative_to='__model__'>0 0 0 0 0 0</pose>
+      <parent>world</parent>
+      <child>rail</child>
+    </joint>
+    <link name='rail'>
+      <pose relative_to='world_to_rail'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.0001</mass>
+        <inertia>
+          <ixx>9.9999999999999995e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>9.9999999999999995e-07</iyy>
+          <iyz>0</iyz>
+          <izz>9.9999999999999995e-07</izz>
+        </inertia>
+      </inertial>
+      <collision name='rail_collision'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='rail_visual'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>2</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.37500003 0.37500003 0.875 1</diffuse>
+          <ambient>0.37500003 0.37500003 0.875 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name='slider' type='prismatic'>
+      <pose relative_to='rail'>0 0 0 0 0 0</pose>
+      <parent>rail</parent>
+      <child>cart</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-1</lower>
+          <upper>1</upper>
+          <effort>100</effort>
+          <velocity>10</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='cart'>
+      <pose relative_to='slider'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>10.47198</mass>
+        <inertia>
+          <ixx>0.069809999999999997</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.17452999999999999</iyy>
+          <iyz>0</iyz>
+          <izz>0.17452999999999999</izz>
+        </inertia>
+      </inertial>
+      <collision name='cart_collision'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.10000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='cart_visual'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.10000000000000001</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.875 0.875 0 1</diffuse>
+          <ambient>0.875 0.875 0 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name='hinge' type='revolute'>
+      <pose relative_to='cart'>0 0 0 0 0 0</pose>
+      <parent>cart</parent>
+      <child>pole</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.5708</lower>
+          <upper>1.5708</upper>
+          <effort>100</effort>
+          <velocity>10</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='pole'>
+      <pose relative_to='hinge'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.00050000000000000001 0 0.29999999999999999 0 0 0</pose>
+        <mass>5.0185899999999997</mass>
+        <inertia>
+          <ixx>0.20787</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.20796000000000001</iyy>
+          <iyz>0</iyz>
+          <izz>0.0081300000000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='pole_collision'>
+        <pose>0.00050000000000000001 0 0.29999999999999999 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.049000000000000002</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='pole_visual'>
+        <pose>0.00050000000000000001 0 0.29999999999999999 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.049000000000000002</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0 0.875 0.875 1</diffuse>
+          <ambient>0 0.875 0.875 1</ambient>
+        </material>
+      </visual>
+    </link>
+
+    <!-- Apply scalar force commands directly on the slider joint.
+         InvertedPendulum-v5's actuator is a `motor` in MJCF; ApplyJointForce
+         is the closest gz-sim analog. Subscribes to
+         /model/inverted_pendulum/joint/slider/cmd_force (Double). -->
+    <plugin
+      filename="gz-sim-apply-joint-force-system"
+      name="gz::sim::systems::ApplyJointForce">
+      <joint_name>slider</joint_name>
+    </plugin>
+
+    <!-- Publish joint positions + velocities for the sync-gate plugin. -->
+    <plugin
+      filename="gz-sim-joint-state-publisher-system"
+      name="gz::sim::systems::JointStatePublisher">
+      <joint_name>slider</joint_name>
+      <joint_name>hinge</joint_name>
+    </plugin>
+  </model>
+</sdf>

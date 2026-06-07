@@ -1,0 +1,313 @@
+<?xml version="1.0" ?>
+<!-- Generated using onshape-to-robot -->
+<!-- Onshape https://cad.onshape.com/documents/0ed9296ff390f80515613843/w/35d084064c575592900375b7/e/9a4ccac3dc7cdd259f95a2dc -->
+<robot name="rover_project">
+  <!-- Link base_link -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="-0.00237104 0.0277886 -0.0201836" rpy="0 0 0"/>
+      <mass value="0.353116"/>
+      <inertia ixx="0.00151318" ixy="3.15767e-05" ixz="4.16765e-06" iyy="0.000366641" iyz="-9.9849e-05" izz="0.00182412"/>
+    </inertial>
+    <!-- Part left_motor -->
+    <visual>
+      <origin xyz="0.0160863 -0.0852797 0.272765" rpy="-4.78784e-16 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/left_motor.stl"/>
+      </geometry>
+      <material name="left_motor_material">
+        <color rgba="0.647059 0.647059 0.647059 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.0160863 -0.0852797 0.272765" rpy="-4.78784e-16 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/left_motor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part base_plate -->
+    <visual>
+      <origin xyz="-0.0886915 -0.18808 -0.0273587" rpy="0 -0 -1.5708"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/base_plate.stl"/>
+      </geometry>
+      <material name="base_plate_material">
+        <color rgba="0.917647 0.917647 0.917647 0.3"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0886915 -0.18808 -0.0273587" rpy="0 -0 -1.5708"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/base_plate.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part front_wheel_upper_joint -->
+    <visual>
+      <origin xyz="-0.473714 0.0946882 -0.0468587" rpy="3.14159 -0 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel_upper_joint.stl"/>
+      </geometry>
+      <material name="front_wheel_upper_joint_material">
+        <color rgba="0.498039 0.498039 0.498039 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.473714 0.0946882 -0.0468587" rpy="3.14159 -0 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel_upper_joint.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part front_wheel_bracket -->
+    <visual>
+      <origin xyz="-0.472714 -0.220152 -0.0468587" rpy="0 -0 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel_bracket.stl"/>
+      </geometry>
+      <material name="front_wheel_bracket_material">
+        <color rgba="0.101961 0.101961 0.101961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.472714 -0.220152 -0.0468587" rpy="0 -0 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel_bracket.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part left_motor_bracket -->
+    <visual>
+      <origin xyz="-0.148629 0.205404 -0.0273587" rpy="3.14159 -1.50383e-32 2.56739e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/left_motor_bracket.stl"/>
+      </geometry>
+      <material name="left_motor_bracket_material">
+        <color rgba="0.352941 0.34902 0.34902 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.148629 0.205404 -0.0273587" rpy="3.14159 -1.50383e-32 2.56739e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/left_motor_bracket.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part battery -->
+    <visual>
+      <origin xyz="-0.124871 0.0875749 -0.0243587" rpy="0 -0 -1.5708"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/battery.stl"/>
+      </geometry>
+      <material name="battery_material">
+        <color rgba="0.0117647 0.505882 0.905882 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.124871 0.0875749 -0.0243587" rpy="0 -0 -1.5708"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/battery.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part esp32 -->
+    <visual>
+      <origin xyz="0.119292 0.0944044 -0.0213587" rpy="0 -0 4.78784e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/esp32.stl"/>
+      </geometry>
+      <material name="esp32_material">
+        <color rgba="0.262745 0.282353 0.301961 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.119292 0.0944044 -0.0213587" rpy="0 -0 4.78784e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/esp32.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part motor_controller -->
+    <visual>
+      <origin xyz="0.20396 0.300238 -0.0213587" rpy="0 -0 4.78784e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/motor_controller.stl"/>
+      </geometry>
+      <material name="motor_controller_material">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.20396 0.300238 -0.0213587" rpy="0 -0 4.78784e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/motor_controller.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part right_motor -->
+    <visual>
+      <origin xyz="-0.0190726 0.115532 0.272765" rpy="3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/right_motor.stl"/>
+      </geometry>
+      <material name="right_motor_material">
+        <color rgba="0.647059 0.647059 0.647059 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="-0.0190726 0.115532 0.272765" rpy="3.14159 1.5708 0"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/right_motor.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part voltage_regulator -->
+    <visual>
+      <origin xyz="0.26251 0.228404 -0.0213587" rpy="0 -0 4.78784e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/voltage_regulator.stl"/>
+      </geometry>
+      <material name="voltage_regulator_material">
+        <color rgba="0.0862745 0.317647 0.690196 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.26251 0.228404 -0.0213587" rpy="0 -0 4.78784e-16"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/voltage_regulator.stl"/>
+      </geometry>
+    </collision>
+    <!-- Part right_motor_bracket -->
+    <visual>
+      <origin xyz="0.145642 0.00584812 -0.0273587" rpy="3.14159 3.25008e-48 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/right_motor_bracket.stl"/>
+      </geometry>
+      <material name="right_motor_bracket_material">
+        <color rgba="0.352941 0.34902 0.34902 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.145642 0.00584812 -0.0273587" rpy="3.14159 3.25008e-48 -3.14159"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/right_motor_bracket.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link left_wheel -->
+  <link name="left_wheel">
+    <inertial>
+      <origin xyz="5.55112e-17 -2.77556e-17 -0.01325" rpy="0 0 0"/>
+      <mass value="0.034"/>
+      <inertia ixx="1.20063e-05" ixy="-8.31331e-37" ixz="1.64094e-36" iyy="1.20063e-05" iyz="7.55814e-38" izz="2.00404e-05"/>
+    </inertial>
+    <!-- Part left_wheel -->
+    <visual>
+      <origin xyz="0.464529 -0.127654 -0.0265" rpy="-9.4077e-33 -8.91891e-32 2.46302e-32"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/left_wheel.stl"/>
+      </geometry>
+      <material name="left_wheel_material">
+        <color rgba="0.176471 0.654902 0.937255 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.464529 -0.127654 -0.0265" rpy="-9.4077e-33 -8.91891e-32 2.46302e-32"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/left_wheel.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Joint from base_plate to left_wheel -->
+  <joint name="left_axle" type="continuous">
+    <origin xyz="0.0797863 0.0611262 -0.0504087" rpy="1.5708 -3.88594e-16 -1.5708"/>
+    <parent link="base_link"/>
+    <child link="left_wheel"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+  <!-- Link right_wheel -->
+  <link name="right_wheel">
+    <inertial>
+      <origin xyz="0 -3.44865e-32 -0.01325" rpy="0 0 0"/>
+      <mass value="0.034"/>
+      <inertia ixx="1.20063e-05" ixy="1.77587e-36" ixz="1.38229e-36" iyy="1.20063e-05" iyz="-4.2158e-37" izz="2.00404e-05"/>
+    </inertial>
+    <!-- Part right_wheel -->
+    <visual>
+      <origin xyz="0.464529 -0.0286537 -0.0265" rpy="-1.85031e-32 8.47446e-34 7.39557e-32"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/right_wheel.stl"/>
+      </geometry>
+      <material name="right_wheel_material">
+        <color rgba="0.176471 0.654902 0.937255 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.464529 -0.0286537 -0.0265" rpy="-1.85031e-32 8.47446e-34 7.39557e-32"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/right_wheel.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Joint from base_plate to right_wheel -->
+  <joint name="right_axle" type="continuous">
+    <origin xyz="-0.0827726 0.0611262 -0.0504087" rpy="-1.06344e-15 1.5708 0"/>
+    <parent link="base_link"/>
+    <child link="right_wheel"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+  <!-- Link front_wheel_lower_joint -->
+  <link name="front_wheel_lower_joint">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1e-09"/>
+      <inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09"/>
+    </inertial>
+    <!-- Part front_wheel_lower_joint -->
+    <visual>
+      <origin xyz="0.343294 -0.190212 0" rpy="3.14159 -0 6.16298e-33"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel_lower_joint.stl"/>
+      </geometry>
+      <material name="front_wheel_lower_joint_material">
+        <color rgba="0.647059 0.647059 0.647059 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.343294 -0.190212 0" rpy="3.14159 -0 6.16298e-33"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel_lower_joint.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Link front_wheel -->
+  <link name="front_wheel">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1e-09"/>
+      <inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09"/>
+    </inertial>
+    <!-- Part front_wheel -->
+    <visual>
+      <origin xyz="0.344734 -0.122278 0" rpy="3.14159 9.35883e-62 -2.53164e-47"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel.stl"/>
+      </geometry>
+      <material name="front_wheel_material">
+        <color rgba="0.247059 0.247059 0.247059 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.344734 -0.122278 0" rpy="3.14159 9.35883e-62 -2.53164e-47"/>
+      <geometry>
+        <mesh filename="package://assets/meshes/front_wheel.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- Joint from front_wheel_lower_joint to front_wheel -->
+  <joint name="front_axle" type="continuous">
+    <origin xyz="0.00635 0.00965 -0.0171132" rpy="-3.14159 -1.5708 0"/>
+    <parent link="front_wheel_lower_joint"/>
+    <child link="front_wheel"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+  <!-- Joint from base_plate to front_wheel_lower_joint -->
+  <joint name="front_swivel" type="continuous">
+    <origin xyz="-0.00149314 -0.0978738 -0.0503587" rpy="0 2.46519e-32 3.67761e-16"/>
+    <parent link="base_link"/>
+    <child link="front_wheel_lower_joint"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+</robot>

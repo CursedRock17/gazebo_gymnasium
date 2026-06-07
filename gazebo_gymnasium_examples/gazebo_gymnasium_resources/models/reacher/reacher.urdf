@@ -1,0 +1,210 @@
+<?xml version="1.0"?>
+<robot name="reacher">
+	<link name="link6_1">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="link6_2">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="body0">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.05000 0.00000 0.00000" />
+			<mass value="0.03560" />
+			<inertia ixx="0.00000" ixy="0" ixz="0" iyy="0.00004" iyz="0" izz="0.00004" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 1.57080 -0.00000" xyz="0.05000 0.00000 0.00000" />
+			<geometry>
+				<cylinder length="0.10000" radius="0.01000" />
+			</geometry>
+		</collision>
+	</link>
+	<link name="link6_4">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="body1">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.05000 0.00000 0.00000" />
+			<mass value="0.03560" />
+			<inertia ixx="0.00000" ixy="0" ixz="0" iyy="0.00004" iyz="0" izz="0.00004" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 1.57080 -0.00000" xyz="0.05000 0.00000 0.00000" />
+			<geometry>
+				<cylinder length="0.10000" radius="0.01000" />
+			</geometry>
+		</collision>
+	</link>
+	<link name="fingertip">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="0.00419" />
+			<inertia ixx="0.00000" ixy="0" ixz="0" iyy="0.00000" iyz="0" izz="0.00000" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<geometry>
+				<sphere radius="0.01000" />
+			</geometry>
+		</collision>
+	</link>
+	<joint name="joint0" type="continuous">
+		<parent link="link6_1" />
+		<child link="link6_2" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.01000" />
+		<axis xyz="0.00000 0.00000 1.00000" />
+	</joint>
+	<joint name="jointfix_2_2" type="fixed">
+		<parent link="link6_2" />
+		<child link="body0" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+	<joint name="joint1" type="revolute">
+		<parent link="body0" />
+		<child link="link6_4" />
+		<limit effort="0.00000" lower="-3.00000" upper="3.00000" velocity="0.00000" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.10000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 1.00000" />
+	</joint>
+	<joint name="jointfix_1_4" type="fixed">
+		<parent link="link6_4" />
+		<child link="body1" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+	<joint name="jointfix_0_3" type="fixed">
+		<parent link="body1" />
+		<child link="fingertip" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.11000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+<link name="link7_1">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<joint name="world_to_link7_1" type="fixed"><parent link="link6_1" /><child link="link7_1" /></joint><link name="link7_2">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<joint name="world_to_link7_2" type="fixed"><parent link="link6_1" /><child link="link7_2" /></joint><link name="link7_3">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<joint name="world_to_link7_3" type="fixed"><parent link="link6_1" /><child link="link7_3" /></joint><link name="target">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="0.00305" />
+			<inertia ixx="0.00000" ixy="0" ixz="0" iyy="0.00000" iyz="0" izz="0.00000" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<geometry>
+				<sphere radius="0.00900" />
+			</geometry>
+		</collision>
+	</link>
+	<joint name="world_to_target" type="fixed"><parent link="link6_1" /><child link="target" /></joint><link name="ground">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<geometry>
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_ground" type="fixed"><parent link="link6_1" /><child link="ground" /></joint><link name="root">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.01000" />
+			<geometry>
+				<cylinder length="0.02000" radius="0.01100" />
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_root" type="fixed"><parent link="link6_1" /><child link="root" /></joint><link name="sideE">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="-1.57080 0.00000 0.00000" xyz="0.30000 0.00000 0.01000" />
+			<geometry>
+				<cylinder length="0.60000" radius="0.02000" />
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_sideE" type="fixed"><parent link="link6_1" /><child link="sideE" /></joint><link name="sideN">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 1.57080 -0.00000" xyz="0.00000 0.30000 0.01000" />
+			<geometry>
+				<cylinder length="0.60000" radius="0.02000" />
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_sideN" type="fixed"><parent link="link6_1" /><child link="sideN" /></joint><link name="sideS">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 1.57080 -0.00000" xyz="0.00000 -0.30000 0.01000" />
+			<geometry>
+				<cylinder length="0.60000" radius="0.02000" />
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_sideS" type="fixed"><parent link="link6_1" /><child link="sideS" /></joint><link name="sideW">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="-1.57080 0.00000 0.00000" xyz="-0.30000 0.00000 0.01000" />
+			<geometry>
+				<cylinder length="0.60000" radius="0.02000" />
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_sideW" type="fixed"><parent link="link6_1" /><child link="sideW" /></joint></robot>

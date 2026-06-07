@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gazebo_gymnasium_bridge.envs.cartpole &mdash; Gazebo Gymnasium 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=86f27845" />
+
+  
+  
+        <script src="../../../_static/jquery.js?v=8dae8fb0"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Gazebo Gymnasium
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Gazebo Gymnasium</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gazebo_gymnasium_bridge.envs.cartpole</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gazebo_gymnasium_bridge.envs.cartpole</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">GazeboCartPoleEnv — plain Gymnasium env that talks to a running gz sim world.</span>
+
+<span class="sd">Usage (near-identical to MuJoCo):</span>
+
+<span class="sd">    import gymnasium as gym</span>
+<span class="sd">    from gazebo_gymnasium_bridge.envs import GazeboCartPoleEnv</span>
+
+<span class="sd">    env = GazeboCartPoleEnv()</span>
+<span class="sd">    obs, info = env.reset()</span>
+<span class="sd">    for _ in range(1000):</span>
+<span class="sd">        action = env.action_space.sample()</span>
+<span class="sd">        obs, reward, terminated, truncated, info = env.step(action)</span>
+<span class="sd">        if terminated or truncated:</span>
+<span class="sd">            obs, info = env.reset()</span>
+<span class="sd">    env.close()</span>
+
+<span class="sd">The world (with the CartPoleSyncGate plugin) must be running. Launch it via:</span>
+<span class="sd">    ros2 launch gazebo_gymnasium_bringup cartpole.launch.py</span>
+
+<span class="sd">Environment variables:</span>
+<span class="sd">    GAZEBO_GYM_VERBOSE=true       — emit a per-step debug line</span>
+<span class="sd">    GAZEBO_GYM_VERBOSE_EVERY=N    — when verbose, only print every Nth step</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">gymnasium</span> <span class="k">as</span> <span class="nn">gym</span>
+<span class="kn">from</span> <span class="nn">gymnasium.spaces</span> <span class="kn">import</span> <span class="n">Box</span><span class="p">,</span> <span class="n">Discrete</span>
+
+<span class="kn">from</span> <span class="nn">gz.transport13</span> <span class="kn">import</span> <span class="n">Node</span><span class="p">,</span> <span class="n">AdvertiseMessageOptions</span>
+<span class="kn">from</span> <span class="nn">gz.msgs10.float_v_pb2</span> <span class="kn">import</span> <span class="n">Float_V</span>
+
+<span class="kn">from</span> <span class="nn">..backend.nodes</span> <span class="kn">import</span> <span class="n">world_control</span>
+
+
+<span class="c1"># Termination thresholds match the canonical Gymnasium CartPole-v1.</span>
+<span class="n">POLE_ANGLE_THRESHOLD</span> <span class="o">=</span> <span class="mf">0.20944</span>   <span class="c1"># ≈ 12 degrees in radians</span>
+<span class="n">CART_POSITION_THRESHOLD</span> <span class="o">=</span> <span class="mf">2.4</span>    <span class="c1"># meters</span>
+
+<span class="c1"># Must match CartPoleSyncGate.frame_skip in cartpole_learner.py. Only used for</span>
+<span class="c1"># the phys_ticks field in the EpisodeSummary line — wrong value just makes the</span>
+<span class="c1"># reported physics-tick count off, doesn&#39;t affect training.</span>
+<span class="n">DEFAULT_FRAME_SKIP</span> <span class="o">=</span> <span class="mi">5</span>
+
+
+<div class="viewcode-block" id="GazeboCartPoleEnv">
+<a class="viewcode-back" href="../../../api/envs.html#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv">[docs]</a>
+<span class="k">class</span> <span class="nc">GazeboCartPoleEnv</span><span class="p">(</span><span class="n">gym</span><span class="o">.</span><span class="n">Env</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Standalone Gymnasium env for Gazebo CartPole. No plugin code on the agent</span>
+<span class="sd">    side — communicates with the gz-sim sync-gate plugin via two topics:</span>
+
+<span class="sd">        publishes  /env/action  (Float_V, one element)</span>
+<span class="sd">        subscribes /env/state   (Float_V, four sensor values)</span>
+
+<span class="sd">    `step()` publishes the action and blocks on the next /env/state callback.</span>
+<span class="sd">    The plugin only publishes state once per frame_skip ticks, so each step</span>
+<span class="sd">    waits for one full physics window before returning.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">metadata</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;render_modes&quot;</span><span class="p">:</span> <span class="p">[],</span> <span class="s2">&quot;render_fps&quot;</span><span class="p">:</span> <span class="mi">30</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">world_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cartpole&quot;</span><span class="p">,</span>
+                 <span class="n">max_episode_steps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">500</span><span class="p">,</span>
+                 <span class="n">frame_skip</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_FRAME_SKIP</span><span class="p">,</span>
+                 <span class="n">reset_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">,</span>
+                 <span class="n">step_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">,</span>
+                 <span class="n">render_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="c1"># Canonical CartPole-v1 spaces.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">observation_space</span> <span class="o">=</span> <span class="n">Box</span><span class="p">(</span>
+            <span class="n">low</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">4.8</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">),</span> <span class="o">-</span><span class="mf">0.41887903</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;-inf&#39;</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+            <span class="n">high</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">4.8</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">),</span> <span class="mf">0.41887903</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+            <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,),</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">action_space</span> <span class="o">=</span> <span class="n">Discrete</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">render_mode</span> <span class="o">=</span> <span class="n">render_mode</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">world_name</span> <span class="o">=</span> <span class="n">world_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_steps</span> <span class="o">=</span> <span class="n">max_episode_steps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame_skip</span> <span class="o">=</span> <span class="n">frame_skip</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_timeout</span> <span class="o">=</span> <span class="n">reset_timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">step_timeout</span> <span class="o">=</span> <span class="n">step_timeout</span>
+
+        <span class="c1"># Episode bookkeeping (for [EpisodeSummary] logging + truncation).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_episode</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_reward</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_reward_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_steps_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Per-step debug + telemetry. Reset in _reset_episode_telemetry().</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_times_ms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_pole_angle_seen</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_cart_position_seen</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="c1"># Reason the previous step ended the episode (terminated / truncated /</span>
+        <span class="c1"># timeout). Read in reset() to print [EpisodeSummary]. None = not ended.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_reason</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># Verbose per-step logging — opt-in via env var so production runs</span>
+        <span class="c1"># aren&#39;t flooded.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_debug</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GAZEBO_GYM_VERBOSE&#39;</span><span class="p">,</span> <span class="s1">&#39;false&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="s1">&#39;true&#39;</span><span class="p">,</span> <span class="s1">&#39;yes&#39;</span><span class="p">,</span> <span class="s1">&#39;on&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_verbose_every</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GAZEBO_GYM_VERBOSE_EVERY&#39;</span><span class="p">,</span> <span class="s1">&#39;1&#39;</span><span class="p">)))</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_verbose_every</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># Transport: action publisher + state subscriber + world_control client.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_action_node</span> <span class="o">=</span> <span class="n">Node</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_action_pub</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_action_node</span><span class="o">.</span><span class="n">advertise</span><span class="p">(</span>
+            <span class="s2">&quot;/env/action&quot;</span><span class="p">,</span> <span class="n">Float_V</span><span class="p">,</span> <span class="n">AdvertiseMessageOptions</span><span class="p">())</span>
+
+        <span class="c1"># Latest state from the plugin. `_state_event` is set by the callback</span>
+        <span class="c1"># so step() / reset() can block on a specific tick.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_latest_state</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_event</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_node</span> <span class="o">=</span> <span class="n">Node</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_node</span><span class="o">.</span><span class="n">subscribe</span><span class="p">(</span><span class="n">Float_V</span><span class="p">,</span> <span class="s2">&quot;/env/state&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_state</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_world_control</span> <span class="o">=</span> <span class="n">world_control</span><span class="o">.</span><span class="n">WorldController</span><span class="p">(</span><span class="n">world_name</span><span class="p">,</span> <span class="n">steps_per_action</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GazeboCartPoleEnv] ready (world=</span><span class="si">{</span><span class="n">world_name</span><span class="si">!r}</span><span class="s2">, &quot;</span>
+              <span class="sa">f</span><span class="s2">&quot;frame_skip=</span><span class="si">{</span><span class="n">frame_skip</span><span class="si">}</span><span class="s2">, max_episode_steps=</span><span class="si">{</span><span class="n">max_episode_steps</span><span class="si">}</span><span class="s2">, &quot;</span>
+              <span class="sa">f</span><span class="s2">&quot;verbose=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_debug</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="c1"># Gym API</span>
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+
+<div class="viewcode-block" id="GazeboCartPoleEnv.reset">
+<a class="viewcode-back" href="../../../api/envs.html#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.reset">[docs]</a>
+    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">options</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">)</span>
+
+        <span class="c1"># Episode summary for the just-ended episode (skip the synthetic</span>
+        <span class="c1"># before-any-episode call).</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">episode_reward_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">episode_reward</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">episode_steps_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">current_step</span><span class="p">)</span>
+            <span class="n">phys_ticks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame_skip</span>
+            <span class="n">reason</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_reason</span> <span class="ow">or</span> <span class="s2">&quot;unknown&quot;</span>
+            <span class="n">mean_step_ms</span> <span class="o">=</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_step_times_ms</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_step_times_ms</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_step_times_ms</span> <span class="k">else</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="n">last_cart</span><span class="p">,</span> <span class="n">last_cart_vel</span><span class="p">,</span> <span class="n">last_pole</span><span class="p">,</span> <span class="n">last_pole_av</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_latest_state</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;[EpisodeSummary] ep=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">current_episode</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;steps=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">current_step</span><span class="si">}</span><span class="s2"> phys_ticks=</span><span class="si">{</span><span class="n">phys_ticks</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;reward=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">episode_reward</span><span class="si">}</span><span class="s2"> reason=</span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;max_pole_a=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_max_pole_angle_seen</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;max_cart_p=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_max_cart_position_seen</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;final_pole_a=</span><span class="si">{</span><span class="n">last_pole</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2"> final_cart_p=</span><span class="si">{</span><span class="n">last_cart</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;mean_step_ms=</span><span class="si">{</span><span class="n">mean_step_ms</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="c1"># Trigger a world reset. WorldController.reset already retries with</span>
+        <span class="c1"># short timeouts so startup races resolve quickly.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_event</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_world_control</span><span class="o">.</span><span class="n">reset</span><span class="p">(</span><span class="n">pause_after</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># Plugin&#39;s Reset event handler publishes /env/state once.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_event</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">reset_timeout</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[GazeboCartPoleEnv] WARN: reset state wait timed out&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_episode</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_reward</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_episode_telemetry</span><span class="p">()</span>
+
+        <span class="n">obs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_latest_state</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="p">{}</span></div>
+
+
+<div class="viewcode-block" id="GazeboCartPoleEnv.step">
+<a class="viewcode-back" href="../../../api/envs.html#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.step">[docs]</a>
+    <span class="k">def</span> <span class="nf">step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="p">):</span>
+        <span class="n">step_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+        <span class="c1"># Pack the action into a single-element Float_V.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="n">action_val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">action</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">action_val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="n">Float_V</span><span class="p">()</span>
+        <span class="n">msg</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">action_val</span><span class="p">)</span>
+
+        <span class="c1"># Publish + park on the next /env/state callback.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_state_event</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_action_pub</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_state_event</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">step_timeout</span><span class="p">):</span>
+            <span class="c1"># Plugin didn&#39;t publish state in time — return current cached state</span>
+            <span class="c1"># but flag termination so the agent resets. Better than hanging.</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;[GazeboCartPoleEnv] WARN: step state wait timed out&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_last_reason</span> <span class="o">=</span> <span class="s2">&quot;timeout&quot;</span>
+            <span class="n">obs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_latest_state</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;timeout&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+        <span class="n">cart_pos</span><span class="p">,</span> <span class="n">cart_vel</span><span class="p">,</span> <span class="n">pole_angle</span><span class="p">,</span> <span class="n">pole_ang_vel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_latest_state</span>
+        <span class="n">obs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">cart_pos</span><span class="p">,</span> <span class="n">cart_vel</span><span class="p">,</span> <span class="n">pole_angle</span><span class="p">,</span> <span class="n">pole_ang_vel</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+        <span class="c1"># CartPole-v1 reward + termination — computed on the env side so the</span>
+        <span class="c1"># plugin stays generic.</span>
+        <span class="n">reward</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="n">terminated</span> <span class="o">=</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">pole_angle</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">POLE_ANGLE_THRESHOLD</span>
+                      <span class="ow">or</span> <span class="nb">abs</span><span class="p">(</span><span class="n">cart_pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">CART_POSITION_THRESHOLD</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">truncated</span> <span class="o">=</span> <span class="p">(</span><span class="ow">not</span> <span class="n">terminated</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_episode_steps</span>
+
+        <span class="c1"># Telemetry — running maxima for the episode summary.</span>
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">pole_angle</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_max_pole_angle_seen</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_max_pole_angle_seen</span> <span class="o">=</span> <span class="n">pole_angle</span>
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">cart_pos</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_max_cart_position_seen</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_max_cart_position_seen</span> <span class="o">=</span> <span class="n">cart_pos</span>
+        <span class="n">step_ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">step_start</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1000.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_times_ms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">step_ms</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">terminated</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_last_reason</span> <span class="o">=</span> <span class="s2">&quot;terminated&quot;</span>
+        <span class="k">elif</span> <span class="n">truncated</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_last_reason</span> <span class="o">=</span> <span class="s2">&quot;truncated&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">episode_reward</span> <span class="o">+=</span> <span class="n">reward</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">truncated</span><span class="p">:</span>
+            <span class="n">info</span><span class="p">[</span><span class="s2">&quot;TimeLimit.truncated&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_debug</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">current_step</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verbose_every</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">action_int</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">action_val</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;[CartPole][ep </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">current_episode</span><span class="si">}</span><span class="s2"> step </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">current_step</span><span class="si">}</span><span class="s2">] &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;action=</span><span class="si">{</span><span class="n">action_int</span><span class="si">}</span><span class="s2"> reward=</span><span class="si">{</span><span class="n">reward</span><span class="si">}</span><span class="s2"> cum=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">episode_reward</span><span class="si">}</span><span class="s2"> &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;cart=(p=</span><span class="si">{</span><span class="n">cart_pos</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">, v=</span><span class="si">{</span><span class="n">cart_vel</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">) &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;pole=(a=</span><span class="si">{</span><span class="n">pole_angle</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">, av=</span><span class="si">{</span><span class="n">pole_ang_vel</span><span class="si">:</span><span class="s2">+.3f</span><span class="si">}</span><span class="s2">) &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;step_ms=</span><span class="si">{</span><span class="n">step_ms</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">obs</span><span class="p">,</span> <span class="n">reward</span><span class="p">,</span> <span class="n">terminated</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">info</span></div>
+
+
+<div class="viewcode-block" id="GazeboCartPoleEnv.render">
+<a class="viewcode-back" href="../../../api/envs.html#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.render">[docs]</a>
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;gz sim handles rendering; nothing to do here. To get a rendered</span>
+<span class="sd">        window, run `gz sim` with the GUI (default behavior of the launch file).&quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="GazeboCartPoleEnv.close">
+<a class="viewcode-back" href="../../../api/envs.html#gazebo_gymnasium_bridge.envs.cartpole.GazeboCartPoleEnv.close">[docs]</a>
+    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Nothing to clean up — transport nodes shut down on GC.&quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+    <span class="c1"># Helpers</span>
+    <span class="c1"># ------------------------------------------------------------------ #</span>
+
+    <span class="k">def</span> <span class="nf">_reset_episode_telemetry</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_step_times_ms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_pole_angle_seen</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_cart_position_seen</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_reason</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_on_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="c1"># msg.data is the 4-element sensor vector from the plugin.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_latest_state</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_state_event</span><span class="o">.</span><span class="n">set</span><span class="p">()</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Lucas Wendland.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

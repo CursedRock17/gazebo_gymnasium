@@ -1,0 +1,711 @@
+<?xml version="1.0"?>
+<sdf version='1.11'>
+  <model name='pusher'>
+    <link name='link1_1'>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.349218</mass>
+        <inertia>
+          <ixx>0.0022400079999999999</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0022400079999999999</iyy>
+          <iyz>0</iyz>
+          <izz>0.0023100080000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_1_fixed_joint_lump__goal_collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.002</length>
+            <radius>0.080000000000000002</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_1_fixed_joint_lump__goal_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.002</length>
+            <radius>0.080000000000000002</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_1_fixed_joint_lump__object_collision_1'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_1_fixed_joint_lump__object_1_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_1_fixed_joint_lump__object_collision_2'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.050000000000000003</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_1_fixed_joint_lump__object_2_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.050000000000000003</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_shoulder_pan_joint' type='revolute'>
+      <pose relative_to='link1_1'>0 -0.59999999999999998 0 0 0 0</pose>
+      <parent>link1_1</parent>
+      <child>link1_2</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-2.2854000000000001</lower>
+          <upper>1.7145999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_2'>
+      <pose relative_to='r_shoulder_pan_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.099999995886761062 0 0 0</pose>
+        <mass>24.311741000000001</mass>
+        <inertia>
+          <ixx>1.3946800109999991</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.3946800109999991</iyy>
+          <iyz>0</iyz>
+          <izz>0.19611000100000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_2_fixed_joint_lump__r_shoulder_pan_link_collision'>
+        <pose>-0.059999999999999998 0.050000000000000003 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_2_fixed_joint_lump__r_shoulder_pan_link_visual'>
+        <pose>-0.059999999999999998 0.050000000000000003 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_2_fixed_joint_lump__r_shoulder_pan_link_collision_1'>
+        <pose>0.059999999999999998 0.050000000000000003 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_2_fixed_joint_lump__r_shoulder_pan_link_1_visual'>
+        <pose>0.059999999999999998 0.050000000000000003 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.050000000000000003</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_2_fixed_joint_lump__r_shoulder_pan_link_collision_2'>
+        <pose>-0.059999999999999998 0.089999999999999997 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.029999999999999999</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_2_fixed_joint_lump__r_shoulder_pan_link_2_visual'>
+        <pose>-0.059999999999999998 0.089999999999999997 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.029999999999999999</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_2_fixed_joint_lump__r_shoulder_pan_link_collision_3'>
+        <pose>0.059999999999999998 0.089999999999999997 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.029999999999999999</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_2_fixed_joint_lump__r_shoulder_pan_link_3_visual'>
+        <pose>0.059999999999999998 0.089999999999999997 0.20000000000000001 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.029999999999999999</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_2_fixed_joint_lump__r_shoulder_pan_link_collision_4'>
+        <pose>0 0 -0.10000000000000001 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.10000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_2_fixed_joint_lump__r_shoulder_pan_link_4_visual'>
+        <pose>0 0 -0.10000000000000001 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.59999999999999998</length>
+            <radius>0.10000000000000001</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_shoulder_lift_joint' type='revolute'>
+      <pose relative_to='link1_2'>0.10000000000000001 0 0 0 0 0</pose>
+      <parent>link1_2</parent>
+      <child>link1_4</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-0.52359999999999995</lower>
+          <upper>1.3963000000000001</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_4'>
+      <pose relative_to='r_shoulder_lift_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>10.471981</mass>
+        <inertia>
+          <ixx>0.17453000099999999</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.069810000999999997</iyy>
+          <iyz>0</iyz>
+          <izz>0.17453000099999999</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_4_fixed_joint_lump__r_shoulder_lift_link_collision'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.10000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_4_fixed_joint_lump__r_shoulder_lift_link_visual'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.10000000000000001</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_upper_arm_roll_joint' type='revolute'>
+      <pose relative_to='link1_4'>0 0 0 0 0 0</pose>
+      <parent>link1_4</parent>
+      <child>link1_6</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-1.5</lower>
+          <upper>1.7</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_6'>
+      <pose relative_to='r_upper_arm_roll_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.190029213210581 0 0 0 0 0</pose>
+        <mass>5.7135109999999996</mass>
+        <inertia>
+          <ixx>0.013110001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.14107562322402309</iyy>
+          <iyz>0</iyz>
+          <izz>0.14107562322402309</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_6_fixed_joint_lump__r_upper_arm_roll_link_collision'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_6_fixed_joint_lump__r_upper_arm_roll_link_visual'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_6_fixed_joint_lump__r_upper_arm_link_collision_1'>
+        <pose>0.20000000000000001 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.40000000000000002</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_6_fixed_joint_lump__r_upper_arm_link_1_visual'>
+        <pose>0.20000000000000001 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.40000000000000002</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_elbow_flex_joint' type='revolute'>
+      <pose relative_to='link1_6'>0.40000000000000002 0 0 0 0 0</pose>
+      <parent>link1_6</parent>
+      <child>link1_9</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-2.3212999999999999</lower>
+          <upper>0</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_9'>
+      <pose relative_to='r_elbow_flex_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.3571709999999999</mass>
+        <inertia>
+          <ixx>0.0045200010000000001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0032600009999999998</iyy>
+          <iyz>0</iyz>
+          <izz>0.0045200010000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_9_fixed_joint_lump__r_elbow_flex_link_collision'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.040000000000000001</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_9_fixed_joint_lump__r_elbow_flex_link_visual'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.040000000000000001</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_forearm_roll_joint' type='revolute'>
+      <pose relative_to='link1_9'>0 0 0 0 0 0</pose>
+      <parent>link1_9</parent>
+      <child>link1_11</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-1.5</lower>
+          <upper>1.5</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_11'>
+      <pose relative_to='r_forearm_roll_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.13210471174236441 0 0 0 0 0</pose>
+        <mass>3.0939510000000001</mass>
+        <inertia>
+          <ixx>0.0047600010000000007</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.045014996957722701</iyy>
+          <iyz>0</iyz>
+          <izz>0.045014996957722701</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_11_fixed_joint_lump__r_forearm_roll_link_collision'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_11_fixed_joint_lump__r_forearm_roll_link_visual'>
+        <pose>0 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_11_fixed_joint_lump__r_forearm_link_collision_1'>
+        <pose>0.14549999999999999 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.29099999999999998</length>
+            <radius>0.050000000000000003</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_11_fixed_joint_lump__r_forearm_link_1_visual'>
+        <pose>0.14549999999999999 0 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.29099999999999998</length>
+            <radius>0.050000000000000003</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_wrist_flex_joint' type='revolute'>
+      <pose relative_to='link1_11'>0.32100000000000001 0 0 0 0 0</pose>
+      <parent>link1_11</parent>
+      <child>link1_14</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.0940000000000001</lower>
+          <upper>0</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_14'>
+      <pose relative_to='r_wrist_flex_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.016761000000000002</mass>
+        <inertia>
+          <ixx>1.0001e-05</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0001e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_14_fixed_joint_lump__r_wrist_flex_link_collision'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.040000000000000001</length>
+            <radius>0.01</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_14_fixed_joint_lump__r_wrist_flex_link_visual'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.040000000000000001</length>
+            <radius>0.01</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='r_wrist_roll_joint' type='revolute'>
+      <pose relative_to='link1_14'>0 0 0 0 0 0</pose>
+      <parent>link1_14</parent>
+      <child>link1_16</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-1.5</lower>
+          <upper>1.5</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_16'>
+      <pose relative_to='r_wrist_roll_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.049314797464235553 0.098629594928471093 0 0 0 0</pose>
+        <mass>0.61157100000000009</mass>
+        <inertia>
+          <ixx>0.003092662463509554</ixx>
+          <ixy>-4.1330731754777011e-05</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0010906663658773891</iyy>
+          <iyz>0</iyz>
+          <izz>0.0040133278293869416</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_16_fixed_joint_lump__r_wrist_roll_link_collision'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_16_fixed_joint_lump__r_wrist_roll_link_visual'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.20000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_16_fixed_joint_lump__r_wrist_roll_link_collision_1'>
+        <pose>0.050000000000000003 -0.10000000000000001 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_16_fixed_joint_lump__r_wrist_roll_link_1_visual'>
+        <pose>0.050000000000000003 -0.10000000000000001 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_16_fixed_joint_lump__r_wrist_roll_link_collision_2'>
+        <pose>0.050000000000000003 0.10000000000000001 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_16_fixed_joint_lump__r_wrist_roll_link_2_visual'>
+        <pose>0.050000000000000003 0.10000000000000001 0 0 1.5707963267948966 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.10000000000000001</length>
+            <radius>0.02</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_16_fixed_joint_lump__tips_arm_collision_3'>
+        <pose>0.10000000000000001 -0.10000000000000001 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.01</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_16_fixed_joint_lump__tips_arm_3_visual'>
+        <pose>0.10000000000000001 -0.10000000000000001 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.01</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_16_fixed_joint_lump__tips_arm_collision_4'>
+        <pose>0.10000000000000001 0.10000000000000001 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.01</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_16_fixed_joint_lump__tips_arm_4_visual'>
+        <pose>0.10000000000000001 0.10000000000000001 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.01</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+
+</model>
+</sdf>

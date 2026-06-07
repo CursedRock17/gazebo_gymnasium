@@ -1,0 +1,132 @@
+<?xml version="1.0"?>
+<!--
+  InvertedPendulum, hand-ported from Gymnasium's MuJoCo MJCF:
+    gazebo_gymnasium_resources/models/mujoco_sources/inverted_pendulum.xml
+
+  The original MJCF uses `capsule` geometry, which is not a URDF primitive
+  (URDF only allows box/cylinder/sphere/mesh). The capsules are represented
+  here as cylinders of the same length and radius — physically equivalent
+  to within the rounded-cap volumes, which are negligible for this model.
+
+  Masses and inertia tensors are preserved from the MuJoCo computation
+  (which derives them from geometry + a 1000 kg/m³ density default), so
+  the dynamics should match the canonical env's behavior closely once
+  loaded into Gazebo.
+
+  Structure:
+    world  -fixed->  rail  -slider(prismatic, X)->  cart  -hinge(revolute, Y)->  pole
+
+  Run `gz sdf -p inverted_pendulum.urdf > inverted_pendulum.sdf` to convert.
+-->
+<robot name="inverted_pendulum">
+
+  <!-- Root: an empty "world" link the rail is fixed to. SDF will collapse
+       this into a static fixture during conversion. -->
+  <link name="world"/>
+
+  <joint name="world_to_rail" type="fixed">
+    <parent link="world"/>
+    <child link="rail"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- The horizontal rail the cart slides along (MJCF: rotated 90° around Y
+       so the capsule's long axis lies along X). Length 2 m, radius 0.02 m. -->
+  <link name="rail">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.0001"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder length="2.0" radius="0.02"/>
+      </geometry>
+      <material name="rail_blue">
+        <color rgba="0.3 0.3 0.7 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder length="2.0" radius="0.02"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Slider joint: prismatic, along the rail's X axis. Range matches MJCF. -->
+  <joint name="slider" type="prismatic">
+    <parent link="rail"/>
+    <child link="cart"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-1.0" upper="1.0" effort="100.0" velocity="10.0"/>
+    <dynamics damping="1.0" friction="0.0"/>
+  </joint>
+
+  <!-- The cart: capsule of radius 0.1 m, length 0.2 m, oriented along X
+       (long axis perpendicular to the page when looking at the rail head-on).
+       Mass+inertia from MuJoCo's inertia-from-geom computation. -->
+  <link name="cart">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="10.47198"/>
+      <inertia ixx="0.06981" ixy="0" ixz="0" iyy="0.17453" iyz="0" izz="0.17453"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder length="0.2" radius="0.1"/>
+      </geometry>
+      <material name="cart_yellow">
+        <color rgba="0.7 0.7 0.0 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 1.5708 0"/>
+      <geometry>
+        <cylinder length="0.2" radius="0.1"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Hinge joint: revolute around Y axis (pole falls forward/backward).
+       The MJCF range is degrees (-90 to 90); URDF uses radians. -->
+  <joint name="hinge" type="revolute">
+    <parent link="cart"/>
+    <child link="pole"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.5708" upper="1.5708" effort="100.0" velocity="10.0"/>
+    <dynamics damping="1.0" friction="0.0"/>
+  </joint>
+
+  <!-- The pole: capsule from (0,0,0) to (0.001,0,0.6) in MJCF, so its long
+       axis points roughly +Z with a tiny X offset for visual distinction.
+       Represented as a cylinder of length 0.6 m, radius 0.049 m, with its
+       center 0.3 m above the hinge. -->
+  <link name="pole">
+    <inertial>
+      <origin xyz="0.00050 0 0.30000" rpy="0 0 0"/>
+      <mass value="5.01859"/>
+      <inertia ixx="0.20787" ixy="0" ixz="0" iyy="0.20796" iyz="0" izz="0.00813"/>
+    </inertial>
+    <visual>
+      <origin xyz="0.00050 0 0.30000" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.6" radius="0.049"/>
+      </geometry>
+      <material name="pole_cyan">
+        <color rgba="0.0 0.7 0.7 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0.00050 0 0.30000" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.6" radius="0.049"/>
+      </geometry>
+    </collision>
+  </link>
+
+</robot>

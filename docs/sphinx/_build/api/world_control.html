@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gazebo_gymnasium_bridge.backend.nodes.world_control &mdash; Gazebo Gymnasium 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=86f27845" />
+
+  
+  
+        <script src="../_static/jquery.js?v=8dae8fb0"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Gazebo Gymnasium
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">gazebo_gymnasium_bridge.backend.nodes.world_control</a><ul>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController"><code class="docutils literal notranslate"><span class="pre">WorldController</span></code></a><ul>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.DEFAULT_ATTEMPT_TIMEOUT_MS"><code class="docutils literal notranslate"><span class="pre">WorldController.DEFAULT_ATTEMPT_TIMEOUT_MS</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.DEFAULT_MAX_ATTEMPTS"><code class="docutils literal notranslate"><span class="pre">WorldController.DEFAULT_MAX_ATTEMPTS</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.reset"><code class="docutils literal notranslate"><span class="pre">WorldController.reset()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.step"><code class="docutils literal notranslate"><span class="pre">WorldController.step()</span></code></a></li>
+<li><a class="reference internal" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.unpause"><code class="docutils literal notranslate"><span class="pre">WorldController.unpause()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Gazebo Gymnasium</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">gazebo_gymnasium_bridge.backend.nodes.world_control</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/world_control.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="gazebo-gymnasium-bridge-backend-nodes-world-control">
+<h1>gazebo_gymnasium_bridge.backend.nodes.world_control<a class="headerlink" href="#gazebo-gymnasium-bridge-backend-nodes-world-control" title="Link to this heading"></a></h1>
+<p>Thin client over <code class="docutils literal notranslate"><span class="pre">/world/&lt;name&gt;/control</span></code> for resetting the world and
+(optionally) stepping it. Auto-retries with short timeouts so first-call
+startup races don’t block 5+ seconds.</p>
+<dl class="py class" id="module-gazebo_gymnasium_bridge.backend.nodes.world_control">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">gazebo_gymnasium_bridge.backend.nodes.world_control.</span></span><span class="sig-name descname"><span class="pre">WorldController</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">world_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">steps_per_action</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/backend/nodes/world_control.html#WorldController"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Thin client over the /world/&lt;name&gt;/control service.</p>
+<p>Requests retry with short per-attempt timeouts so startup races (where
+the service hasn’t been registered yet) don’t block 5+ seconds on the
+first call.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.DEFAULT_ATTEMPT_TIMEOUT_MS">
+<span class="sig-name descname"><span class="pre">DEFAULT_ATTEMPT_TIMEOUT_MS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">500</span></em><a class="headerlink" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.DEFAULT_ATTEMPT_TIMEOUT_MS" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.DEFAULT_MAX_ATTEMPTS">
+<span class="sig-name descname"><span class="pre">DEFAULT_MAX_ATTEMPTS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">60</span></em><a class="headerlink" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.DEFAULT_MAX_ATTEMPTS" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pause_after</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/backend/nodes/world_control.html#WorldController.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.reset" title="Link to this definition"></a></dt>
+<dd><p>Reset the entire world along with all of its entities.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>pause_after</strong> – If True, send a follow-up <cite>pause=True</cite> request after
+the reset completes. Combining reset+pause into a single
+WorldControl message is unreliable — Gazebo may ignore the
+pause during the reset — so we do it as two separate calls.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/backend/nodes/world_control.html#WorldController.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.step" title="Link to this definition"></a></dt>
+<dd><p>Advance the (paused) world by steps_per_action ticks via multi_step.
+After multi_step completes, the simulation is paused again.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.unpause">
+<span class="sig-name descname"><span class="pre">unpause</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gazebo_gymnasium_bridge/backend/nodes/world_control.html#WorldController.unpause"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gazebo_gymnasium_bridge.backend.nodes.world_control.WorldController.unpause" title="Link to this definition"></a></dt>
+<dd><p>Unpause the world regardless of its state.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Lucas Wendland.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
