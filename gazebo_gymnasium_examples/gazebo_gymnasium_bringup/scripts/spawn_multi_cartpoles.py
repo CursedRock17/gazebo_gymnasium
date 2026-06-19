@@ -76,13 +76,8 @@ def render_cartpole_sdf(index: int) -> str:
         '<include merge="true">'
         '<uri>package://gazebo_gymnasium_resources/models/cartpole</uri>'
         '</include>'
-        '<plugin filename="gz-sim-python-system-loader-system" '
-        'name="gz::sim::systems::PythonSystemLoader">'
-        '<module_name>multi_cartpole_learner</module_name>'
-        f'<agent_name>{name}</agent_name>'
-        f'<agent_index>{index}</agent_index>'
-        '<frame_skip>5</frame_skip>'
-        '</plugin>'
+        # Actuation is handled by the world-level cartpole_world_controller
+        # (see worlds/cartpole_multi.sdf); no per-model plugin needed.
         '<joint name="world_to_slider" type="fixed">'
         '<parent>world</parent><child>slider</child>'
         '</joint>'
@@ -126,7 +121,7 @@ def main():
             "-name", f"cartpole_{i}",
             "-x", f"{x:.3f}",
             "-y", f"{y:.3f}",
-            "-z", "0",
+            "-z", "0.1",
         ]
         print(f"[spawn_multi_cartpoles] {i + 1}/{n}: "
               f"cartpole_{i} at ({x:+.2f}, {y:+.2f})")

@@ -268,41 +268,35 @@ class MultiCartPoleVecEnv(VecEnv):
         with self._state_lock:
             obs = self._latest_states.copy()
 
-        # CartPole-v1 reward + termination, per agent.
+        # CartPole-v1 reward + termination, per agent. A terminated agent
+        # is marked dead internally (stops earning reward) but we do NOT
+        # report done=True for it yet — the whole group reports done
+        # together on the group-reset tick. This keeps each sub-env's
+        # episode boundary well-defined for SB3 (one done per episode),
+        # which the previous per-agent done reporting broke (it flagged
+        # done without ever auto-resetting, so episodes never recycled).
         rewards = np.zeros(self.n_agents, dtype=np.float32)
-        new_dones = np.zeros(self.n_agents, dtype=bool)
         for i in range(self.n_agents):
             if self._dones[i]:
-                # Already-dead agents contribute zero reward and stay
-                # marked done until group reset. SB3 still sees done=False
-                # here so it doesn't reset us per-agent (we only return
-                # done=True on the tick of the *transition* to terminal).
-                continue
+                continue  # already dead this episode -> 0 reward
             cart_pos, _cart_vel, pole_angle, _pole_ang_vel = obs[i]
             terminated = (abs(pole_angle) > POLE_ANGLE_THRESHOLD
                           or abs(cart_pos) > CART_POSITION_THRESHOLD)
             if terminated:
-                new_dones[i] = True
                 self._dones[i] = True
             else:
                 rewards[i] = 1.0
 
         self._steps_since_reset += 1
         self._episode_rewards += rewards
-        # Group-reset trigger: when EVERY agent has terminated OR we hit
-        # max steps, the next step_wait flips all dones to True and SB3's
-        # rollout loop will call reset().
-        if self._dones.all() or self._steps_since_reset >= self.max_episode_steps:
-            new_dones[:] = True
-            self._dones[:] = True
 
+        truncated = self._steps_since_reset >= self.max_episode_steps
+        # Group reset when EVERY agent has terminated OR the step cap is
+        # hit. All agents share one episode boundary.
+        group_reset = bool(self._dones.all() or truncated)
+
+        dones = np.zeros(self.n_agents, dtype=bool)
         infos = [{} for _ in range(self.n_agents)]
-        # SB3 reads "TimeLimit.truncated" from info dict to distinguish
-        # truncation from natural termination. Mark it only on the
-        # truncation case (max_steps hit AND the agent was still alive).
-        if self._steps_since_reset >= self.max_episode_steps:
-            for i in range(self.n_agents):
-                infos[i]["TimeLimit.truncated"] = True
 
         if self._debug:
             step_ms = (time.perf_counter() - self._pending_step_start) * 1000.0
@@ -313,7 +307,21 @@ class MultiCartPoleVecEnv(VecEnv):
                 f"step_ms={step_ms:.1f}"
             )
 
-        return obs, rewards, new_dones, infos
+        if group_reset:
+            # SB3 VecEnv auto-reset contract: on done, return the FIRST
+            # obs of the new episode and stash the final obs under
+            # "terminal_observation". reset() recreates all carts, prints
+            # the episode summary, and zeroes the counters.
+            terminal_obs = obs.copy()
+            dones[:] = True
+            reset_obs = self.reset()
+            for i in range(self.n_agents):
+                infos[i]["terminal_observation"] = terminal_obs[i]
+                if truncated:
+                    infos[i]["TimeLimit.truncated"] = True
+            return reset_obs, rewards, dones, infos
+
+        return obs, rewards, dones, infos
 
     def close(self) -> None:
         # gz transport nodes shut down on GC.
@@ -364,7 +372,16 @@ class MultiCartPoleVecEnv(VecEnv):
         return x, y
 
     def _render_cartpole_sdf(self, index: int) -> str:
-        """Build the same SDF template as bringup's spawn_multi_cartpoles.py."""
+        """Build the same SDF template as bringup's spawn_multi_cartpoles.py.
+
+        No per-model actuation plugin: actuation is handled by the
+        world-level ``cartpole_world_controller`` (loaded in
+        cartpole_multi.sdf), which publishes the JointController cmd_vel
+        for every agent. The model already carries JointController +
+        JointStatePublisher (C++ systems that DO activate on dynamic
+        spawn); the env reads sensors from each model's joint_state topic
+        directly.
+        """
         name = f"cartpole_{index}"
         return (
             f"""<sdf version="1.8">
@@ -373,13 +390,6 @@ class MultiCartPoleVecEnv(VecEnv):
                 <include merge="true">
                   <uri>package://gazebo_gymnasium_resources/models/cartpole</uri>
                 </include>
-                <plugin filename="gz-sim-python-system-loader-system"
-                        name="gz::sim::systems::PythonSystemLoader">
-                  <module_name>multi_cartpole_learner</module_name>
-                  <agent_name>{name}</agent_name>
-                  <agent_index>{index}</agent_index>
-                  <frame_skip>5</frame_skip>
-                </plugin>
                 <joint name="world_to_slider" type="fixed">
                   <parent>world</parent>
                   <child>slider</child>
@@ -420,7 +430,20 @@ class MultiCartPoleVecEnv(VecEnv):
             req.name = f"cartpole_{i}"
             req.pose.position.x = x
             req.pose.position.y = y
-            req.pose.position.z = 0.0
+            # z=0.10 lifts the cart's 0.2 m-tall box clear of the ground
+            # plane; spawning at z=0 buries it half-under the ground and
+            # contact friction pins the slide joint (matches single-agent
+            # worlds/cartpole.sdf, which uses pose z=0.10).
+            req.pose.position.z = 0.10
+            # NOTE: per-agent initial-state randomization is intentionally
+            # NOT done via spawn-pose roll — the observed pole angle is the
+            # cart_to_pole JOINT coordinate (relative to the cart), which a
+            # model roll does not set; roll only tilts the rail and makes the
+            # pole free-fall directionally, and variable per-agent read
+            # timing during the settle then yields erratic near-terminal
+            # starts. Clean randomization needs an in-sim Joint.reset_position
+            # on cart_to_pole at episode start (future work). Agents still
+            # diverge during training via PPO's stochastic action sampling.
             transport.request(create_service, req, EntityFactory, Boolean,
                               _GZ_SERVICE_TIMEOUT_MS)
 
