@@ -41,7 +41,7 @@ PROJECT_ROOT = HERE.parent.parent
 SOURCE_DIRS = [
     "gazebo_gymnasium_bridge/gazebo_gymnasium_bridge",
     "gazebo_gymnasium_examples/gazebo_gymnasium_resources/plugins",
-    "gazebo_gymnasium_reinforcement_learning",
+    "training_scripts",
 ]
 
 # File path substrings we don't care about (venv pollution, generated, etc.).
