@@ -12,25 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Gymnasium env classes that talk to a running gz sim world."""
+"""Generalized multi-agent Gymnasium VecEnv for Gazebo.
+
+There is a single env path: ``MultiAgentGazeboVecEnv``, parameterized by an
+``AgentSpec`` and built for N agents in one gz world. Single-agent training
+is just ``n_agents=1`` — there are no per-model or single-agent env classes.
+
+    from gazebo_gymnasium_bridge.envs import make_multi
+    env = make_multi("cartpole", n_agents=16)
+"""
 
 from .agent_spec import AgentSpec
 from .agent_spec import JointObs
 from .agent_spec import get_spec
 from .agent_spec import register_spec
 from .agent_spec import registered_specs
-from .cartpole import GazeboCartPoleEnv
-from .inverted_double_pendulum import GazeboInvertedDoublePendulumEnv
-from .inverted_pendulum import GazeboInvertedPendulumEnv
-from .line_follower import GazeboLineFollowerEnv
 from .multi_agent_env import MultiAgentGazeboVecEnv
 from .multi_agent_env import make_multi
 from .multi_cartpole import MultiCartPoleVecEnv
-from .point import GazeboPointEnv
-from .reacher import GazeboReacherEnv
 
 __all__ = [
-    # Generalized multi-agent VecEnv (the path forward)
     "MultiAgentGazeboVecEnv",
     "make_multi",
     "AgentSpec",
@@ -39,11 +40,4 @@ __all__ = [
     "register_spec",
     "registered_specs",
     "MultiCartPoleVecEnv",
-    # Legacy single-agent envs (slated for removal — use n_agents=1)
-    "GazeboCartPoleEnv",
-    "GazeboInvertedPendulumEnv",
-    "GazeboInvertedDoublePendulumEnv",
-    "GazeboLineFollowerEnv",
-    "GazeboReacherEnv",
-    "GazeboPointEnv",
 ]
