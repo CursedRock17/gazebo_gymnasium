@@ -55,8 +55,14 @@ from ..backend.nodes import world_control
 
 # Per-call timeout for gz Create/Remove service requests.
 _GZ_SERVICE_TIMEOUT_MS = 500
-# Brief settle between the bulk delete and the bulk re-create.
-_REMOVE_TO_CREATE_DELAY = 0.05
+# Settle between the bulk delete and the bulk re-create. The gz remove is only
+# applied on a sim tick, so this must cover enough ticks for the old model to
+# actually be gone before we re-create it under the same name — otherwise the
+# old + new overlap, collide, and knock the pole over (and the GUI logs
+# "Visual: <name> already exists"). It's wall-clock, so it must be generous
+# enough at low real-time factors (e.g. with the GUI attached, RTF < 1). The
+# in-sim harness (ECM Joint.reset_position, no respawn) will make this obsolete.
+_REMOVE_TO_CREATE_DELAY = 0.3
 # Cross-process gz-transport discovery settle after a respawn.
 _DISCOVERY_SETTLE = 0.3
 
