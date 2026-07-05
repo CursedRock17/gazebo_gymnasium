@@ -92,26 +92,38 @@ package as a transitive dep alongside `gymnasium 1.2`. They coexist as
 separate Python packages without conflict — CleanRL's own scripts use the
 older API. If you write new training code, prefer `import gymnasium as gym`.
 
-#### Run an example
+#### Run
 
-In a **fresh terminal** (so conda / pyenv / leftover workspaces don't
-shadow the apt Python 3.12 that libgz-sim8 is hard-linked to):
-
-```bash
-cd ~/gym_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-source venv/bin/activate           # only needed for the training-side scripts
-ros2 launch gazebo_gymnasium_bringup cartpole.launch.py
-```
-
-Pass launch args the standard way:
+Everything goes through two terminals and the `Makefile`, which wraps the
+environment setup — no more pasting `PYTHONPATH` / `LD_LIBRARY_PATH` lines, and
+it strips conda/pyenv shims for you so you don't need a pristine shell:
 
 ```bash
-ros2 launch gazebo_gymnasium_bringup cartpole.launch.py headless:=true
-ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py n_agents:=10 headless:=true
-ros2 launch gazebo_gymnasium_bringup line_follower.launch.py use_foxglove:=true
+# Terminal 1 — simulator
+make sim   AGENT=cartpole N=4  HEADLESS=true
+
+# Terminal 2 — training (single-agent is just N=1)
+make train AGENT=cartpole N=16 ALGO=ppo TIMESTEPS=200000
+
+make deploy AGENT=cartpole N=4      # evaluate a saved policy
+make test                           # run the functional test suite
 ```
+
+Under the hood each terminal sources `scripts/env.sh {server|client}` — the
+`server` env is for the gz sim (its embedded Python needs the gz bindings),
+the `client` env is the training venv. Run them directly if you prefer:
+
+```bash
+source scripts/env.sh server && \
+  ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py n_agents:=4 headless:=true
+source scripts/env.sh client && \
+  python3 training_scripts/train.py --agent cartpole --n_agents 16
+```
+
+If your Gazebo source workspace isn't at `~/harmonic_ws`, set
+`GAZEBO_GYM_HARMONIC_WS` before sourcing (see `scripts/env.sh`). The dual
+`server`/`client` split exists only because the sim and training run on
+different Python builds today; collapsing that into one Python is planned.
 
 The launch files themselves set `PYTHONHOME=/usr` and prepend the
 gz-sim plugin path internally, so as long as the shell is clean (no
