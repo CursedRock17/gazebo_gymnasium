@@ -59,7 +59,11 @@ def generate_launch_description():
     record_rosbag_arg = DeclareLaunchArgument(
         "record_rosbag", default_value="false")
 
-    pin_python_home = SetEnvironmentVariable("PYTHONHOME", "/usr")
+    # NOTE: no PYTHONHOME pin. The old source-build setup pinned it to /usr so
+    # the embedded 3.13 interpreter found a stdlib; under the homogeneous conda
+    # (pixi) Python that pin points at the wrong prefix and breaks stdlib
+    # imports (No module named 'math'). The active interpreter's own PYTHONHOME
+    # is correct — leave it alone.
     set_verbose_env = SetEnvironmentVariable(
         "GAZEBO_GYM_VERBOSE", LaunchConfiguration("verbose"),
     )
@@ -110,7 +114,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         n_agents_arg, headless_arg, verbose_arg, record_rosbag_arg,
-        pin_python_home, set_verbose_env,
+        set_verbose_env,
         prepend_gz_plugin_path, prepend_pythonpath,
         gz_sim, spawner, world_static_tf, record_rosbag_node,
     ])

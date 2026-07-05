@@ -54,6 +54,10 @@ if [ "$_ggym_mode" = "server" ]; then
              "($GAZEBO_GYM_HARMONIC_WS); set it to your Gazebo source workspace." >&2
     fi
     export PYTHONUNBUFFERED=1
+    # The source-built gz server embeds Python 3.13; point it at /usr's 3.13
+    # stdlib. (The launch files used to pin this, but that breaks the Pixi
+    # conda Python, so it lives here in the apt-path env instead.)
+    export PYTHONHOME=/usr
     _ggym_H="$GAZEBO_GYM_HARMONIC_WS/install"
     for _ggym_p in gz-sim8 sdformat14 gz-math7 gz-msgs10 gz-transport13; do
         export PYTHONPATH="$_ggym_H/$_ggym_p/lib/python:${PYTHONPATH:-}"

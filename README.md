@@ -16,7 +16,49 @@ life, allowing for an easier integration process of a robot model.
 ## Installation
 Tested on Ubuntu 24.04 (Noble) with ROS 2 Jazzy and Gazebo Harmonic.
 
-### Source
+### Pixi (recommended)
+
+[Pixi](https://pixi.sh) installs ROS 2 Jazzy, Gazebo Harmonic (with its
+`gz.sim` Python bindings) **and** the RL libraries into one locked
+[conda-forge](https://conda-forge.org/) / [RoboStack](https://robostack.github.io)
+environment — a **single Python for the whole stack**. That removes the
+dual-Python split entirely: no `PYTHONPATH`/`LD_LIBRARY_PATH` lines, no separate
+venv, no source-built Gazebo. Everything is pinned in `pixi.lock`, so
+clone + `pixi install` reproduces the exact environment on any Linux machine,
+CI, or robot.
+
+```bash
+# 1. Install pixi (one-time)
+curl -fsSL https://pixi.sh/install.sh | bash
+
+# 2. Clone + resolve the environment (ROS 2 + Gazebo + RL libs, one solve)
+git clone <repo-url> gazebo_gymnasium
+cd gazebo_gymnasium
+pixi install
+pixi run build          # colcon build --symlink-install
+
+# 3. Run — two terminals
+pixi run sim            # terminal 1: the simulator
+pixi run train          # terminal 2: training (single-agent = --n_agents 1)
+pixi run deploy         # evaluate a saved policy
+pixi run test           # the test suite
+```
+
+Override agent / count / algorithm by calling the script inside the env:
+
+```bash
+pixi run -- bash -c 'source install/setup.sh && \
+  python training_scripts/train.py --agent cartpole --n_agents 16 --timesteps 200000'
+```
+
+Task definitions live in `pixi.toml`.
+
+### From apt + colcon (advanced)
+
+The manual path if you'd rather use a system ROS 2 install. It uses
+`scripts/env.sh` + the `Makefile` to wrap the environment; note that this
+setup keeps the sim and training on **different Python builds** (see the
+`server`/`client` note under Run), which Pixi avoids.
 
 #### Prerequisites
 Install the following:
@@ -125,11 +167,11 @@ If your Gazebo source workspace isn't at `~/harmonic_ws`, set
 `server`/`client` split exists only because the sim and training run on
 different Python builds today; collapsing that into one Python is planned.
 
-The launch files themselves set `PYTHONHOME=/usr` and prepend the
-gz-sim plugin path internally, so as long as the shell is clean (no
-conda env active, no other ROS workspace sourced on top of this one),
-everything just works. If you hit a segfault, see Troubleshooting
-below — it's almost always stale state from a previous build.
+Under Pixi none of this applies — one interpreter runs both the sim and
+the training. The `server`/`client` split above is only for the apt path,
+where the source-built Gazebo and the training venv are different Python
+builds. (The launch files no longer pin `PYTHONHOME`; that was a
+source-build-era workaround that breaks the homogeneous conda Python.)
 
 ## Troubleshooting
 
