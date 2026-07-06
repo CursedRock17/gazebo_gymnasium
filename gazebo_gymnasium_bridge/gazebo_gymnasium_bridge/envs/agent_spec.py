@@ -163,7 +163,10 @@ _CART_SPEED = 1.0  # m/s commanded on the slider joint for the discrete action
 
 def _cartpole_action_to_commands(action):
     # Discrete 1 -> +v, 0 -> -v, applied as a slider velocity command.
-    v = _CART_SPEED if int(action) == 1 else -_CART_SPEED
+    # Robust to a scalar (offline) or a length-1 array (the harness passes each
+    # agent's action as a row of the (n_agents, act_dim) matrix).
+    a = int(round(float(np.ravel(action)[0])))
+    v = _CART_SPEED if a == 1 else -_CART_SPEED
     return [("slider_to_cart", "velocity", v)]
 
 
