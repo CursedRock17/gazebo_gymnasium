@@ -158,3 +158,34 @@ class TestRegistry:
         register_spec("t_dummy", _make_spec)
         assert "t_dummy" in registered_specs()
         assert get_spec("t_dummy").name == "t"
+
+
+class TestHarnessActuation:
+    """The in-sim harness (ECM) actuation + reset descriptors."""
+
+    def test_cartpole_action_to_commands(self):
+        spec = get_spec("cartpole")
+        assert spec.action_to_commands is not None
+        push_right = spec.action_to_commands(1)
+        push_left = spec.action_to_commands(0)
+        assert push_right == [("slider_to_cart", "velocity", 1.0)]
+        assert push_left == [("slider_to_cart", "velocity", -1.0)]
+
+    def test_cartpole_reset_joint_state_randomizes_pole(self):
+        spec = get_spec("cartpole")
+        assert spec.reset_joint_state is not None
+        rng = np.random.default_rng(0)
+        st = spec.reset_joint_state(rng)
+        assert st["slider_to_cart"] == (0.0, 0.0)
+        pole_pos, pole_vel = st["cart_to_pole"]
+        assert -0.05 <= pole_pos <= 0.05 and pole_vel == 0.0
+        # Different draws give different pole angles (real per-agent diversity).
+        st2 = spec.reset_joint_state(rng)
+        assert st2["cart_to_pole"][0] != pole_pos
+
+    def test_command_joints_exist_in_obs(self):
+        # Every actuated joint should be one we also observe (sanity).
+        spec = get_spec("cartpole")
+        obs_joints = {j.joint for j in spec.joint_obs}
+        for (joint, _mode, _v) in spec.action_to_commands(1):
+            assert joint in obs_joints

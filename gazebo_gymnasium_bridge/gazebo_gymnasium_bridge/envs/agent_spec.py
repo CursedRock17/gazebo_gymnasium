@@ -98,6 +98,18 @@ class AgentSpec:
     extra_sdf: str = ""
     extra_joints: tuple = field(default_factory=tuple)
 
+    # --- In-sim harness (ECM) actuation + reset ---
+    # action_to_commands(action) -> [(joint_name, mode, value), ...] with mode
+    # in {"velocity", "force", "position"}. The in-sim harness applies these
+    # via ECM (Joint.set_velocity / set_force / reset_position). None means
+    # this spec isn't ECM-actuatable yet (harness path unavailable).
+    action_to_commands: Optional[Callable[[object], Sequence]] = None
+    # reset_joint_state(rng) -> {joint_name: (position, velocity)} set via ECM
+    # at episode start — in place, no respawn. This is where clean per-agent
+    # randomization lives (e.g. a small random initial pole angle), since ECM
+    # reset_position sets the joint coordinate directly.
+    reset_joint_state: Optional[Callable] = None
+
     def __post_init__(self):
         obs_dim = self.observation_space.shape[0]
         joint_dim = sum(j.width for j in self.joint_obs)
@@ -146,6 +158,24 @@ _POLE_ANGLE_THRESHOLD = 0.20944
 _CART_POSITION_THRESHOLD = 2.4
 
 
+_CART_SPEED = 1.0  # m/s commanded on the slider joint for the discrete action
+
+
+def _cartpole_action_to_commands(action):
+    # Discrete 1 -> +v, 0 -> -v, applied as a slider velocity command.
+    v = _CART_SPEED if int(action) == 1 else -_CART_SPEED
+    return [("slider_to_cart", "velocity", v)]
+
+
+def _cartpole_reset_joint_state(rng):
+    # Cart centered, pole at a small random angle (standard CartPole ~+/-0.05).
+    # Set directly via ECM — no free-fall/respawn, so it's exact per agent.
+    return {
+        "slider_to_cart": (0.0, 0.0),
+        "cart_to_pole": (float(rng.uniform(-0.05, 0.05)), 0.0),
+    }
+
+
 def _cartpole_spec() -> AgentSpec:
     obs_space = spaces.Box(
         low=np.array([-4.8, -np.inf, -0.41887903, -np.inf], dtype=np.float32),
@@ -167,6 +197,8 @@ def _cartpole_spec() -> AgentSpec:
         ),
         spawn_z=0.10,
         extra_joints=(("world_to_slider", "world", "slider"),),
+        action_to_commands=_cartpole_action_to_commands,
+        reset_joint_state=_cartpole_reset_joint_state,
     )
 
 
