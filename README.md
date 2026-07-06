@@ -53,6 +53,13 @@ pixi run -- bash -c 'source install/setup.sh && \
 
 Task definitions live in `pixi.toml`.
 
+### Next steps
+
+- [**docs/examples/cartpole.md**](docs/examples/cartpole.md) — the reference
+  environment, both backends, all launch/train arguments.
+- [**docs/creating_your_own_agent.md**](docs/creating_your_own_agent.md) —
+  add your own robot as one `AgentSpec` and train it.
+
 ### From apt + colcon (advanced)
 
 The manual path if you'd rather use a system ROS 2 install. It uses
@@ -95,8 +102,8 @@ source install/setup.bash
 
 #### Python environment for the training side
 
-The training scripts (`train_cartpole_*.py`) run on the *agent* side and
-need a few Python packages. We use a project-local virtualenv against
+The training scripts (`training_scripts/train.py`, `deploy.py`) run on the
+*agent* side and need a few Python packages. We use a project-local virtualenv against
 Ubuntu's apt Python 3.12 so the `gz` bindings from `/usr/lib/python3/dist-packages`
 remain importable. If you're a conda user, the conda env stays available for
 everything else — just don't try to swap it in here, because the embedded
@@ -197,11 +204,12 @@ Two things this can mean:
    If nothing comes back, install `gz-harmonic` from the OSRF repo
    (instructions above). It includes the plugin.
 
-### Sync-gate plugin imports fail (`ModuleNotFoundError: No module named 'cartpole_learner'`)
+### In-sim plugin imports fail (`ModuleNotFoundError` for `multi_agent_harness` / a controller)
 
-The launches also prepend
+The launches prepend
 `<install>/gazebo_gymnasium_resources/share/gazebo_gymnasium_resources/plugins`
-to `PYTHONPATH`. Same fix as above: rebuild bringup and re-source.
+to `PYTHONPATH` so the gz server can import the world-level plugin. Same fix as
+above: rebuild resources and re-source.
 
 ### gz sim segfaults inside `PyImport_ImportModule` / `PyUnicode_New`
 

@@ -20,8 +20,7 @@ transport (/rl/actions, /rl/reset, /rl/observations). Reset is in place (no
 respawn), so no delete/create race.
 
 Train against it with the harness client:
-    python training_scripts/train.py --agent cartpole --n_agents 16 \\
-        --backend harness
+    python training_scripts/train.py --agent cartpole --n_agents 16 --backend harness
 
 Arguments: n_agents:=4  headless:=true
 """
