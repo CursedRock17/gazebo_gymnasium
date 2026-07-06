@@ -55,18 +55,19 @@ def grid_position(index: int, n: int) -> tuple:
     return x, y
 
 
-def render_cartpole_sdf(index: int) -> str:
+_DEFAULT_URI = "package://gazebo_gymnasium_resources/models/cartpole"
+
+
+def render_cartpole_sdf(index: int, model_uri: str = _DEFAULT_URI) -> str:
     """Build the SDF string sent to ros_gz_sim create for cartpole #index.
 
-    `<include merge="true">` splices the bare cartpole model into this
-    outer `<model>` wrapper. Per-instance plugin params (agent_index,
-    agent_name) live on the outer model, alongside a world-fixed joint
-    pinning the slider rail to the world frame.
+    `<include merge="true">` splices the chosen cartpole model into an outer
+    `<model>` wrapper with a world-fixed joint pinning the slider rail. Pass
+    ``model_uri=.../cartpole_bare`` for the batched-harness backend (bare
+    geometry; the world-level harness plugin actuates + senses via the ECM).
 
-    Position is NOT in the SDF — the EntityFactory service always
-    overrides the SDF's <pose> with the create command's pose
-    (defaulting to 0,0,0 if -x/-y aren't passed). The spawner passes
-    -x and -y on the create command line instead.
+    Position is NOT in the SDF — the EntityFactory service overrides the SDF
+    <pose> with the create command's -x/-y/-z pose.
     """
     name = f"cartpole_{index}"
     return (
@@ -74,10 +75,8 @@ def render_cartpole_sdf(index: int) -> str:
         f'<model name="{name}">'
         '<self_collide>true</self_collide>'
         '<include merge="true">'
-        '<uri>package://gazebo_gymnasium_resources/models/cartpole</uri>'
+        f'<uri>{model_uri}</uri>'
         '</include>'
-        # Actuation is handled by the world-level cartpole_world_controller
-        # (see worlds/cartpole_multi.sdf); no per-model plugin needed.
         '<joint name="world_to_slider" type="fixed">'
         '<parent>world</parent><child>slider</child>'
         '</joint>'
@@ -90,6 +89,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n-agents", type=int, required=True,
                         help="Number of cartpoles to spawn.")
+    parser.add_argument("--model-uri", default=_DEFAULT_URI,
+                        help="model to spawn (use .../cartpole_bare for the "
+                             "harness backend)")
     parser.add_argument("--wait", type=float, default=WAIT_FOR_WORLD_DEFAULT,
                         help="Seconds to wait for gz sim before first spawn.")
     parser.add_argument("--gap", type=float, default=GAP_BETWEEN_SPAWNS,
@@ -113,7 +115,7 @@ def main():
           f"Y spacing {Y_SPACING} m, gap {args.gap}s between spawns)...")
     for i in range(n):
         x, y = grid_position(i, n)
-        sdf = render_cartpole_sdf(i)
+        sdf = render_cartpole_sdf(i, args.model_uri)
         cmd = [
             "ros2", "run", "ros_gz_sim", "create",
             "-world", WORLD_NAME,

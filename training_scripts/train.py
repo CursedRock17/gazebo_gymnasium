@@ -31,6 +31,7 @@ import argparse
 import os
 from pathlib import Path
 
+from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_multi
 from gazebo_gymnasium_bridge.envs import registered_specs
 import stable_baselines3 as sb3
@@ -64,12 +65,17 @@ def main():
     p.add_argument("--timesteps", type=int, default=200_000)
     p.add_argument("--world", default=None,
                    help="gz world name (default: <agent>_multi)")
+    p.add_argument("--backend", default="peragent",
+                   choices=("peragent", "harness"),
+                   help="peragent: per-agent topics + respawn reset; "
+                        "harness: batched O(1) transport + in-place reset")
     args = p.parse_args()
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
-    vec_env = make_multi(args.agent, n_agents=args.n_agents,
-                         world_name=args.world,
-                         reset_timeout=reset_to, step_timeout=step_to)
+    _factory = make_harness if args.backend == "harness" else make_multi
+    vec_env = _factory(args.agent, n_agents=args.n_agents,
+                       world_name=args.world,
+                       reset_timeout=reset_to, step_timeout=step_to)
 
     model_dir = MODELS_ROOT / f"{args.agent}_multi"
     model_dir.mkdir(parents=True, exist_ok=True)

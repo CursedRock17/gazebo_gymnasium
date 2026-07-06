@@ -85,8 +85,13 @@ class MultiAgentHarness:
               f"topics={ACTION_TOPIC}/{RESET_TOPIC}->{OBS_TOPIC}")
 
     def configure(self, entity, element, ecm, event_mgr):
-        agent = element.get_string("agent_name") or "cartpole"
-        n = int(element.get_double("n_agents") or 1)
+        # SDF params win; env vars are the fallback so a single fixed world SDF
+        # works for any N (the launch just exports GAZEBO_GYM_AGENT / _N_AGENTS).
+        import os
+        agent = (element.get_string("agent_name")
+                 or os.environ.get("GAZEBO_GYM_AGENT", "cartpole"))
+        n = int(element.get_double("n_agents")
+                or int(os.environ.get("GAZEBO_GYM_N_AGENTS", "1")))
         self.setup(agent, n)
 
     # ------------------------------------------------------------------ #

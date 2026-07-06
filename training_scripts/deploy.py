@@ -28,6 +28,7 @@ Then:
 import argparse
 from pathlib import Path
 
+from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_multi
 import numpy as np
 import stable_baselines3 as sb3
@@ -51,6 +52,8 @@ def main():
                    "models/<agent>_multi/final_<algo>_n<N>.zip)")
     p.add_argument("--episodes", type=int, default=3)
     p.add_argument("--world", default=None)
+    p.add_argument("--backend", default="peragent",
+                   choices=("peragent", "harness"))
     args = p.parse_args()
 
     model_path = (Path(args.model) if args.model else
@@ -60,8 +63,9 @@ def main():
         raise SystemExit(f"model not found: {model_path}")
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
-    env = make_multi(args.agent, n_agents=args.n_agents, world_name=args.world,
-                     reset_timeout=reset_to, step_timeout=step_to)
+    _factory = make_harness if args.backend == "harness" else make_multi
+    env = _factory(args.agent, n_agents=args.n_agents, world_name=args.world,
+                   reset_timeout=reset_to, step_timeout=step_to)
     model = _ALGOS[args.algo].load(str(model_path))
     print(f"[deploy] {model_path} -> deterministic eval, "
           f"{args.episodes} episode(s)")
