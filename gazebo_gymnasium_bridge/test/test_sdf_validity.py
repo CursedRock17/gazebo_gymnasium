@@ -31,8 +31,8 @@ the same class of bug without any runtime deps.
 Run with: pytest gazebo_gymnasium_bridge/test/test_sdf_validity.py -v
 """
 
-import re
 from pathlib import Path
+import re
 
 import pytest
 
@@ -96,10 +96,12 @@ class TestSdfValidity:
         )
 
     def test_link_with_collision_also_has_visual(self, sdf_path):
-        """Each <link> that declares a <collision> must also declare a
-        <visual> — otherwise the model loads physically but renders as
-        invisible. This was the failure mode for all auto-converted MuJoCo
-        SDFs before scripts/add_visuals_to_sdfs.py was run."""
+        """Check every <link> with a <collision> also has a <visual>.
+
+        Otherwise the model loads physically but renders invisible — the
+        failure mode for all auto-converted MuJoCo SDFs before
+        scripts/add_visuals_to_sdfs.py was run.
+        """
         text = sdf_path.read_text()
         # Extract each <link>...</link> block and inspect its contents.
         link_blocks = re.findall(

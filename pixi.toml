@@ -19,6 +19,7 @@ pytest = "*"
 [pypi-dependencies]
 stable-baselines3 = "*"
 gymnasium = "*"
+autopep8 = ">=2.3.2, <3"
 
 [tasks]
 # Build the ROS workspace (run once, and after editing ament_cmake pkgs).
@@ -26,7 +27,7 @@ build = "colcon build --symlink-install"
 
 # Simulator (terminal 1). Override args with e.g.
 #   pixi run sim  (defaults) or: pixi run -- bash -c 'source install/setup.sh && ros2 launch ...'
-sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py n_agents:=4 headless:=true'"
+sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py n_agents:=4 headless:=false'"
 
 # Training / eval (terminal 2).
 train  = "bash -c 'source install/setup.sh && python training_scripts/train.py  --agent cartpole --n_agents 4'"

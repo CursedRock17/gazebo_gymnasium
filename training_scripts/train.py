@@ -31,11 +31,12 @@ import argparse
 import os
 from pathlib import Path
 
+import stable_baselines3 as sb3
+from stable_baselines3.common.callbacks import CheckpointCallback
+
 from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_multi
 from gazebo_gymnasium_bridge.envs import registered_specs
-import stable_baselines3 as sb3
-from stable_baselines3.common.callbacks import CheckpointCallback
 
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
@@ -50,8 +51,7 @@ def _device() -> str:
 
 
 def _scaled_timeouts(n_agents: int):
-    """Per-topic joint_state discovery is O(N); scale waits with agent count
-    (16 agents empirically needs ~5s/15s)."""
+    """Scale state-wait timeouts with agent count (O(N) discovery; 16 ~5s/15s)."""
     return max(3.0, 0.9 * n_agents), max(1.0, 0.3 * n_agents)
 
 
@@ -84,7 +84,7 @@ def main():
     AlgoCls = _ALGOS[args.algo]
     # n_steps is per-env; with many agents the rollout is already large, so
     # shrink per-env steps to keep update size sane (PPO/A2C only).
-    algo_kwargs = dict(verbose=1, device=_device())
+    algo_kwargs = {"verbose": 1, "device": _device()}
     if args.algo in ("ppo", "a2c"):
         algo_kwargs["n_steps"] = max(32, 256 // args.n_agents)
 

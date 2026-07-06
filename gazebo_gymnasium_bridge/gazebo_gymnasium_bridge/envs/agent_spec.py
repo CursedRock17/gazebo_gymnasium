@@ -33,8 +33,8 @@ from typing import Callable
 from typing import Optional
 from typing import Sequence
 
-import numpy as np
 from gymnasium import spaces
+import numpy as np
 
 
 @dataclass(frozen=True)

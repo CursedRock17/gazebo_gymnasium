@@ -28,10 +28,11 @@ Then:
 import argparse
 from pathlib import Path
 
-from gazebo_gymnasium_bridge.envs import make_harness
-from gazebo_gymnasium_bridge.envs import make_multi
 import numpy as np
 import stable_baselines3 as sb3
+
+from gazebo_gymnasium_bridge.envs import make_harness
+from gazebo_gymnasium_bridge.envs import make_multi
 
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"

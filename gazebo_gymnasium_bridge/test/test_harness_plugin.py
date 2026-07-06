@@ -24,9 +24,9 @@ Run with: pixi run -- python -m pytest \
     gazebo_gymnasium_bridge/test/test_harness_plugin.py -q
 """
 
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -42,12 +42,11 @@ sys.path.insert(0, str(_PLUGINS))
 gz_sim = pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 pytest.importorskip("gz.transport13", reason="gz-transport not available")
 
-from gz.msgs10.float_v_pb2 import Float_V           # noqa: E402
+from gz.msgs10.float_v_pb2 import Float_V           # noqa: E402,I100
 from gz.transport13 import AdvertiseMessageOptions  # noqa: E402
 from gz.transport13 import Node                     # noqa: E402
-
-import test_harness_core as thc                     # noqa: E402
 import multi_agent_harness as mah                   # noqa: E402
+import test_harness_core as thc                     # noqa: E402
 
 
 @pytest.fixture
@@ -73,9 +72,11 @@ def test_batched_action_obs_roundtrip(world_path):
     time.sleep(0.4)  # transport pairing
 
     # one batched action msg for both agents: agent0 +1, agent1 0(-> -v)
-    msg = Float_V(); msg.data.extend([1.0, 0.0])
+    msg = Float_V()
+    msg.data.extend([1.0, 0.0])
     for _ in range(3):
-        act_pub.publish(msg); time.sleep(0.1)
+        act_pub.publish(msg)
+        time.sleep(0.1)
 
     fx = gz_sim.TestFixture(world_path)
     fx.on_pre_update(h.pre_update)
@@ -87,8 +88,8 @@ def test_batched_action_obs_roundtrip(world_path):
     assert frames, "client received no /rl/observations"
     last = np.array(frames[-1]).reshape(2, 4)   # (n_agents, obs_dim)
     # cart positions (col 0): agent0 driven +, agent1 driven -
-    assert last[0, 0] > 0.3, f"agent0 cart should be +, got {last[0,0]}"
-    assert last[1, 0] < -0.3, f"agent1 cart should be -, got {last[1,0]}"
+    assert last[0, 0] > 0.3, f"agent0 cart should be +, got {last[0, 0]}"
+    assert last[1, 0] < -0.3, f"agent1 cart should be -, got {last[1, 0]}"
 
 
 def test_reset_command_recenters_and_randomizes(world_path):
@@ -98,9 +99,11 @@ def test_reset_command_recenters_and_randomizes(world_path):
     time.sleep(0.4)
 
     # drive the carts out first
-    drive = Float_V(); drive.data.extend([1.0, 1.0])
+    drive = Float_V()
+    drive.data.extend([1.0, 1.0])
     for _ in range(3):
-        act_pub.publish(drive); time.sleep(0.1)
+        act_pub.publish(drive)
+        time.sleep(0.1)
 
     fx = gz_sim.TestFixture(world_path)
     fx.on_pre_update(h.pre_update)
@@ -113,11 +116,13 @@ def test_reset_command_recenters_and_randomizes(world_path):
 
     # now command a reset and step a little; carts should recenter, poles get
     # small distinct random angles (in-place, no respawn)
-    rst = Float_V(); rst.data.extend([7.0])
-    rst_pub.publish(rst); time.sleep(0.3)
+    rst = Float_V()
+    rst.data.extend([7.0])
+    rst_pub.publish(rst)
+    time.sleep(0.3)
     server.run(True, 5, False)
     time.sleep(0.3)
     after = np.array(frames[-1]).reshape(2, 4)
     assert abs(after[0, 0]) < 0.05 and abs(after[1, 0]) < 0.05, \
-        f"carts should recenter, got {after[:,0]}"
+        f"carts should recenter, got {after[:, 0]}"
     assert abs(after[0, 2]) <= 0.06 and after[0, 2] != after[1, 2]

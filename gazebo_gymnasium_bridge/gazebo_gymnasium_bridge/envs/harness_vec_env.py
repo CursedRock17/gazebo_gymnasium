@@ -225,6 +225,6 @@ class HarnessVecEnv(VecEnv):
 
 def make_harness(name: str, n_agents: int = 4,
                  world_name: Optional[str] = None, **kwargs):
-    """Factory: HarnessVecEnv for a registered agent (batched-harness backend)."""
+    """Build a HarnessVecEnv for a registered agent (batched-harness backend)."""
     return HarnessVecEnv(get_spec(name), n_agents=n_agents,
                          world_name=world_name, **kwargs)

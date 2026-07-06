@@ -25,9 +25,8 @@ Run with: pixi run -- python -m pytest \
     gazebo_gymnasium_bridge/test/test_harness_core.py -q
 """
 
-import sys
-import tempfile
 from pathlib import Path
+import sys
 
 import numpy as np
 import pytest
@@ -41,30 +40,44 @@ from gazebo_gymnasium_bridge.envs.agent_spec import get_spec  # noqa: E402
 from gazebo_gymnasium_bridge.harness.harness_core import HarnessCore  # noqa: E402
 
 
+_I_CART = ("<inertia><ixx>0.00854</ixx><iyy>0.00667</iyy>"
+           "<izz>0.00854</izz></inertia>")
+_I_POLE = ("<inertia><ixx>0.08363</ixx><iyy>0.08347</iyy>"
+           "<izz>0.000433</izz></inertia>")
+
+
+def _box(size):
+    return f"<geometry><box><size>{size}</size></box></geometry>"
+
+
 def _bare_cartpole(index, x):
     return f"""
     <model name="cartpole_{index}">
       <pose>{x} 0 0.10 0 0 0</pose>
-      <link name="slider"><inertial><mass>1</mass>
-        <inertia><ixx>0.00854</ixx><iyy>0.00667</iyy><izz>0.00854</izz></inertia></inertial>
-        <collision name="c"><geometry><box><size>0.03 8 0.03</size></box></geometry></collision></link>
+      <link name="slider">
+        <inertial><mass>1</mass>{_I_CART}</inertial>
+        <collision name="c">{_box("0.03 8 0.03")}</collision></link>
       <joint name="slider_to_cart" type="prismatic">
         <pose relative_to="slider">0 0 0 0 0 0</pose>
         <parent>slider</parent><child>cart</child>
         <axis><xyz>0 1 0</xyz>
           <limit><lower>-4</lower><upper>4</upper></limit></axis></joint>
-      <link name="cart"><pose relative_to="slider_to_cart">0 0 0 0 0 0</pose>
-        <inertial><mass>1</mass><inertia><ixx>0.00854</ixx><iyy>0.00667</iyy><izz>0.00854</izz></inertia></inertial>
-        <collision name="c"><geometry><box><size>0.2 0.25 0.2</size></box></geometry></collision></link>
+      <link name="cart">
+        <pose relative_to="slider_to_cart">0 0 0 0 0 0</pose>
+        <inertial><mass>1</mass>{_I_CART}</inertial>
+        <collision name="c">{_box("0.2 0.25 0.2")}</collision></link>
       <joint name="cart_to_pole" type="revolute">
-        <pose relative_to="cart">0.12 0 0 0 0 0</pose><parent>cart</parent><child>pole</child>
-        <axis><xyz>1 0 0</xyz><limit><effort>1000</effort><velocity>8</velocity>
-          <lower>-1e9</lower><upper>1e9</upper></limit></axis></joint>
-      <link name="pole"><pose relative_to="cart_to_pole">0 0 0 0 0 0</pose>
-        <inertial><pose>0 0 0.47 0 0 0</pose><mass>1</mass>
-          <inertia><ixx>0.08363</ixx><iyy>0.08347</iyy><izz>0.000433</izz></inertia></inertial>
-        <collision name="c"><geometry><box><size>0.04 0.06 1</size></box></geometry></collision></link>
-      <joint name="world_to_slider" type="fixed"><parent>world</parent><child>slider</child></joint>
+        <pose relative_to="cart">0.12 0 0 0 0 0</pose>
+        <parent>cart</parent><child>pole</child>
+        <axis><xyz>1 0 0</xyz>
+          <limit><effort>1000</effort><velocity>8</velocity>
+            <lower>-1e9</lower><upper>1e9</upper></limit></axis></joint>
+      <link name="pole">
+        <pose relative_to="cart_to_pole">0 0 0 0 0 0</pose>
+        <inertial><pose>0 0 0.47 0 0 0</pose><mass>1</mass>{_I_POLE}</inertial>
+        <collision name="c">{_box("0.04 0.06 1")}</collision></link>
+      <joint name="world_to_slider" type="fixed">
+        <parent>world</parent><child>slider</child></joint>
     </model>"""
 
 
@@ -73,11 +86,16 @@ def _world_sdf():
     <sdf version="1.8">
       <world name="harness_test">
         <physics name="10ms" type="ignored">
-          <max_step_size>0.01</max_step_size><real_time_update_rate>0</real_time_update_rate></physics>
-        <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
-        <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
-        <model name="ground"><static>true</static><link name="l"><collision name="c">
-          <geometry><plane><normal>0 0 1</normal><size>50 50</size></plane></geometry></collision></link></model>
+          <max_step_size>0.01</max_step_size>
+          <real_time_update_rate>0</real_time_update_rate></physics>
+        <plugin filename="gz-sim-physics-system"
+                name="gz::sim::systems::Physics"/>
+        <plugin filename="gz-sim-scene-broadcaster-system"
+                name="gz::sim::systems::SceneBroadcaster"/>
+        <model name="ground"><static>true</static>
+          <link name="l"><collision name="c"><geometry><plane>
+            <normal>0 0 1</normal><size>50 50</size></plane>
+          </geometry></collision></link></model>
         {_bare_cartpole(0, -1.5)}
         {_bare_cartpole(1, 1.5)}
       </world>
@@ -115,15 +133,14 @@ def test_apply_actions_moves_carts_independently(world_path):
     obs = obs_box["obs"]
     assert obs.shape == (2, 4)
     # cart position is obs[:,0]. agent0 driven +, agent1 driven -.
-    assert obs[0, 0] > 0.3, f"agent0 should move +y, got {obs[0,0]}"
-    assert obs[1, 0] < -0.3, f"agent1 should move -y, got {obs[1,0]}"
+    assert obs[0, 0] > 0.3, f"agent0 should move +y, got {obs[0, 0]}"
+    assert obs[1, 0] < -0.3, f"agent1 should move -y, got {obs[1, 0]}"
 
 
 def test_read_obs_reports_pole_fall(world_path):
     # No actuation; nudge nothing — but reset the pole to a tilt, then let it
     # fall, and confirm read_obs tracks a growing pole angle.
     core = HarnessCore(get_spec("cartpole"), n_agents=2)
-    rng = np.random.default_rng(0)
     angles = []
     did_reset = {"done": False}
 

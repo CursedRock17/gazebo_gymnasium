@@ -21,8 +21,8 @@ from the AgentSpec) is exercised without a running Gazebo.
 Run with: pytest gazebo_gymnasium_bridge/test/test_multi_agent_env.py -v
 """
 
-import sys
 from pathlib import Path
+import sys
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -38,8 +38,11 @@ pytest.importorskip("gz.msgs10", reason="gz bindings not available")
 
 @pytest.fixture
 def cartpole_multi(monkeypatch):
-    """MultiAgentGazeboVecEnv(cartpole spec, 3 agents) with transport mocked
-    and recreate/wait short-circuited so step/reset are deterministic."""
+    """Build a mocked MultiAgentGazeboVecEnv(cartpole spec, 3 agents).
+
+    Transport is mocked and recreate/wait short-circuited so step/reset are
+    deterministic.
+    """
     monkeypatch.setattr(gz_transport13, "Node", MagicMock(name="Node"))
     from gazebo_gymnasium_bridge.backend.nodes import world_control
     monkeypatch.setattr(world_control.WorldController, "_send",

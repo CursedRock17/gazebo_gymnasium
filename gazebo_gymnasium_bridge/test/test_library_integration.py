@@ -27,11 +27,10 @@ they are skipped until then so the suite documents the intended surface.
 Run with: pytest gazebo_gymnasium_bridge/test/test_library_integration.py -v
 """
 
-import sys
 from pathlib import Path
+import sys
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 
 
@@ -46,8 +45,10 @@ pytest.importorskip("gz.msgs10", reason="gz-msgs bindings not available")
 
 
 def _make_cartpole_multi(monkeypatch, n_agents=2):
-    """make_multi('cartpole') with transport mocked and recreate/wait
-    short-circuited, in a non-terminal (upright) state."""
+    """Make a mocked make_multi('cartpole') in a non-terminal (upright) state.
+
+    Transport is mocked and recreate/wait short-circuited.
+    """
     monkeypatch.setattr(gz_transport13, "Node", MagicMock(name="Node"))
     from gazebo_gymnasium_bridge.backend.nodes import world_control
     monkeypatch.setattr(world_control.WorldController, "_send",

@@ -24,10 +24,9 @@ Run with: pytest gazebo_gymnasium_bridge/test/test_compile.py -v
 """
 
 import ast
-import os
+from pathlib import Path
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -70,7 +69,7 @@ def _collect_py_files():
 
 
 def _imports_gz(tree: ast.AST) -> bool:
-    """True if the module imports anything from a `gz.*` package at module level."""
+    """Check whether the module imports any `gz.*` package at module level."""
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for name in node.names:
@@ -102,7 +101,7 @@ def test_ast_parse(py_path: Path):
 
 
 def _import_smoke_safe(py_path: Path) -> bool:
-    """True iff this file is safe to import-smoke (no gz-native deps at top level)."""
+    """Return whether this file is import-smoke safe (no top-level gz deps)."""
     try:
         tree = ast.parse(py_path.read_text(), filename=str(py_path))
     except SyntaxError:
@@ -123,14 +122,16 @@ _SMOKE_FILES = [p for p in _PY_FILES if _import_smoke_safe(p)]
     ids=[str(p.relative_to(PROJECT_ROOT)) for p in _SMOKE_FILES],
 )
 def test_import_smoke(py_path: Path):
-    """
-    For files that don't touch gz-* native bindings, verify the file can be
-    `compile()`'d cleanly in a subprocess. This catches issues that ast.parse
-    misses (e.g. f-string parse errors on older Pythons, codec problems).
-    A subprocess isolates failures so one bad module doesn't poison the run.
+    """Compile-smoke a file that has no gz-* native bindings.
+
+    Verifies the file can be ``compile()``'d cleanly in a subprocess — this
+    catches issues ast.parse misses (f-string parse errors on older Pythons,
+    codec problems). A subprocess isolates failures so one bad module doesn't
+    poison the run.
     """
     result = subprocess.run(
-        [sys.executable, "-c", f"compile(open({str(py_path)!r}).read(), {str(py_path)!r}, 'exec')"],
+        [sys.executable, "-c",
+         f"compile(open({str(py_path)!r}).read(), {str(py_path)!r}, 'exec')"],
         capture_output=True, text=True, timeout=10,
     )
     if result.returncode != 0:
@@ -141,8 +142,11 @@ def test_import_smoke(py_path: Path):
 
 
 def test_at_least_one_file_found():
-    """Sanity: the collection loop actually found something. Guards against
-    a future refactor that moves source dirs and silently breaks discovery."""
+    """Check the collection loop actually found something.
+
+    Guards against a future refactor that moves source dirs and silently
+    breaks discovery.
+    """
     assert _PY_FILES, (
         f"No .py files discovered under {SOURCE_DIRS!r}. "
         f"PROJECT_ROOT={PROJECT_ROOT}"

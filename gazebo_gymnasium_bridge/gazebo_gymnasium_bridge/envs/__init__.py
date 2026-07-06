@@ -23,14 +23,14 @@ is just ``n_agents=1`` — there are no per-model or single-agent env classes.
 """
 
 from .agent_spec import AgentSpec
-from .agent_spec import JointObs
 from .agent_spec import get_spec
+from .agent_spec import JointObs
 from .agent_spec import register_spec
 from .agent_spec import registered_specs
 from .harness_vec_env import HarnessVecEnv
 from .harness_vec_env import make_harness
-from .multi_agent_env import MultiAgentGazeboVecEnv
 from .multi_agent_env import make_multi
+from .multi_agent_env import MultiAgentGazeboVecEnv
 from .multi_cartpole import MultiCartPoleVecEnv
 
 __all__ = [

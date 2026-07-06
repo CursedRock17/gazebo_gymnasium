@@ -20,8 +20,8 @@ exercised against duck-typed fake joint_state messages.
 Run with: pytest gazebo_gymnasium_bridge/test/test_agent_spec.py -v
 """
 
-import sys
 from pathlib import Path
+import sys
 
 import numpy as np
 import pytest
@@ -31,8 +31,8 @@ sys.path.insert(0, str(HERE.parent))  # gazebo_gymnasium_bridge/
 
 from gazebo_gymnasium_bridge.envs.agent_spec import (  # noqa: E402
     AgentSpec,
-    JointObs,
     get_spec,
+    JointObs,
     register_spec,
     registered_specs,
 )
@@ -60,15 +60,16 @@ class _FakeModelMsg:
 
 def _make_spec(**overrides):
     from gymnasium import spaces
-    base = dict(
-        name="t",
-        model_uri="package://x/models/t",
-        observation_space=spaces.Box(low=-1, high=1, shape=(4,), dtype=np.float32),
-        action_space=spaces.Discrete(2),
-        joint_obs=(JointObs("a"), JointObs("b")),
-        reward_fn=lambda obs, action: 1.0,
-        terminated_fn=lambda obs: False,
-    )
+    base = {
+        "name": "t",
+        "model_uri": "package://x/models/t",
+        "observation_space": spaces.Box(low=-1, high=1, shape=(4,),
+                                        dtype=np.float32),
+        "action_space": spaces.Discrete(2),
+        "joint_obs": (JointObs("a"), JointObs("b")),
+        "reward_fn": lambda obs, action: 1.0,
+        "terminated_fn": lambda obs: False,
+    }
     base.update(overrides)
     return AgentSpec(**base)
 

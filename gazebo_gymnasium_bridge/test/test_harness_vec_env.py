@@ -20,8 +20,8 @@ without a running harness. The live transport shape is separately proven by
 test_harness_plugin.py.
 """
 
-import sys
 from pathlib import Path
+import sys
 from unittest.mock import MagicMock
 
 import numpy as np

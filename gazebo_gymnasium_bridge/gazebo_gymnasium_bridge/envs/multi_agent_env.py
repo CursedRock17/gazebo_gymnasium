@@ -364,7 +364,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
 
 def make_multi(name: str, n_agents: int = 4,
                world_name: Optional[str] = None, **kwargs):
-    """Factory: build a MultiAgentGazeboVecEnv for a registered agent name.
+    """Build a MultiAgentGazeboVecEnv for a registered agent name.
 
     ``make_multi("cartpole", n_agents=16)`` is the canonical entry point;
     "MultiAnt", "MultiHopper", … are simply ``make_multi("ant", ...)`` etc.

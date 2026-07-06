@@ -12,12 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from ament_pep257.main import main
 import pytest
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PKG = os.path.join(_HERE, os.pardir, "gazebo_gymnasium_bridge")
 
 
 @pytest.mark.linter
 @pytest.mark.pep257
 def test_pep257():
-    rc = main(argv=['.', 'test'])
-    assert rc == 0, 'Found code style errors / warnings'
+    # Keep this consistent with ament_flake8.ini: ROS 2 style puts the
+    # docstring summary on the FIRST line (D212), so ignore D213 (second-line
+    # summary) plus the numpy-style section checks (D407/D413/D416) the default
+    # 'ament' convention would otherwise enforce. Without this the flake8 and
+    # pep257 conventions contradict each other. '--' ends option parsing so the
+    # paths aren't swallowed by --add-ignore's nargs='+'.
+    rc = main(argv=["--convention", "ament",
+                    "--add-ignore", "D213", "D407", "D413", "D416",
+                    "--", _PKG, _HERE])
+    assert rc == 0, "Found code style errors / warnings"

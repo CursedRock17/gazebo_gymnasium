@@ -41,11 +41,11 @@ gates when Gazebo is actually available.
 Run with: pytest gazebo_gymnasium_bridge/test/test_sdf_loads_in_gazebo.py -v
 """
 
+from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -92,8 +92,10 @@ def _world_paths() -> list[Path]:
 
 
 def _resolve_package_uris(text: str) -> str:
-    """Substitute `package://gazebo_gymnasium_resources/models/X` with the
-    on-disk model path so gz sdf --check can resolve `<include>` blocks."""
+    """Substitute ``package://`` model URIs with their on-disk paths.
+
+    Lets ``gz sdf --check`` resolve ``<include>`` blocks.
+    """
     return re.sub(
         r"package://gazebo_gymnasium_resources/models/([^<\s]+)",
         lambda m: f"file://{MODELS_DIR}/{m.group(1)}",
@@ -135,8 +137,10 @@ def test_model_sdf_loads(sdf_path):
 
 @pytest.mark.parametrize("sdf_path", _world_paths(), ids=lambda p: p.stem)
 def test_world_sdf_loads(sdf_path):
-    """Each world SDF must pass `gz sdf --check` after resolving the
-    `package://` URIs to their on-disk paths."""
+    """Check each world SDF passes ``gz sdf --check``.
+
+    URIs (``package://``) are resolved to their on-disk paths first.
+    """
     ok, output = _gz_sdf_check(sdf_path, resolve_uris=True)
     assert ok, (
         f"{sdf_path.relative_to(PROJECT_ROOT)} failed gz sdf --check:\n"
