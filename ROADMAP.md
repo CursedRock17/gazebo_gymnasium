@@ -1,0 +1,38 @@
+# Roadmap
+
+Where `gazebo_gymnasium` is headed. Current state: the spec-driven,
+N-in-one-sim architecture is in place — one `AgentSpec` runs *N* agents in a
+single Gazebo world as an SB3 `VecEnv`, with two backends (`make_multi` and the
+batched `make_harness`). CartPole is the fully working reference. See
+[docs/creating_your_own_agent.md](docs/creating_your_own_agent.md).
+
+## Near term
+
+- **Port the stub MuJoCo envs to `AgentSpec`s.** The SDFs are auto-converted
+  and load in Gazebo (`ant`, `hopper`, `walker2d`, `humanoid`,
+  `humanoidstandup`, `reacher`, `pusher`, `swimmer`, `point`), but none has an
+  `AgentSpec` yet — each needs obs/action/reward/actuation written. Reacher
+  (TD3) is the natural next slot.
+- **`half_cheetah`** — hand-rename the duplicate frame names in the converted
+  SDF so it loads, then give it a spec.
+- **Image-observation `AgentSpec` extension** for the line-follower (camera →
+  `Twist`/DiffDrive); today `AgentSpec` only reads joint state.
+
+## Quality / infrastructure
+
+- **CI**: a `.github/workflows/colcon-test.yml` that runs `colcon test`
+  (functional + lint) on Ubuntu Noble + ROS 2 Jazzy. This is the main gating
+  item for [Quality Level 3](QUALITY_DECLARATION.md).
+- **Performance & stress benchmarks**: wall-clock steps/second per env vs
+  canonical MuJoCo, and scaling curves across `n_agents` for both backends.
+  Stress coverage lives in `test/test_stress.py`; a published benchmark script
+  is still TODO.
+- **Read the Docs** hosting for the Sphinx site once the API surface is stable.
+
+## Done
+
+- Single-Python environment via Pixi + RoboStack (killed the dual-Python split).
+- Generalized, parameterized `MultiAgentGazeboVecEnv` + `make_multi`.
+- Batched in-sim harness: `HarnessCore` (ECM), `MultiAgentHarness` plugin
+  (O(1) transport), `HarnessVecEnv` client, in-place reset.
+- flake8 + pep257 clean across the package under the project config.

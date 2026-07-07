@@ -38,15 +38,14 @@ gate Level 3 and above.
   qualitatively the bridge layer is heavily exercised.
 - **Lint & static analysis**: `scripts/lint.sh` runs `ament_flake8`,
   `ament_pep257`, and `ament_copyright` clean (0/0/0). CI workflow
-  pending (Future Goals item in TASKS.md).
-- **Public API documentation**: Per-env walkthroughs in
-  `docs/examples/<env>.md` (CartPole, InvertedPendulum,
-  InvertedDoublePendulum, CartPole-CleanRL, line_follower).
-  Sphinx-renderable autodoc skeleton in `docs/sphinx/`.
+  pending (tracked in ROADMAP.md).
+- **Public API documentation**: The reference walkthrough
+  (`docs/examples/cartpole.md`) plus the "create your own agent" guide
+  (`docs/creating_your_own_agent.md`). Sphinx-renderable autodoc skeleton in
+  `docs/sphinx/`.
 - **Architecture docs**: `docs/pytorch_jit_analysis.md`,
-  `docs/pipelined_inference.md`, `docs/composable_nodes_analysis.md`,
-  `docs/ros2_reps_compliance.md`. Each captures a design decision +
-  rationale for future readers.
+  `docs/composable_nodes_analysis.md`, `docs/ros2_reps_compliance.md`. Each
+  captures a design decision + rationale for future readers.
 
 ## Path to Level 3
 
@@ -63,7 +62,7 @@ Level 3 ("development / introspection tools" — same tier as `rviz`,
 
 We've staged most of the work; the gating items are CI infrastructure
 (GitHub Actions workflow) and a stable public API declaration. Both are
-in TASKS.md's "Future Goals" section.
+tracked in ROADMAP.md.
 
 ## Path to Level 2 / 1
 

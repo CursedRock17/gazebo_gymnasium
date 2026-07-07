@@ -99,20 +99,21 @@ runtime-depends on the resources).
 
 ## Adding a new environment
 
-The canonical pattern lives in [`docs/examples/`](docs/examples/README.md).
-Briefly:
+An environment is **one `AgentSpec`**, not a per-env class — the framework runs
+N copies of it in a single world as an SB3 `VecEnv`. The full walkthrough is in
+[`docs/creating_your_own_agent.md`](docs/creating_your_own_agent.md). Briefly:
 
-1. Add or convert the model (`gazebo_gymnasium_resources/models/<env>/`).
-2. Add a world that loads it (`gazebo_gymnasium_resources/worlds/<env>.sdf`).
-3. Add a sync-gate plugin
-   (`gazebo_gymnasium_resources/plugins/<env>_learner.py`) following the
-   pattern in `cartpole_learner.py` or `inverted_pendulum_learner.py`.
-4. Add a `gym.Env` class in `gazebo_gymnasium_bridge/envs/<env>.py` and
-   export it from `envs/__init__.py`.
-5. Add a launch file in `gazebo_gymnasium_bringup/launch/`.
-6. Add an integration test in
-   `gazebo_gymnasium_bridge/test/test_library_integration.py`.
-7. Add a doc page in `docs/examples/<env>.md` and link it from the
+1. Add or convert the model (`gazebo_gymnasium_resources/models/<env>_bare/`) —
+   geometry only for the harness backend (no controllers, no effort limit on
+   actuated joints).
+2. Define an `AgentSpec` (obs/action/reward/termination + `action_to_commands`
+   and `reset_joint_state` for the harness) and `register_spec("<env>", …)` in
+   `gazebo_gymnasium_bridge/envs/agent_spec.py`.
+3. Add a world SDF loading the `MultiAgentHarness` plugin and a launch file that
+   spawns N models (copy the `cartpole_harness` pair).
+4. Add offline coverage: a spec test in `test/test_agent_spec.py` and, for ECM
+   actuation, a `TestFixture` test like `test/test_harness_core.py`.
+5. Add a doc page in `docs/examples/<env>.md` and link it from the
    `docs/examples/README.md` status table.
 
 ## Commit messages

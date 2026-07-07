@@ -1,6 +1,6 @@
 # ROS 2 Composable Nodes — do they help our launches?
 
-User asked in TASKS.md: "Can use a ROS 2 Composable Node for any ROS 2
+User asked: "Can use a ROS 2 Composable Node for any ROS 2
 launch processes to speed up the simulation as best as possible".
 
 ## What composable nodes give you

@@ -189,7 +189,7 @@ Gymnasium spec. Worth applying when we touch this code next; not load-bearing.
 
 For deeper SB3 debugging, the next research pass is SB3 itself — specifically
 `stable_baselines3/common/base_class.py` and `vec_env/dummy_vec_env.py` to see how
-exactly our env is being driven. That's the next TASKS.md item.
+exactly our env is being driven. That's a future roadmap item (see ROADMAP.md).
 
 ---
 
