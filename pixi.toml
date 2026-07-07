@@ -33,7 +33,11 @@ sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup 
 train  = "bash -c 'source install/setup.sh && python training_scripts/train.py  --agent cartpole --n_agents 4'"
 deploy = "bash -c 'source install/setup.sh && python training_scripts/deploy.py --agent cartpole --n_agents 4'"
 
-# Test suite (no simulator needed — transport is mocked). PYTEST_DISABLE_
-# PLUGIN_AUTOLOAD stops the conda ROS launch_testing pytest plugins (old hook
+# Full suite — functional + stress + lint (flake8/pep257/copyright). No
+# simulator needed: transport is mocked and the harness/stress tests use the
+# in-process gz TestFixture (importorskip-guarded). PYTEST_DISABLE_PLUGIN_
+# AUTOLOAD stops the conda ROS launch_testing pytest plugins (old hook
 # signatures) from breaking collection; our tests only use pytest core.
-test = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/test_compile.py gazebo_gymnasium_bridge/test/test_agent_spec.py gazebo_gymnasium_bridge/test/test_multi_agent_env.py gazebo_gymnasium_bridge/test/test_library_integration.py -q'"
+test = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/ -q'"
+# Lint only (the three ament linters), e.g. for a pre-commit check.
+lint = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/test_flake8.py gazebo_gymnasium_bridge/test/test_pep257.py gazebo_gymnasium_bridge/test/test_copyright.py -q'"

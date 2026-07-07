@@ -30,7 +30,7 @@ language version mandates (C++17 / Python 3.8+ for recent releases).
 **Our status: ✅ Compliant.**
 - Target distribution: **ROS 2 Jazzy Jalisco** (LTS, supports 2024-05 → 2029-05).
 - Target platform: **Ubuntu Noble 24.04** (Tier 1).
-- Python version: 3.12 (exceeds 3.8+ minimum). Pinned via `PYTHONHOME=/usr` in launch files because libgz-sim8 embeds Python 3.12.
+- Python version: 3.12 (exceeds 3.8+ minimum). A single conda Python (via Pixi + RoboStack) serves ROS, Gazebo, and the RL libraries — no dual-interpreter split.
 - Gazebo version: Harmonic (paired with Jazzy per <https://gazebosim.org/docs/harmonic/ros_installation>).
 - C++ standard: C++17 (set in `gazebo_gymnasium_msgs/CMakeLists.txt`).
 
@@ -87,7 +87,7 @@ sub-checklist. Summary:
 - Level 4 ("demos / tutorials / experiments") is the appropriate
   starting point for a research-flavored package.
 - We exceed Level 4's minimums on several axes:
-  - Testing: 168+ pytest tests (Level 4 requires none).
+  - Testing: 178 pytest tests incl. a scale/endurance/robustness stress suite (Level 4 requires none).
   - CI lint: ament_flake8 / ament_pep257 / ament_copyright all green.
   - Public API documented in `docs/sphinx/` + per-env tutorials.
 - Path to Level 3 (introspection tools) would require formal change
@@ -159,14 +159,13 @@ with realistic data.
   `current_episode`. Lets Foxglove plot the canonical learning curve
   (reward vs total steps) and the throughput curve (steps_per_sec).
 - ❌ Not yet LTTng-instrumented. Would benefit from `ros2_tracing`
-  probes on the sync-gate plugins to measure the
-  publish→physics→subscribe latency end-to-end. Listed in
-  "Future Goals" in TASKS.md.
+  probes on the harness plugin to measure the
+  publish→physics→subscribe latency end-to-end. Tracked in ROADMAP.md.
 
 ## Summary
 
 We've explicitly aimed at **REP-2004 Level 4** (demos/tutorials), which
-sets the bar low enough that our 168-test pytest suite, lint gates, and
+sets the bar low enough that our 178-test pytest suite, lint gates, and
 sphinx docs all comfortably clear it. The other REPs that apply
 (REP-2000, REP-2003, REP-2006) are fully met. The remaining REPs are
 either non-applicable to a research-style env package (REP-2001, 2005,

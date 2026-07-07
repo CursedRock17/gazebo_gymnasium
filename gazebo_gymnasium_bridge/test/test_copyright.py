@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from ament_copyright.main import main
 import pytest
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PKG = os.path.join(_HERE, os.pardir, "gazebo_gymnasium_bridge")
 
-# Remove the `skip` decorator once the source file(s) have a copyright header
-@pytest.mark.skip(reason="No copyright header has been placed in the generated source file.")
+
 @pytest.mark.copyright
 @pytest.mark.linter
 def test_copyright():
-    rc = main(argv=[".", "test"])
+    # Every source file carries the Apache-2.0 header. Explicit paths keep this
+    # CWD-independent (bare '.' would also scan build/venv artifacts).
+    rc = main(argv=[_PKG, _HERE])
     assert rc == 0, "Found errors"

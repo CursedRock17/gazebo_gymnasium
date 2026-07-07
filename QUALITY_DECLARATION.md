@@ -17,11 +17,11 @@ take on the formal change-control overhead).
 | Criterion | REP-2004 requires | Our status |
 |-----------|--------------------|-----------|
 | **License** | LICENSE file present | ✅ `LICENSE` — Apache-2.0 |
-| **Copyright** | Copyright statements in source | ✅ Apache-2.0 header in every `.py` file (`scripts/add_license_headers.py` keeps this enforced) |
+| **Copyright** | Copyright statements in source | ✅ Apache-2.0 header in every `.py` file, enforced by `test_copyright` (ament_copyright) |
 | **Versioning** | Not required | ✅ Semver in every `package.xml` (`0.1.0`) |
 | **Change control** | Not required | ⚠️ GitHub PRs encouraged but not strictly enforced |
 | **Documentation** | Not required | ✅ Per-env tutorial in `docs/examples/`; Sphinx skeleton in `docs/sphinx/`; `CONTRIBUTING.md` |
-| **Testing** | Not required | ✅ 168 pytest tests (env contract, library integration, SDF validity, SDF gz-check) |
+| **Testing** | Not required | ✅ 178 pytest tests — spec/VecEnv contract, library integration, in-sim harness (ECM core + plugin), stress (scale/endurance/robustness), SDF validity + gz-check, and flake8/pep257/copyright lint |
 | **Platform Support** | Tier 1 platforms | ✅ Tested on Ubuntu Noble 24.04 + ROS 2 Jazzy + gz Harmonic |
 | **Security** | Not required | ✅ `SECURITY.md` with disclosure contact |
 
@@ -31,14 +31,16 @@ These would be the **minimum** under higher tiers; we've already done
 the work, just not the change-control / Tier-1-CI requirements that
 gate Level 3 and above.
 
-- **Test coverage**: 168 tests across env contracts, library integration
-  smoke tests (PPO/A2C/SAC/TD3/DDPG/CleanRL), SDF validity (static XML +
-  `gz sdf --check`), and copyright/lint conformance. Level 1-2 want
-  ≥90% line coverage with enforcement — we haven't measured it but
-  qualitatively the bridge layer is heavily exercised.
-- **Lint & static analysis**: `scripts/lint.sh` runs `ament_flake8`,
-  `ament_pep257`, and `ament_copyright` clean (0/0/0). CI workflow
-  pending (tracked in ROADMAP.md).
+- **Test coverage**: 178 tests across the spec layer, the SB3 VecEnv contract,
+  library-integration smoke tests (PPO/A2C on the cartpole spec), the in-sim
+  harness (ECM core + plugin round-trip), a stress suite (16–64 agents,
+  thousands of steps, malformed-input / timeout robustness), SDF validity
+  (static XML + `gz sdf --check`), and lint conformance. Level 1-2 want ≥90%
+  line coverage with enforcement — not measured, but the bridge layer is
+  heavily exercised.
+- **Lint & static analysis**: `ament_flake8`, `ament_pep257`, and
+  `ament_copyright` run as pytest tests and pass; `pixi run lint` runs the
+  three. CI workflow pending (tracked in ROADMAP.md).
 - **Public API documentation**: The reference walkthrough
   (`docs/examples/cartpole.md`) plus the "create your own agent" guide
   (`docs/creating_your_own_agent.md`). Sphinx-renderable autodoc skeleton in
@@ -78,20 +80,14 @@ in the field rely on, we'd revisit.
 ## How to Verify
 
 ```bash
-# Run the full lint suite (must be 0/0/0):
-scripts/lint.sh
+# Full suite (functional + stress + lint), one command:
+pixi run test
 
-# Run the pytest suite:
-./venv/bin/python -m pytest gazebo_gymnasium_bridge/test/ \
-    --ignore=gazebo_gymnasium_bridge/test/test_copyright.py \
-    --ignore=gazebo_gymnasium_bridge/test/test_flake8.py \
-    --ignore=gazebo_gymnasium_bridge/test/test_pep257.py -q
-# (the three ignored tests require ROS to be sourced; colcon test runs
-# them inside the workspace.)
+# Just the three ament linters (flake8 / pep257 / copyright):
+pixi run lint
 
-# Build under colcon:
-source /opt/ros/jazzy/setup.bash
-colcon build --symlink-install
+# Build the workspace:
+pixi run build
 ```
 
 All three of those should pass clean. If they don't, the package has
