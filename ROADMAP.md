@@ -2,8 +2,11 @@
 
 Where `gazebo_gymnasium` is headed. Current state: the spec-driven,
 N-in-one-sim architecture is in place — one `AgentSpec` runs *N* agents in a
-single Gazebo world as an SB3 `VecEnv`, with two backends (`make_multi` and the
-batched `make_harness`). CartPole is the fully working reference. See
+single Gazebo world as an SB3 `VecEnv`, with three backends: `make_inprocess`
+(sim hosted in the training process, no launch — the default and fastest),
+`make_harness` (batched O(1) transport to a launched sim), and `make_multi`
+(per-agent). CartPole is the fully working, verified reference (PPO learns it
+from a ~210-step random baseline to the 500-step cap). See
 [docs/creating_your_own_agent.md](docs/creating_your_own_agent.md).
 
 ## Near term
@@ -17,6 +20,11 @@ batched `make_harness`). CartPole is the fully working reference. See
   SDF so it loads, then give it a spec.
 - **Image-observation `AgentSpec` extension** for the line-follower (camera →
   `Twist`/DiffDrive); today `AgentSpec` only reads joint state.
+
+- **Force control for cartpole.** `Joint.set_force` is non-functional in this
+  DART build (a 30 N command barely moves the cart), so cartpole uses bang-bang
+  velocity control and the difficulty is tuned via `_CART_SPEED`. Fixing force
+  control would make it the textbook force-controlled CartPole.
 
 ## Quality / infrastructure
 
@@ -35,4 +43,9 @@ batched `make_harness`). CartPole is the fully working reference. See
 - Generalized, parameterized `MultiAgentGazeboVecEnv` + `make_multi`.
 - Batched in-sim harness: `HarnessCore` (ECM), `MultiAgentHarness` plugin
   (O(1) transport), `HarnessVecEnv` client, in-place reset.
+- In-process backend (`InProcessHarnessVecEnv`) — headless training with no
+  launch; `<real_time_factor>0</real_time_factor>` unthrottles it (~88× to
+  ~4600 agent-steps/s at N=16).
+- Hyperparameter sweep (`training_scripts/sweep.py`, CSV + optional W&B) that
+  verifies cartpole to the 500-step cap.
 - flake8 + pep257 clean across the package under the project config.

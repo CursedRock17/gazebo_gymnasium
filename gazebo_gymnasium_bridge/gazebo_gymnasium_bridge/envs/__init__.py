@@ -29,6 +29,8 @@ from .agent_spec import register_spec
 from .agent_spec import registered_specs
 from .harness_vec_env import HarnessVecEnv
 from .harness_vec_env import make_harness
+from .inprocess_vec_env import InProcessHarnessVecEnv
+from .inprocess_vec_env import make_inprocess
 from .multi_agent_env import make_multi
 from .multi_agent_env import MultiAgentGazeboVecEnv
 from .multi_cartpole import MultiCartPoleVecEnv
@@ -38,6 +40,8 @@ __all__ = [
     "make_multi",
     "HarnessVecEnv",
     "make_harness",
+    "InProcessHarnessVecEnv",
+    "make_inprocess",
     "AgentSpec",
     "JointObs",
     "get_spec",

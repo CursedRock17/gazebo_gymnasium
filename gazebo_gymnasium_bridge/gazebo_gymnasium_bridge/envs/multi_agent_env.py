@@ -95,7 +95,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
                  step_timeout: float = 1.0):
         if n_agents < 1:
             raise ValueError("n_agents must be >= 1")
-        self.spec = spec
+        self._spec = spec
         self.n_agents = n_agents
         self.world_name = world_name or f"{spec.name}_multi"
         self.max_episode_steps = (max_episode_steps
@@ -106,6 +106,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
         self.step_timeout = step_timeout
 
         super().__init__(n_agents, spec.observation_space, spec.action_space)
+        self.spec = None  # gym EnvSpec slot (kept clear so VecMonitor etc. work)
 
         self._obs_dim = spec.obs_dim
         self._discrete = isinstance(spec.action_space, Discrete)
@@ -155,7 +156,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
 
     def _make_joint_state_callback(self, idx: int):
         def _cb(msg):
-            obs = self.spec.obs_from_joint_state(msg)
+            obs = self._spec.obs_from_joint_state(msg)
             with self._state_lock:
                 self._latest_states[idx] = obs
                 self._joint_state_counts[idx] += 1
@@ -218,10 +219,10 @@ class MultiAgentGazeboVecEnv(VecEnv):
         for i in range(self.n_agents):
             if self._dones[i]:
                 continue
-            if self.spec.terminated_fn(obs[i]):
+            if self._spec.terminated_fn(obs[i]):
                 self._dones[i] = True
             else:
-                rewards[i] = float(self.spec.reward_fn(obs[i], None))
+                rewards[i] = float(self._spec.reward_fn(obs[i], None))
 
         self._steps_since_reset += 1
         self._episode_rewards += rewards
@@ -285,25 +286,25 @@ class MultiAgentGazeboVecEnv(VecEnv):
         rows = math.ceil(n / cols)
         col = index % cols
         row = index // cols
-        x = (col - (cols - 1) / 2.0) * self.spec.x_spacing
-        y = (row - (rows - 1) / 2.0) * self.spec.y_spacing
+        x = (col - (cols - 1) / 2.0) * self._spec.x_spacing
+        y = (row - (rows - 1) / 2.0) * self._spec.y_spacing
         return x, y
 
     def _render_sdf(self, index: int) -> str:
-        name = f"{self.spec.name}_{index}"
+        name = f"{self._spec.name}_{index}"
         self_collide = ("<self_collide>true</self_collide>"
-                        if self.spec.self_collide else "")
+                        if self._spec.self_collide else "")
         joints = "".join(
             f'<joint name="{jn}" type="fixed">'
             f"<parent>{parent}</parent><child>{child}</child></joint>"
-            for (jn, parent, child) in self.spec.extra_joints
+            for (jn, parent, child) in self._spec.extra_joints
         )
         return (
             '<sdf version="1.8">'
             f'<model name="{name}">'
             f"{self_collide}"
-            f'<include merge="true"><uri>{self.spec.model_uri}</uri></include>'
-            f"{joints}{self.spec.extra_sdf}"
+            f'<include merge="true"><uri>{self._spec.model_uri}</uri></include>'
+            f"{joints}{self._spec.extra_sdf}"
             "</model></sdf>"
         )
 
@@ -322,7 +323,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
 
         for i in range(self.n_agents):
             req = Entity()
-            req.name = f"{self.spec.name}_{i}"
+            req.name = f"{self._spec.name}_{i}"
             req.type = Entity.MODEL
             transport.request(remove_service, req, Entity, Boolean,
                               _GZ_SERVICE_TIMEOUT_MS)
@@ -333,10 +334,10 @@ class MultiAgentGazeboVecEnv(VecEnv):
             x, y = self._grid_position(i)
             req = EntityFactory()
             req.sdf = self._render_sdf(i)
-            req.name = f"{self.spec.name}_{i}"
+            req.name = f"{self._spec.name}_{i}"
             req.pose.position.x = x
             req.pose.position.y = y
-            req.pose.position.z = self.spec.spawn_z  # clear of ground plane
+            req.pose.position.z = self._spec.spawn_z  # clear of ground plane
             transport.request(create_service, req, EntityFactory, Boolean,
                               _GZ_SERVICE_TIMEOUT_MS)
 

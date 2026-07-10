@@ -35,19 +35,33 @@ Two backends drive the same spec (see
   randomization). Bare model:
   [`models/cartpole_bare`](../../gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/cartpole_bare).
 
+## Difficulty
+
+The cart is bang-bang **velocity**-controlled (force control is non-functional
+in this DART build). The commanded speed (`_CART_SPEED`, 2.5 m/s) is tuned so
+this is a *real* RL problem: a **random policy survives only ~210 steps**
+(median ~166, sometimes <10), while a trained PPO policy reaches the 500-step
+cap. Below ~1 m/s a random policy already near-solves it; above ~3 m/s bang-bang
+is too coarse to balance and learning plateaus.
+
 ## Running it
 
-Two terminals (single-agent is just `n_agents:=1`):
+**Fastest — one command, no launch** (the in-process backend hosts the sim in
+the training process):
 
 ```bash
-# Terminal 1 — simulator. Use headless:=false to watch it in the Gazebo GUI.
-ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py   n_agents:=16 headless:=true
-# ...or the batched-harness world:
-ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=16 headless:=true
+python training_scripts/train.py --agent cartpole --n_agents 16
+# ...or sweep hyperparameters headlessly to solve it:
+python training_scripts/sweep.py --n_agents 16 --timesteps 250000
+```
 
-# Terminal 2 — train (add --backend harness for the harness world)
-python training_scripts/train.py  --agent cartpole --n_agents 16
-python training_scripts/train.py  --agent cartpole --n_agents 16 --backend harness
+**Watch it in a launched sim** (two terminals; `headless:=false` for the GUI):
+
+```bash
+# Terminal 1 — simulator
+ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=16 headless:=true
+# Terminal 2 — train against it
+python training_scripts/train.py --agent cartpole --n_agents 16 --backend harness
 ```
 
 Or the pixi shortcuts:

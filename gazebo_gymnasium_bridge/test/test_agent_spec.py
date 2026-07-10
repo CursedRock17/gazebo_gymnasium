@@ -169,8 +169,11 @@ class TestHarnessActuation:
         assert spec.action_to_commands is not None
         push_right = spec.action_to_commands(1)
         push_left = spec.action_to_commands(0)
-        assert push_right == [("slider_to_cart", "velocity", 1.0)]
-        assert push_left == [("slider_to_cart", "velocity", -1.0)]
+        # symmetric bang-bang velocity on the slider; magnitude is the tuned
+        # difficulty knob (see _CART_SPEED), so assert structure + symmetry.
+        assert push_right[0][:2] == ("slider_to_cart", "velocity")
+        assert push_right[0][2] > 0
+        assert push_left[0][2] == -push_right[0][2]
 
     def test_cartpole_reset_joint_state_randomizes_pole(self):
         spec = get_spec("cartpole")

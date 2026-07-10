@@ -62,7 +62,7 @@ class HarnessVecEnv(VecEnv):
                  step_timeout: float = 2.0):
         if n_agents < 1:
             raise ValueError("n_agents must be >= 1")
-        self.spec = spec
+        self._spec = spec
         self.n_agents = n_agents
         self.world_name = world_name or f"{spec.name}_multi"
         self.max_episode_steps = (max_episode_steps if max_episode_steps
@@ -72,6 +72,7 @@ class HarnessVecEnv(VecEnv):
         self.step_timeout = step_timeout
 
         super().__init__(n_agents, spec.observation_space, spec.action_space)
+        self.spec = None  # gym EnvSpec slot (kept clear so VecMonitor etc. work)
 
         self._obs_dim = spec.obs_dim
         self._discrete = isinstance(spec.action_space, Discrete)
@@ -168,10 +169,10 @@ class HarnessVecEnv(VecEnv):
         for i in range(self.n_agents):
             if self._dones[i]:
                 continue
-            if self.spec.terminated_fn(obs[i]):
+            if self._spec.terminated_fn(obs[i]):
                 self._dones[i] = True
             else:
-                rewards[i] = float(self.spec.reward_fn(obs[i], None))
+                rewards[i] = float(self._spec.reward_fn(obs[i], None))
 
         self._steps_since_reset += 1
         self._episode_rewards += rewards

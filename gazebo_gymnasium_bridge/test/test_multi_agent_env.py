@@ -132,4 +132,4 @@ class TestBackwardCompat:
         env = MultiCartPoleVecEnv(n_agents=2, world_name="t")
         assert isinstance(env, MultiAgentGazeboVecEnv)
         assert env.num_envs == 2
-        assert env.spec.name == "cartpole"
+        assert env._spec.name == "cartpole"

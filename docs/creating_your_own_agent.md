@@ -22,20 +22,24 @@ Copy it and change the parts described below.
 ## The two backends
 
 Everything you write below (the spec + the model SDF) is shared. What differs
-is *how the env talks to Gazebo* — pick with `make_multi` vs `make_harness`
-(or `train.py --backend`):
+is *how the env talks to Gazebo* — pick with `make_inprocess` / `make_harness`
+/ `make_multi` (or `train.py --backend`):
 
-| | **peragent** (`make_multi`) | **harness** (`make_harness`) |
-|---|---|---|
-| Transport | 2 topics per agent | **3 topics total** (O(1) in N) |
-| Reset | delete + re-spawn each model | **in place** via ECM (no respawn) |
-| In-sim code | world-level controller plugin | world-level **harness** plugin |
-| Best for | small N, quick start | large N, fastest, no respawn race |
-| Needs | model with controllers | **bare** model (no controllers) |
+| | **inprocess** (default) | **harness** | **peragent** |
+|---|---|---|---|
+| Sim location | **in the training process** (TestFixture) | launched `gz sim` | launched `gz sim` |
+| Transport | none (direct ECM) | 3 topics total (O(1) in N) | 2 topics per agent |
+| Reset | in place via ECM | in place via ECM | delete + re-spawn |
+| Needs a launch? | **no** — one `python` command | yes (`ros2 launch`) | yes (`ros2 launch`) |
+| Best for | **training + CI, fastest** | a running/GUI sim you want to watch | small N, quick start |
+| Model | bare (no controllers) | bare (no controllers) | model with controllers |
 
-Both are spec-driven and use the *same* `reward_fn` / `terminated_fn` /
-group-auto-reset. Start with **harness** — it scales better and its in-place
-reset gives clean per-agent randomization for free.
+All three are spec-driven and share the *same* `reward_fn` / `terminated_fn` /
+group-auto-reset. **Start with `inprocess`** — it needs no launch, runs headless
+anywhere the gz bindings import, and is the fastest (no IPC; set
+`<real_time_factor>0</real_time_factor>` so the sim isn't throttled to real
+time). Use **harness** when you want to *watch* a launched sim; the per-agent
+and harness paths are what you deploy against a live/visualized `gz sim`.
 
 ---
 

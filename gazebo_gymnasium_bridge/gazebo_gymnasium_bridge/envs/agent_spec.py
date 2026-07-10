@@ -83,10 +83,14 @@ class AgentSpec:
     name: str
     model_uri: str
     observation_space: spaces.Space
+    # (defaulted fields below) bare_model_uri: geometry-only model for the ECM
+    # backends (harness / in-process) — no controllers, no effort limit. Falls
+    # back to model_uri when empty.
     action_space: spaces.Space
     joint_obs: Sequence[JointObs]
     reward_fn: Callable[[np.ndarray, object], float]
     terminated_fn: Callable[[np.ndarray], bool]
+    bare_model_uri: str = ""
     spawn_z: float = 0.10
     x_spacing: float = 3.0
     y_spacing: float = 8.5
@@ -158,7 +162,13 @@ _POLE_ANGLE_THRESHOLD = 0.20944
 _CART_POSITION_THRESHOLD = 2.4
 
 
-_CART_SPEED = 1.0  # m/s commanded on the slider joint for the discrete action
+# m/s commanded on the slider (bang-bang). Tuned to 2.5 so the task is a real
+# RL problem, not trivial: a random policy survives only ~210 steps (median
+# ~166, sometimes <10), while a trained policy reaches the 500 cap. At <=1.0 a
+# random policy already near-solves it (~490); at >=3.0 bang-bang velocity is
+# too coarse to balance and PPO plateaus. (Force control would be the textbook
+# choice but is non-functional in this DART build — see ROADMAP.md.)
+_CART_SPEED = 2.5
 
 
 def _cartpole_action_to_commands(action):
@@ -189,6 +199,7 @@ def _cartpole_spec() -> AgentSpec:
     return AgentSpec(
         name="cartpole",
         model_uri="package://gazebo_gymnasium_resources/models/cartpole",
+        bare_model_uri="package://gazebo_gymnasium_resources/models/cartpole_bare",
         observation_space=obs_space,
         action_space=spaces.Discrete(2),
         # obs order: cart_pos, cart_vel, pole_angle, pole_ang_vel
