@@ -92,6 +92,10 @@ def main():
     parser.add_argument("--model-uri", default=_DEFAULT_URI,
                         help="model to spawn (use .../cartpole_bare for the "
                              "harness backend)")
+    parser.add_argument("--world", default=WORLD_NAME,
+                        help="name of the running gz world to spawn into "
+                             "(must match the launched world SDF's <world "
+                             "name=...>)")
     parser.add_argument("--wait", type=float, default=WAIT_FOR_WORLD_DEFAULT,
                         help="Seconds to wait for gz sim before first spawn.")
     parser.add_argument("--gap", type=float, default=GAP_BETWEEN_SPAWNS,
@@ -104,7 +108,7 @@ def main():
         return 2
 
     print(f"[spawn_multi_cartpoles] Waiting {args.wait}s for gz sim world "
-          f"'{WORLD_NAME}' to come up...")
+          f"'{args.world}' to come up...")
     time.sleep(args.wait)
 
     n = args.n_agents
@@ -118,7 +122,7 @@ def main():
         sdf = render_cartpole_sdf(i, args.model_uri)
         cmd = [
             "ros2", "run", "ros_gz_sim", "create",
-            "-world", WORLD_NAME,
+            "-world", args.world,
             "-string", sdf,
             "-name", f"cartpole_{i}",
             "-x", f"{x:.3f}",

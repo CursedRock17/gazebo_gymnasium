@@ -129,3 +129,22 @@ def test_reset_command_recenters_and_randomizes(world_path):
     assert abs(after[0, 0]) < 0.2 and abs(after[1, 0]) < 0.2, \
         f"carts should recenter, got {after[:, 0]}"
     assert abs(after[0, 2]) <= 0.06 and after[0, 2] != after[1, 2]
+
+
+def test_no_publish_until_all_agents_bound(world_path):
+    # world_path has 2 cartpoles; ask the harness for 3 -> agent 2 never
+    # resolves -> the plugin must publish NOTHING (no all-zeros stream that
+    # would fake a solved episode).
+    h = mah.MultiAgentHarness()
+    h.setup("cartpole", 3)
+    _node, _act, _rst, frames = _client()
+    time.sleep(0.4)
+
+    fx = gz_sim.TestFixture(world_path)
+    fx.on_pre_update(h.pre_update)
+    fx.on_post_update(h.post_update)
+    fx.finalize()
+    fx.server().run(True, 60, False)
+    time.sleep(0.3)
+
+    assert not frames, "harness must stay silent until every agent is bound"

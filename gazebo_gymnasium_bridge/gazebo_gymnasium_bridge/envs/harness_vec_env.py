@@ -90,6 +90,9 @@ class HarnessVecEnv(VecEnv):
         self._current_episode = 0
         self._episode_rewards = np.zeros(n_agents, dtype=np.float32)
         self._seed = None
+        # Honesty guards: distinguish "sim not connected" from a real rollout.
+        self._got_obs = False
+        self._last_bad_size = None
         self._debug = os.environ.get(
             "GAZEBO_GYM_VERBOSE", "false").lower() in ("1", "true", "yes", "on")
 
@@ -109,9 +112,11 @@ class HarnessVecEnv(VecEnv):
     def _on_obs(self, msg):
         data = np.asarray(msg.data, dtype=np.float32)
         if data.size != self.n_agents * self._obs_dim:
+            self._last_bad_size = data.size  # e.g. N mismatch with the launch
             return
         with self._obs_lock:
             self._latest_obs = data.reshape(self.n_agents, self._obs_dim)
+            self._got_obs = True
             self._obs_count += 1
             if self._obs_count >= self.frame_skip:
                 self._obs_event.set()
@@ -121,6 +126,24 @@ class HarnessVecEnv(VecEnv):
             self._obs_count = 0
             self._obs_event.clear()
         return self._obs_event.wait(timeout=timeout)
+
+    def _no_obs_message(self) -> str:
+        expected = self.n_agents * self._obs_dim
+        if self._last_bad_size is not None:
+            return (
+                f"HarnessVecEnv received observations of size "
+                f"{self._last_bad_size} but expected {expected} "
+                f"({self.n_agents} agents x {self._obs_dim}) on {OBS_TOPIC}. "
+                f"--n_agents almost certainly does not match the launched "
+                f"world's agent count.")
+        return (
+            f"HarnessVecEnv received no observations on {OBS_TOPIC} within "
+            f"{self.reset_timeout}s. The sim isn't publishing — check that the "
+            f"launch is running, actually spawned {self.n_agents} agents "
+            f"(named {self._spec.name}_0..{self.n_agents - 1}), and loaded the "
+            f"MultiAgentHarness plugin. (A silent all-zeros stream used to look "
+            f"like a solved episode; the plugin now stays quiet until every "
+            f"agent is bound, so this fails loudly instead.)")
 
     # ------------------------------------------------------------------ #
     # VecEnv API
@@ -133,6 +156,8 @@ class HarnessVecEnv(VecEnv):
             self._seed = None
         self._reset_pub.publish(msg)
         if not self._wait_frame(self.reset_timeout):
+            if not self._got_obs:
+                raise RuntimeError(self._no_obs_message())
             print("[HarnessVecEnv] WARN: reset obs wait timed out")
 
         if self._steps_since_reset > 0:

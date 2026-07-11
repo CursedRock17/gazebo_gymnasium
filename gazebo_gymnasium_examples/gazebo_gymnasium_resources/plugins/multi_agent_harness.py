@@ -58,6 +58,10 @@ class MultiAgentHarness:
         self._rng = np.random.default_rng()
         self._node = None
         self._obs_pub = None
+        # True only once ALL agents' joints are bound. Until then we publish
+        # nothing — otherwise unresolved agents read as all-zeros, which look
+        # like a perfectly balanced pole and silently fake a solved episode.
+        self._ready = False
 
     # ------------------------------------------------------------------ #
     # Setup (callable directly for tests; configure() wires it from SDF)
@@ -118,7 +122,7 @@ class MultiAgentHarness:
     def pre_update(self, info, ecm):
         if info.paused or self.core is None:
             return
-        self.core.resolve(ecm)
+        self._ready = self.core.resolve(ecm)
         with self._lock:
             if self._pending_reset:
                 if self._reset_seed is not None:
@@ -133,6 +137,8 @@ class MultiAgentHarness:
     def post_update(self, info, ecm):
         if info.paused or self.core is None or self._obs_pub is None:
             return
+        if not self._ready:
+            return  # not all agents bound yet — don't publish zeros
         obs = self.core.read_obs(ecm)          # (n_agents, obs_dim)
         msg = Float_V()
         msg.data.extend(obs.reshape(-1).tolist())

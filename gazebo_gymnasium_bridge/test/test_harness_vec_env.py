@@ -99,3 +99,28 @@ def test_step_async_flattens_actions(monkeypatch):
     env._act_pub.publish = lambda m: published.setdefault("data", list(m.data))
     env.step_async(np.array([1, 0, 1, 0]))
     assert published["data"] == [1.0, 0.0, 1.0, 0.0]
+
+
+def test_reset_raises_when_no_observations(monkeypatch):
+    # A sim that never publishes (no agents spawned / plugin not loaded) must
+    # fail loudly, not silently truncate at the cap on all-zeros.
+    monkeypatch.setattr(gz_transport13, "Node", MagicMock(name="Node"))
+    from gazebo_gymnasium_bridge.envs import make_harness
+    env = make_harness("cartpole", n_agents=3, world_name="t",
+                       reset_timeout=0.01)
+    with pytest.raises(RuntimeError, match="no observations"):
+        env.reset()
+
+
+def test_reset_raises_on_agent_count_mismatch(monkeypatch):
+    monkeypatch.setattr(gz_transport13, "Node", MagicMock(name="Node"))
+    from gazebo_gymnasium_bridge.envs import make_harness
+    env = make_harness("cartpole", n_agents=3, world_name="t",
+                       reset_timeout=0.01)
+
+    class _Msg:
+        data = [1.0, 2.0, 3.0, 4.0]        # not 3 agents x 4 dims
+
+    env._on_obs(_Msg())
+    with pytest.raises(RuntimeError, match="does not match"):
+        env.reset()

@@ -75,6 +75,9 @@ def generate_launch_description():
         cmd=["python3", os.path.join(bringup, "scripts",
                                      "spawn_multi_cartpoles.py"),
              "--n-agents", LaunchConfiguration("n_agents"),
+             # must match <world name=...> in cartpole_harness.sdf, otherwise
+             # `create -world ...` targets a world that isn't running.
+             "--world", "cartpole_harness",
              "--model-uri",
              "package://gazebo_gymnasium_resources/models/cartpole_bare"],
         output="screen",
