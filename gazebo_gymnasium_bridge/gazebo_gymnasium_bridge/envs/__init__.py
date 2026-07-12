@@ -27,6 +27,8 @@ from .agent_spec import get_spec
 from .agent_spec import JointObs
 from .agent_spec import register_spec
 from .agent_spec import registered_specs
+from .gym_env import GazeboEnv
+from .gym_env import register_envs
 from .harness_vec_env import HarnessVecEnv
 from .harness_vec_env import make_harness
 from .inprocess_vec_env import InProcessHarnessVecEnv
@@ -35,6 +37,10 @@ from .multi_agent_env import make_multi
 from .multi_agent_env import MultiAgentGazeboVecEnv
 from .multi_cartpole import MultiCartPoleVecEnv
 
+# Register the gymnasium ids (GazeboCartPole-v0, ...) on import, so
+# `import gazebo_gymnasium_bridge; gymnasium.make("GazeboCartPole-v0")` works.
+register_envs()
+
 __all__ = [
     "MultiAgentGazeboVecEnv",
     "make_multi",
@@ -42,6 +48,8 @@ __all__ = [
     "make_harness",
     "InProcessHarnessVecEnv",
     "make_inprocess",
+    "GazeboEnv",
+    "register_envs",
     "AgentSpec",
     "JointObs",
     "get_spec",

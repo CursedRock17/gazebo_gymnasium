@@ -9,8 +9,18 @@ is no per-environment Python class to write: "MultiCartPole", "MultiAnt",
 "MultiHopper" are just **named specs**.
 
 ```python
-from gazebo_gymnasium_bridge.envs import make_multi
-vec_env = make_multi("cartpole", n_agents=16)   # 16 agents, one sim
+from gazebo_gymnasium_bridge.envs import make_inprocess
+vec_env = make_inprocess("cartpole", n_agents=16)   # 16 agents, one sim, no launch
+```
+
+Registered specs are also exposed as a standard **`gymnasium.Env`**, so any
+Gymnasium-speaking tool (RLlib, CleanRL, Tianshou, TorchRL, `env_checker`) works
+out of the box — importing the package registers the ids:
+
+```python
+import gazebo_gymnasium_bridge          # registers GazeboCartPole-v0, ...
+import gymnasium as gym
+env = gym.make("GazeboCartPole-v0")     # standard 5-tuple step / (obs, info) reset
 ```
 
 The complete reference implementation is the cartpole spec in

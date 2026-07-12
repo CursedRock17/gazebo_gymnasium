@@ -48,3 +48,13 @@ def _check_ros_distro() -> None:
 
 
 _check_ros_distro()
+
+
+# Registering the gymnasium ids (GazeboCartPole-v0, ...) makes
+# `import gazebo_gymnasium_bridge; gymnasium.make("GazeboCartPole-v0")` work.
+# Importing envs pulls in the gz transport bindings; skip gracefully where
+# they're absent (e.g. a docs build) rather than breaking the import.
+try:
+    from . import envs  # noqa: F401  (side effect: registers env ids)
+except ImportError:
+    pass

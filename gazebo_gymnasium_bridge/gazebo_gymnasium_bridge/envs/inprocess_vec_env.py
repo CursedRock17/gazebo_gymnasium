@@ -109,7 +109,8 @@ class InProcessHarnessVecEnv(VecEnv):
 
     def __init__(self, spec: AgentSpec, n_agents: int = 8,
                  max_episode_steps=None, frame_skip=None,
-                 spacing: float = 3.0, seed=None, **_ignored):
+                 spacing: float = 3.0, seed=None, autoreset: bool = True,
+                 **_ignored):
         if n_agents < 1:
             raise ValueError("n_agents must be >= 1")
         # Imported lazily so the module (and the rest of envs/) stays importable
@@ -132,13 +133,19 @@ class InProcessHarnessVecEnv(VecEnv):
         self._debug = os.environ.get(
             "GAZEBO_GYM_VERBOSE", "false").lower() in ("1", "true", "yes", "on")
 
-        self._dones = np.zeros(n_agents, dtype=bool)
-        self._steps_since_reset = 0
-        self._current_episode = 0
+        # Per-agent same-step autoreset (the SB3 VecEnv convention, applied
+        # independently per agent — an agent that terminates resets in place
+        # on its own step, others keep going). Each agent tracks its own step
+        # count so truncation is per-agent, not a shared clock.
+        self._autoreset = autoreset
+        self._agent_steps = np.zeros(n_agents, dtype=np.int64)
         self._episode_rewards = np.zeros(n_agents, dtype=np.float32)
+        self._current_episode = 0
         self._latest_obs = np.zeros((n_agents, self._obs_dim), dtype=np.float32)
+        # "reset" is a per-agent bool mask applied on the next sim tick (all
+        # True at construction for the initial reset); None means "actuate".
         self._ctl = {"action": np.zeros((n_agents, self._act_dim)),
-                     "reset": True}
+                     "reset": np.ones(n_agents, dtype=bool)}
         # Throughput: the sim callbacks fire every physics tick, but the RL loop
         # only needs the observation once per frame_skip and joints resolved
         # once. Reading obs only on the last tick of a run() is the main win.
@@ -176,9 +183,11 @@ class InProcessHarnessVecEnv(VecEnv):
         if not self._resolved:
             self._core.resolve(ecm)
             self._resolved = all(self._core._resolved)
-        if self._ctl["reset"]:
-            self._core.reset(ecm, self._rng)
-            self._ctl["reset"] = False
+        mask = self._ctl["reset"]
+        if mask is not None:
+            for i in np.nonzero(mask)[0]:
+                self._core.reset_agent(ecm, int(i), self._rng)
+            self._ctl["reset"] = None
         else:
             self._core.apply_actions(ecm, self._ctl["action"])
 
@@ -190,18 +199,18 @@ class InProcessHarnessVecEnv(VecEnv):
     # ---- VecEnv API -------------------------------------------------------- #
 
     def reset(self):
-        if self._debug and self._steps_since_reset > 0:
-            print(f"[EpisodeSummary] ep={self._current_episode} "
-                  f"steps={self._steps_since_reset} "
-                  f"agents_done={int(self._dones.sum())}/{self.n_agents} "
-                  f"mean_reward={float(self._episode_rewards.mean()):.1f}")
-        self._ctl["reset"] = True
+        self._ctl["reset"] = np.ones(self.n_agents, dtype=bool)
         self._step_server(1)
-        self._dones[:] = False
-        self._steps_since_reset = 0
-        self._current_episode += 1
+        self._agent_steps[:] = 0
         self._episode_rewards[:] = 0.0
+        self._current_episode += 1
         return self._latest_obs.copy()
+
+    def _reset_agents(self, mask):
+        """Reset the masked agents in place; return the full obs matrix."""
+        self._ctl["reset"] = mask
+        self._step_server(1)
+        return self._latest_obs
 
     def step_async(self, actions):
         self._ctl["action"] = np.asarray(actions).reshape(self.n_agents, -1)
@@ -210,31 +219,31 @@ class InProcessHarnessVecEnv(VecEnv):
         self._step_server(self.frame_skip)
         obs = self._latest_obs.copy()
 
-        rewards = np.zeros(self.n_agents, dtype=np.float32)
+        self._agent_steps += 1
+        rewards = np.empty(self.n_agents, dtype=np.float32)
+        terminated = np.zeros(self.n_agents, dtype=bool)
         for i in range(self.n_agents):
-            if self._dones[i]:
-                continue
-            if self._spec.terminated_fn(obs[i]):
-                self._dones[i] = True
-            else:
-                rewards[i] = float(self._spec.reward_fn(obs[i], None))
-
-        self._steps_since_reset += 1
+            rewards[i] = float(self._spec.reward_fn(obs[i], None))
+            terminated[i] = bool(self._spec.terminated_fn(obs[i]))
+        truncated = self._agent_steps >= self.max_episode_steps
         self._episode_rewards += rewards
-        truncated = self._steps_since_reset >= self.max_episode_steps
-        group_reset = bool(self._dones.all() or truncated)
+        dones = terminated | truncated
 
-        dones = np.zeros(self.n_agents, dtype=bool)
         infos = [{} for _ in range(self.n_agents)]
-        if group_reset:
+        done_idx = np.nonzero(dones)[0]
+        if len(done_idx):
             terminal_obs = obs.copy()
-            dones[:] = True
-            reset_obs = self.reset()
-            for i in range(self.n_agents):
-                infos[i]["terminal_observation"] = terminal_obs[i]
-                if truncated:
-                    infos[i]["TimeLimit.truncated"] = True
-            return reset_obs, rewards, dones, infos
+            reset_obs = self._reset_agents(dones.copy()) if self._autoreset \
+                else None
+            for i in done_idx:
+                if truncated[i] and not terminated[i]:
+                    infos[i]["TimeLimit.truncated"] = True   # bootstrap on step
+                if self._autoreset:
+                    infos[i]["terminal_observation"] = terminal_obs[i]
+                    obs[i] = reset_obs[i]                     # same-step reset
+                    self._agent_steps[i] = 0
+                    self._episode_rewards[i] = 0.0
+            self._current_episode += len(done_idx)
         return obs, rewards, dones, infos
 
     def close(self):

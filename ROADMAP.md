@@ -11,6 +11,16 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Near term
 
+- **Finish RL-tool integration (tier 1 started).** Done: per-agent independent
+  same-step autoreset in the in-process backend, and a registered, `check_env`-
+  passing single-agent `gymnasium.Env` (`gymnasium.make("GazeboCartPole-v0")`).
+  Remaining: extend per-agent reset to the harness/multi backends (needs a
+  per-agent reset-mask in the plugin protocol), and add a native
+  `gymnasium.vector.VectorEnv` + `vector_entry_point` so
+  `gymnasium.make_vec(...)` returns the efficient N-in-one-sim env.
+- **Standard wrappers + normalization** — verify `VecNormalize` /
+  `RecordEpisodeStatistics`; obs are unbounded (velocities), so normalization
+  matters. Then determinism/seeding audit and domain-randomization hooks.
 - **Port the stub MuJoCo envs to `AgentSpec`s.** The SDFs are auto-converted
   and load in Gazebo (`ant`, `hopper`, `walker2d`, `humanoid`,
   `humanoidstandup`, `reacher`, `pusher`, `swimmer`, `point`), but none has an
@@ -48,4 +58,8 @@ from a ~210-step random baseline to the 500-step cap). See
   ~4600 agent-steps/s at N=16).
 - Hyperparameter sweep (`training_scripts/sweep.py`, CSV + optional W&B) that
   verifies cartpole to the 500-step cap.
+- Per-agent independent same-step autoreset (in-process backend) — correct
+  vectorized-RL episode boundaries, not a shared group reset.
+- Standard `gymnasium.Env` + registration (`gymnasium.make("GazeboCartPole-v0")`)
+  that passes `gymnasium.utils.env_checker` — universal RL-tool interop.
 - flake8 + pep257 clean across the package under the project config.

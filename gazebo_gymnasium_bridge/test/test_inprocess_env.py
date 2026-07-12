@@ -51,20 +51,24 @@ def test_reset_and_step_shapes():
         env.close()
 
 
-def test_episodes_terminate_and_group_reset():
-    # push one direction constantly -> cart hits the limit -> group reset,
-    # with a terminal_observation stashed on every agent.
-    env = _env(2)
+def test_agents_autoreset_independently():
+    # Each agent that terminates resets in place ON ITS OWN STEP (SB3 same-step
+    # autoreset), independently of the others: done[i]=True, a terminal_
+    # observation is stashed, and the returned obs[i] is already the fresh
+    # (upright) reset state.
+    env = _env(3)
     try:
-        env.reset()
-        saw_reset = False
-        for _ in range(120):
-            env.step_async(np.ones(2, dtype=int))
-            _o, _r, dones, infos = env.step_wait()
-            if dones.all():
-                saw_reset = all("terminal_observation" in d for d in infos)
-                break
-        assert saw_reset, "expected a group reset with terminal observations"
+        obs = env.reset()
+        rng = np.random.default_rng(0)
+        saw_solo_done = False
+        for _ in range(300):
+            obs, _r, dones, infos = env.step(rng.integers(0, 2, size=3))
+            for i in np.nonzero(dones)[0]:
+                assert "terminal_observation" in infos[i]
+                assert abs(obs[i][2]) < 0.21, "reset obs should be upright"
+            if int(dones.sum()) == 1:
+                saw_solo_done = True
+        assert saw_solo_done, "agents should terminate/reset independently"
     finally:
         env.close()
 

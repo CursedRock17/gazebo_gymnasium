@@ -131,17 +131,19 @@ class HarnessCore:
                     k += 1
         return obs
 
+    def reset_agent(self, ecm, i, rng):
+        """Reset one agent's joints in place (positions + velocities)."""
+        if self.spec.reset_joint_state is None or not self._resolved[i]:
+            return
+        state = self.spec.reset_joint_state(rng)
+        for jn, (pos, vel) in state.items():
+            joint = self._joints.get((i, jn))
+            if joint is None:
+                continue
+            joint.reset_position(ecm, [float(pos)])
+            joint.reset_velocity(ecm, [float(vel)])
+
     def reset(self, ecm, rng):
         """Reset every agent's joints in place (positions + velocities)."""
-        if self.spec.reset_joint_state is None:
-            return
         for i in range(self.n_agents):
-            if not self._resolved[i]:
-                continue
-            state = self.spec.reset_joint_state(rng)
-            for jn, (pos, vel) in state.items():
-                joint = self._joints.get((i, jn))
-                if joint is None:
-                    continue
-                joint.reset_position(ecm, [float(pos)])
-                joint.reset_velocity(ecm, [float(vel)])
+            self.reset_agent(ecm, i, rng)
