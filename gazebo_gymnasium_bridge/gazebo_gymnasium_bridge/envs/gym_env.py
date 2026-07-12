@@ -87,5 +87,7 @@ def register_envs():
         gym.register(
             id=env_id,
             entry_point="gazebo_gymnasium_bridge.envs.gym_env:GazeboEnv",
+            vector_entry_point=(
+                "gazebo_gymnasium_bridge.envs.gym_vector_env:make_gym_vector"),
             kwargs={"agent": agent},
         )

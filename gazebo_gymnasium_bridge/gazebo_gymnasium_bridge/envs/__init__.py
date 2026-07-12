@@ -29,6 +29,7 @@ from .agent_spec import register_spec
 from .agent_spec import registered_specs
 from .gym_env import GazeboEnv
 from .gym_env import register_envs
+from .gym_vector_env import GazeboVectorEnv
 from .harness_vec_env import HarnessVecEnv
 from .harness_vec_env import make_harness
 from .inprocess_vec_env import InProcessHarnessVecEnv
@@ -49,6 +50,7 @@ __all__ = [
     "InProcessHarnessVecEnv",
     "make_inprocess",
     "GazeboEnv",
+    "GazeboVectorEnv",
     "register_envs",
     "AgentSpec",
     "JointObs",
