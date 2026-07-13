@@ -11,16 +11,14 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Near term
 
-- **Finish RL-tool integration (tier 1 started).** Done: per-agent independent
-  same-step autoreset in the in-process backend, and a registered, `check_env`-
-  passing single-agent `gymnasium.Env` (`gymnasium.make("GazeboCartPole-v0")`).
-  Remaining: extend per-agent reset to the harness/multi backends (needs a
-  per-agent reset-mask in the plugin protocol), and add a native
-  `gymnasium.vector.VectorEnv` + `vector_entry_point` so
-  `gymnasium.make_vec(...)` returns the efficient N-in-one-sim env.
-- **Standard wrappers + normalization** — verify `VecNormalize` /
-  `RecordEpisodeStatistics`; obs are unbounded (velocities), so normalization
-  matters. Then determinism/seeding audit and domain-randomization hooks.
+- **Finish RL-tool integration.** Remaining: extend per-agent reset to the
+  harness/multi (launched-sim) backends — needs a per-agent reset-mask in the
+  plugin's `/rl/reset` protocol (the in-process + gymnasium paths already do
+  per-agent reset). Lower priority: those backends are for *watching* a live
+  sim, where group-vs-per-agent reset is cosmetic.
+- **Determinism / seeding audit** for reproducible benchmarks, and
+  **domain-randomization hooks** (per-reset mass/friction/sensor-noise in the
+  AgentSpec) for sim-to-real.
 - **Port the stub MuJoCo envs to `AgentSpec`s.** The SDFs are auto-converted
   and load in Gazebo (`ant`, `hopper`, `walker2d`, `humanoid`,
   `humanoidstandup`, `reacher`, `pusher`, `swimmer`, `point`), but none has an
@@ -62,4 +60,9 @@ from a ~210-step random baseline to the 500-step cap). See
   vectorized-RL episode boundaries, not a shared group reset.
 - Standard `gymnasium.Env` + registration (`gymnasium.make("GazeboCartPole-v0")`)
   that passes `gymnasium.utils.env_checker` — universal RL-tool interop.
+- Native `gymnasium.vector.VectorEnv` (`gymnasium.make_vec(...)` via a
+  `vector_entry_point`) — the efficient N-in-one sim as a standard vector env
+  (SAME_STEP autoreset, `final_obs` info).
+- Verified compatibility with the ecosystem wrappers: SB3 `VecNormalize`,
+  Gymnasium `RecordEpisodeStatistics` / `NormalizeObservation`.
 - flake8 + pep257 clean across the package under the project config.

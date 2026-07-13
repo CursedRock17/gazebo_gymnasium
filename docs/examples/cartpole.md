@@ -99,13 +99,27 @@ that's the in-place ECM reset working.
 
 ## Bring your own trainer
 
-The env is a standard SB3 `VecEnv`, so any Gymnasium-speaking library drives it
-unchanged:
+Three interop surfaces, all sharing one `AgentSpec`:
 
 ```python
+# 1. Stable-Baselines3 (its own VecEnv API) — the fastest path
 import stable_baselines3 as sb3
-from gazebo_gymnasium_bridge.envs import make_harness
+from stable_baselines3.common.vec_env import VecNormalize
+from gazebo_gymnasium_bridge.envs import make_inprocess
 
-vec_env = make_harness("cartpole", n_agents=16)
-sb3.PPO("MlpPolicy", vec_env, n_steps=64).learn(total_timesteps=1_000_000)
+vec = VecNormalize(make_inprocess("cartpole", n_agents=16))   # normalize obs
+sb3.PPO("MlpPolicy", vec, n_steps=64).learn(total_timesteps=1_000_000)
+
+# 2. Any Gymnasium tool (RLlib, CleanRL, Tianshou, TorchRL) — standard env
+import gazebo_gymnasium_bridge          # registers the ids
+import gymnasium as gym
+env = gym.make("GazeboCartPole-v0")     # (obs, reward, terminated, truncated, info)
+
+# 3. The efficient N-in-one sim as a native gymnasium vector env
+vec = gym.make_vec("GazeboCartPole-v0", num_envs=16,
+                   vectorization_mode="vector_entry_point")
 ```
+
+The **observation has unbounded velocity components**, so wrap with obs
+normalization (`VecNormalize` for SB3, `NormalizeObservation` /
+`NormalizeReward` for Gymnasium) before training with most algorithms.
