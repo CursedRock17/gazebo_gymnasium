@@ -31,6 +31,7 @@ harness; only the transport is elided (and that layer is covered separately by
 test_harness_plugin.py).
 """
 
+import copy
 import os
 import tempfile
 import xml.etree.ElementTree as ET
@@ -69,26 +70,47 @@ def _resolve_bare_model_sdf(spec: AgentSpec) -> str:
     return os.path.join(get_package_share_directory(pkg), sub, "model.sdf")
 
 
-def _model_inner(model_sdf_path: str) -> str:
-    """Serialize the children of the <model> element (links + joints)."""
-    root = ET.parse(model_sdf_path).getroot()
-    model = root.find("model")
+_INERTIA_TAGS = ("mass", "ixx", "iyy", "izz", "ixy", "ixz", "iyz")
+
+
+def _load_model(model_sdf_path: str):
+    """Return the <model> element of a model.sdf."""
+    model = ET.parse(model_sdf_path).getroot().find("model")
     if model is None:
         raise ValueError(f"no <model> in {model_sdf_path}")
+    return model
+
+
+def _scaled_inner(model_el, mass_scale: float) -> str:
+    """Serialize the model's children, scaling mass + inertia by mass_scale.
+
+    Inertia scales with mass for fixed geometry (I = m r^2), so multiplying
+    the mass and every inertia term by the same factor keeps the shape and
+    just changes how heavy/dense the body is.
+    """
+    model = copy.deepcopy(model_el)
+    if mass_scale != 1.0:
+        for tag in _INERTIA_TAGS:
+            for el in model.iter(tag):
+                el.text = repr(float(el.text) * mass_scale)
     return "".join(ET.tostring(child, encoding="unicode") for child in model)
 
 
-def _build_world(spec: AgentSpec, n_agents: int, spacing: float) -> str:
+def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng) -> str:
     """Build an N-agent world SDF by inlining the bare model N times.
 
     Inline (rather than <include>) sidesteps the frame-graph quirks a merged
     include hits with a world-scope joint, and matches the geometry the ECM
-    core is unit-tested against.
+    core is unit-tested against. Each agent's mass is optionally scaled for
+    population-based dynamics randomization (``spec.mass_randomization``).
     """
-    inner = _model_inner(_resolve_bare_model_sdf(spec))
+    model_el = _load_model(_resolve_bare_model_sdf(spec))
+    mr = spec.mass_randomization
     offset = (n_agents - 1) * spacing / 2.0
     models = []
     for i in range(n_agents):
+        scale = float(rng.uniform(1.0 - mr, 1.0 + mr)) if mr > 0 else 1.0
+        inner = _scaled_inner(model_el, scale)
         joints = "".join(
             f'<joint name="{jn}" type="fixed">'
             f"<parent>{parent}</parent><child>{child}</child></joint>"
@@ -154,7 +176,15 @@ class InProcessHarnessVecEnv(VecEnv):
         self._read_at = 1
 
         self._core = HarnessCore(spec, n_agents)
-        world = _build_world(spec, n_agents, spacing)
+        # A dedicated, seed-derived rng so the domain-randomization draws (mass
+        # in the SDF, actuator gain on the core) are reproducible and
+        # independent of the reset-randomization stream.
+        dr_rng = np.random.default_rng(seed)
+        world = _build_world(spec, n_agents, spacing, dr_rng)
+        if spec.action_gain_randomization > 0:
+            g = spec.action_gain_randomization
+            self._core.set_action_gains(
+                dr_rng.uniform(1.0 - g, 1.0 + g, size=n_agents))
         fd, path = tempfile.mkstemp(suffix=".sdf", prefix="inproc_world_")
         with os.fdopen(fd, "w") as fh:
             fh.write(world)

@@ -151,6 +151,28 @@ def _my_reset_joint_state(rng):
 > need an obs source beyond `joint_obs`; that's a planned `AgentSpec` extension,
 > not yet wired.
 
+### Domain randomization (sim-to-real)
+
+Two `AgentSpec` fields randomize dynamics *across the N agents in the one
+world* — each agent is a different sample from the distribution, so a policy
+trained across them is robust. Both are reproducible from the construction seed
+and off by default:
+
+```python
+AgentSpec(
+    ...,
+    mass_randomization=0.3,          # each agent's mass+inertia scaled U(0.7, 1.3)
+    action_gain_randomization=0.2,   # each agent's actuator command scaled U(0.8, 1.2)
+)
+```
+
+`action_gain_randomization` (actuator-gain uncertainty) is the sharper knob:
+a cartpole policy trained at nominal gain collapses from 500 to ~18 steps under
+±20% gain, which is exactly the sim-to-real brittleness DR exists to fix. (Mass
+matters less under velocity control — the controller forces the velocity
+regardless of mass.) Per-*episode* physics DR would need a respawn path;
+observation/sensor-noise DR is available today via `TransformObservation`.
+
 ---
 
 ## Step 3 — Register the spec

@@ -48,6 +48,13 @@ class HarnessCore:
         self._joints = {}                 # (agent_i, joint_name) -> Joint
         self._resolved = [False] * n_agents
         self._needed = self._collect_needed_joints()
+        # Per-agent actuator gain (multiplies velocity/force commands) — the
+        # control-authority axis of domain randomization. Default 1.0 (off).
+        self._action_gains = [1.0] * n_agents
+
+    def set_action_gains(self, gains):
+        """Set the per-agent actuator gain multiplier (len n_agents)."""
+        self._action_gains = [float(g) for g in gains]
 
     # ------------------------------------------------------------------ #
 
@@ -101,16 +108,17 @@ class HarnessCore:
         for i in range(self.n_agents):
             if not self._resolved[i]:
                 continue
+            gain = self._action_gains[i]
             for (jn, mode, value) in self.spec.action_to_commands(actions[i]):
                 joint = self._joints.get((i, jn))
                 if joint is None:
                     continue
                 if mode == "velocity":
-                    joint.set_velocity(ecm, [float(value)])
+                    joint.set_velocity(ecm, [float(value) * gain])
                 elif mode == "force":
-                    joint.set_force(ecm, [float(value)])
+                    joint.set_force(ecm, [float(value) * gain])
                 elif mode == "position":
-                    joint.reset_position(ecm, [float(value)])
+                    joint.reset_position(ecm, [float(value)])  # gain n/a
 
     def read_obs(self, ecm):
         """Build the (n_agents, obs_dim) observation from ECM joint state."""

@@ -16,9 +16,11 @@ from a ~210-step random baseline to the 500-step cap). See
   plugin's `/rl/reset` protocol (the in-process + gymnasium paths already do
   per-agent reset). Lower priority: those backends are for *watching* a live
   sim, where group-vs-per-agent reset is cosmetic.
-- **Determinism / seeding audit** for reproducible benchmarks, and
-  **domain-randomization hooks** (per-reset mass/friction/sensor-noise in the
-  AgentSpec) for sim-to-real.
+- **Per-episode physics domain randomization.** ECM exposes no mass/friction
+  *setters* (read-only), so per-reset physics randomization would need a respawn
+  path. The population-based variant (below) sidesteps this and is usually
+  enough. Observation/sensor-noise DR is achievable today via a standard
+  `TransformObservation` wrapper.
 - **Port the stub MuJoCo envs to `AgentSpec`s.** The SDFs are auto-converted
   and load in Gazebo (`ant`, `hopper`, `walker2d`, `humanoid`,
   `humanoidstandup`, `reacher`, `pusher`, `swimmer`, `point`), but none has an
@@ -65,4 +67,9 @@ from a ~210-step random baseline to the 500-step cap). See
   (SAME_STEP autoreset, `final_obs` info).
 - Verified compatibility with the ecosystem wrappers: SB3 `VecNormalize`,
   Gymnasium `RecordEpisodeStatistics` / `NormalizeObservation`.
+- Determinism verified: same seed + actions → bit-identical trajectories
+  (DART is deterministic; the seed threads through reset randomization).
+- Population-based domain randomization (`AgentSpec.mass_randomization`,
+  `action_gain_randomization`) — each of the N agents is a different dynamics
+  sample; seed-reproducible. ±20% gain collapses a nominal policy 500→~18.
 - flake8 + pep257 clean across the package under the project config.

@@ -91,6 +91,17 @@ class AgentSpec:
     reward_fn: Callable[[np.ndarray, object], float]
     terminated_fn: Callable[[np.ndarray], bool]
     bare_model_uri: str = ""
+    # Population-based dynamics randomization: fraction by which each agent's
+    # mass + inertia is scaled, sampled per agent as U(1-x, 1+x) when the world
+    # is built (0.0 = off). With N agents in one world this samples N points
+    # from the dynamics distribution, so a policy trained across them is robust
+    # to mass error — cheap domain randomization for sim-to-real, no ECM needed.
+    mass_randomization: float = 0.0
+    # Control-authority randomization: fraction by which each agent's actuator
+    # command (velocity/force) is scaled, sampled per agent as U(1-x, 1+x)
+    # (0.0 = off). Models real actuator-gain uncertainty and, unlike mass, bites
+    # even under velocity control. Reproducible from the construction seed.
+    action_gain_randomization: float = 0.0
     spawn_z: float = 0.10
     x_spacing: float = 3.0
     y_spacing: float = 8.5
