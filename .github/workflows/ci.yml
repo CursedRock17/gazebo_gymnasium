@@ -1,0 +1,40 @@
+# CI for gazebo_gymnasium.
+#
+# Runs the full test suite — functional (spec/VecEnv/harness/stress, incl. the
+# in-process gz TestFixture tests, which are fully headless) plus the three
+# ament linters (flake8 / pep257 / copyright), which run as pytest tests.
+#
+# Platform: ubuntu-latest (24.04 Noble) — Tier 1 for ROS 2 Jazzy per REP-2000.
+# The environment is the same Pixi (RoboStack) env developers use locally, so
+# CI exercises exactly what `pixi run build && pixi run test` does; pixi.lock
+# keeps it reproducible. This workflow is the change-control gate REP-2004
+# Quality Level 3 asks for (see QUALITY_DECLARATION.md).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pixi (cached ROS 2 Jazzy + Gazebo Harmonic + RL env)
+        uses: prefix-dev/setup-pixi@v0.8.10
+        with:
+          cache: true
+
+      - name: Build the colcon workspace
+        run: pixi run build
+
+      - name: Full test suite (functional + stress + lint)
+        run: pixi run test

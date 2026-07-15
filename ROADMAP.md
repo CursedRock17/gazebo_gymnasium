@@ -30,6 +30,12 @@ from a ~210-step random baseline to the 500-step cap). See
   SDF so it loads, then give it a spec.
 - **Image-observation `AgentSpec` extension** for the line-follower (camera →
   `Twist`/DiffDrive); today `AgentSpec` only reads joint state.
+  **Feasibility confirmed** (2026-07 spike): a `<sensor type="camera">` renders
+  headlessly inside the in-process `TestFixture` (ogre2 + EGL, no display) and
+  publishes real pixels on a gz topic — 64×64 RGB verified. Cost: rendering
+  drops the sim from ~9000 to ~180 ticks/s, so camera envs will train ~50×
+  slower than state-based ones (mitigate via camera `update_rate` and small
+  frames). Remaining work is the spec/obs plumbing, not feasibility.
 
 - **peragent backend dynamics.** The legacy per-agent backend still drives the
   controller-equipped `cartpole` model with velocity commands (JointController),
@@ -40,9 +46,10 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Quality / infrastructure
 
-- **CI**: a `.github/workflows/colcon-test.yml` that runs `colcon test`
-  (functional + lint) on Ubuntu Noble + ROS 2 Jazzy. This is the main gating
-  item for [Quality Level 3](QUALITY_DECLARATION.md).
+- **CI**: `.github/workflows/ci.yml` is in place (pixi build + full suite +
+  linters on Ubuntu Noble, the REP-2000 Tier 1 platform). Remaining: confirm
+  its first green run on GitHub, then add a nightly schedule — the last gating
+  items for [Quality Level 3](QUALITY_DECLARATION.md).
 - **Performance & stress benchmarks**: wall-clock steps/second per env vs
   canonical MuJoCo, and scaling curves across `n_agents` for both backends.
   Stress coverage lives in `test/test_stress.py`; a published benchmark script

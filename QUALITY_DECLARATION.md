@@ -19,7 +19,7 @@ take on the formal change-control overhead).
 | **License** | LICENSE file present | ✅ `LICENSE` — Apache-2.0 |
 | **Copyright** | Copyright statements in source | ✅ Apache-2.0 header in every `.py` file, enforced by `test_copyright` (ament_copyright) |
 | **Versioning** | Not required | ✅ Semver in every `package.xml` (`0.1.0`) |
-| **Change control** | Not required | ⚠️ GitHub PRs encouraged but not strictly enforced |
+| **Change control** | Not required | ✅ CI workflow (`.github/workflows/ci.yml`) runs the full suite + linters on every push/PR (Ubuntu Noble, the REP-2000 Tier 1 platform) |
 | **Documentation** | Not required | ✅ Per-env tutorial in `docs/examples/`; Sphinx skeleton in `docs/sphinx/`; `CONTRIBUTING.md` |
 | **Testing** | Not required | ✅ 178 pytest tests — spec/VecEnv contract, library integration, in-sim harness (ECM core + plugin), stress (scale/endurance/robustness), SDF validity + gz-check, and flake8/pep257/copyright lint |
 | **Platform Support** | Tier 1 platforms | ✅ Tested on Ubuntu Noble 24.04 + ROS 2 Jazzy + gz Harmonic |
@@ -54,11 +54,11 @@ gate Level 3 and above.
 Level 3 ("development / introspection tools" — same tier as `rviz`,
 `rqt`) would require:
 
-- [ ] **Change control**: enforce PR-based workflow with at least CI
-      gating (already mostly true; need to formalize a
-      `.github/workflows/colcon-test.yml`).
-- [ ] **Documented Tier 1 platform CI**: nightly build on Ubuntu Noble
-      + ROS 2 Jazzy at minimum.
+- [x] **Change control**: CI gating formalized in
+      `.github/workflows/ci.yml` (pixi env, full suite + linters on every
+      push/PR; awaiting its first green run on GitHub).
+- [ ] **Documented Tier 1 platform CI**: the workflow runs on Ubuntu Noble
+      + ROS 2 Jazzy (Tier 1); a *nightly* schedule is still to be added.
 - [ ] **Quality declaration linked from README** (this file once it's
       in the repo root).
 

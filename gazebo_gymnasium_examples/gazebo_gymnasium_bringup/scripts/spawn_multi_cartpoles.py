@@ -73,15 +73,15 @@ def render_cartpole_sdf(index: int, model_uri: str = _DEFAULT_URI) -> str:
     return (
         '<sdf version="1.8">'
         f'<model name="{name}">'
-        '<self_collide>true</self_collide>'
+        "<self_collide>true</self_collide>"
         '<include merge="true">'
-        f'<uri>{model_uri}</uri>'
-        '</include>'
+        f"<uri>{model_uri}</uri>"
+        "</include>"
         '<joint name="world_to_slider" type="fixed">'
-        '<parent>world</parent><child>slider</child>'
-        '</joint>'
-        '</model>'
-        '</sdf>'
+        "<parent>world</parent><child>slider</child>"
+        "</joint>"
+        "</model>"
+        "</sdf>"
     )
 
 
