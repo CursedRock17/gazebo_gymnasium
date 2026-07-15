@@ -52,6 +52,21 @@ pinned by contact friction, which velocity control would silently override
 actuation entirely until diagnosed. If you build your own force-actuated
 agent, keep it off the floor.
 
+## Continuous variant
+
+`cartpole_continuous` is the same model and dynamics with a **`Box(-1, 1)`**
+action mapped proportionally to slider force (±10 N) — the analog of
+Gymnasium's MuJoCo InvertedPendulum, and the entry point for continuous-control
+algorithms (SAC/TD3/DDPG):
+
+```python
+from gazebo_gymnasium_bridge.envs import make_inprocess
+env = make_inprocess("cartpole_continuous", n_agents=8)   # SB3 VecEnv
+
+import gymnasium as gym
+env = gym.make("GazeboCartPoleContinuous-v0")             # standard gym.Env
+```
+
 ## Running it
 
 **Fastest — one command, no launch** (the in-process backend hosts the sim in

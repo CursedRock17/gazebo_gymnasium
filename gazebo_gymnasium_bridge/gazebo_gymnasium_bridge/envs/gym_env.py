@@ -36,7 +36,10 @@ from .agent_spec import get_spec
 
 
 # env id -> registered agent spec name
-_REGISTERED = {"GazeboCartPole-v0": "cartpole"}
+_REGISTERED = {
+    "GazeboCartPole-v0": "cartpole",
+    "GazeboCartPoleContinuous-v0": "cartpole_continuous",
+}
 
 
 class GazeboEnv(gym.Env):

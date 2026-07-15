@@ -16,7 +16,8 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 
 | Example | Spaces | Backends | Status |
 |---------|--------|----------|--------|
-| [CartPole](cartpole.md) | `Discrete(2)` / `Box(4,)` | peragent + harness | ✅ Working — the reference spec |
+| [CartPole](cartpole.md) | `Discrete(2)` / `Box(4,)` | inprocess + harness | ✅ Verified — force-controlled, PPO solves to the 500 cap |
+| [CartPole — continuous](cartpole.md#continuous-variant) | `Box(1,)` / `Box(4,)` | inprocess + harness | ✅ Working — SAC/TD3 entry point (InvertedPendulum analog) |
 | Ant / Hopper / Walker2d / Humanoid / Reacher / … | continuous | — | 🚧 SDFs auto-converted from MuJoCo; **AgentSpecs not written yet** |
 | Line follower | camera → `Twist` | — | 🚧 Needs the planned image-observation `AgentSpec` extension |
 

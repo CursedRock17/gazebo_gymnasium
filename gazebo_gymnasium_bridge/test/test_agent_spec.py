@@ -197,3 +197,35 @@ class TestHarnessActuation:
         obs_joints = {j.joint for j in spec.joint_obs}
         for (joint, _mode, _v) in spec.action_to_commands(1):
             assert joint in obs_joints
+
+
+class TestContinuousCartpole:
+    """The continuous-force variant (Box action, SAC/TD3-compatible)."""
+
+    def test_spec_shapes(self):
+        import gymnasium as gym
+        spec = get_spec("cartpole_continuous")
+        assert isinstance(spec.action_space, gym.spaces.Box)
+        assert spec.action_space.shape == (1,)
+        assert spec.observation_space.shape == (4,)
+
+    def test_action_maps_proportionally_and_clips(self):
+        spec = get_spec("cartpole_continuous")
+        (_j, mode, full) = spec.action_to_commands(np.array([1.0]))[0]
+        (_j, _m, half) = spec.action_to_commands(np.array([0.5]))[0]
+        (_j, _m, neg) = spec.action_to_commands(np.array([-1.0]))[0]
+        (_j, _m, over) = spec.action_to_commands(np.array([7.0]))[0]
+        assert mode == "force"
+        assert half == pytest.approx(full / 2)
+        assert neg == pytest.approx(-full)
+        assert over == pytest.approx(full), "out-of-range actions must clip"
+
+    def test_same_dynamics_as_discrete(self):
+        # Shares the discrete spec's model/reset/termination — only the action
+        # interface differs, so policies face the same physics.
+        cont, disc = get_spec("cartpole_continuous"), get_spec("cartpole")
+        assert cont.model_uri == disc.model_uri
+        assert cont.bare_model_uri == disc.bare_model_uri
+        assert cont.spawn_z == disc.spawn_z
+        full = cont.action_to_commands(np.array([1.0]))[0][2]
+        assert full == disc.action_to_commands(1)[0][2]

@@ -86,6 +86,8 @@ class HarnessVecEnv(VecEnv):
         self._obs_count = 0
 
         self._dones = np.zeros(n_agents, dtype=bool)
+        self._last_actions = np.zeros((n_agents, self._act_dim),
+                                      dtype=np.float32)
         self._steps_since_reset = 0
         self._current_episode = 0
         self._episode_rewards = np.zeros(n_agents, dtype=np.float32)
@@ -175,6 +177,7 @@ class HarnessVecEnv(VecEnv):
 
     def step_async(self, actions: np.ndarray) -> None:
         flat = np.asarray(actions, dtype=np.float32).reshape(-1)
+        self._last_actions = flat.reshape(self.n_agents, self._act_dim)
         msg = Float_V()
         msg.data.extend(flat.tolist())
         with self._obs_lock:
@@ -197,7 +200,8 @@ class HarnessVecEnv(VecEnv):
             if self._spec.terminated_fn(obs[i]):
                 self._dones[i] = True
             else:
-                rewards[i] = float(self._spec.reward_fn(obs[i], None))
+                rewards[i] = float(
+                    self._spec.reward_fn(obs[i], self._last_actions[i]))
 
         self._steps_since_reset += 1
         self._episode_rewards += rewards

@@ -30,6 +30,7 @@ import gazebo_gymnasium_bridge  # noqa: F401,E402  (registers the env ids)
 def test_env_id_registered():
     # Registration must NOT require the native gz bindings.
     assert "GazeboCartPole-v0" in gym.envs.registration.registry
+    assert "GazeboCartPoleContinuous-v0" in gym.envs.registration.registry
 
 
 def test_gym_make_step_reset_api():
@@ -48,10 +49,12 @@ def test_gym_make_step_reset_api():
         env.close()
 
 
-def test_passes_gymnasium_env_checker():
+@pytest.mark.parametrize("env_id", ["GazeboCartPole-v0",
+                                    "GazeboCartPoleContinuous-v0"])
+def test_passes_gymnasium_env_checker(env_id):
     pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
     from gymnasium.utils.env_checker import check_env
-    env = gym.make("GazeboCartPole-v0")
+    env = gym.make(env_id)
     try:
         check_env(env.unwrapped, skip_render_check=True)
     finally:
@@ -86,3 +89,18 @@ def test_sb3_trains_on_registered_env():
                 verbose=0).learn(total_timesteps=64)
     finally:
         vec.close()
+
+
+def test_sac_trains_on_continuous_env():
+    # Off-policy continuous-control algorithms need a Box action space; the
+    # continuous cartpole spec is their entry point.
+    pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
+    sb3 = pytest.importorskip("stable_baselines3")
+    from gazebo_gymnasium_bridge.envs import make_inprocess
+    env = make_inprocess("cartpole_continuous", n_agents=1)
+    try:
+        model = sb3.SAC("MlpPolicy", env, learning_starts=16, batch_size=32,
+                        buffer_size=1000, verbose=0)
+        model.learn(total_timesteps=64)
+    finally:
+        env.close()

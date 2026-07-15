@@ -29,6 +29,7 @@ testable without a running simulator or the native bindings.
 
 from dataclasses import dataclass
 from dataclasses import field
+from dataclasses import replace
 from typing import Callable
 from typing import Optional
 from typing import Sequence
@@ -230,8 +231,28 @@ def _cartpole_spec() -> AgentSpec:
     )
 
 
+def _cartpole_continuous_action_to_commands(action):
+    # Box(-1, 1) -> proportional slider force in [-_CART_FORCE, +_CART_FORCE].
+    # The continuous analog of the discrete bang-bang spec (same model, same
+    # dynamics), mirroring Gymnasium's MuJoCo InvertedPendulum.
+    a = float(np.clip(np.ravel(action)[0], -1.0, 1.0))
+    return [("slider_to_cart", "force", a * _CART_FORCE)]
+
+
+def _cartpole_continuous_spec() -> AgentSpec:
+    """Continuous-force cartpole: exercises Box actions (SAC/TD3/DDPG)."""
+    return replace(
+        _cartpole_spec(),
+        name="cartpole_continuous",
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(1,),
+                                dtype=np.float32),
+        action_to_commands=_cartpole_continuous_action_to_commands,
+    )
+
+
 _SPEC_FACTORIES = {
     "cartpole": _cartpole_spec,
+    "cartpole_continuous": _cartpole_continuous_spec,
 }
 
 

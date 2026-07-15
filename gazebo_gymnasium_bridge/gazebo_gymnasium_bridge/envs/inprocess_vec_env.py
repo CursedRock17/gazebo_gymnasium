@@ -250,10 +250,12 @@ class InProcessHarnessVecEnv(VecEnv):
         obs = self._latest_obs.copy()
 
         self._agent_steps += 1
+        actions = self._ctl["action"]
         rewards = np.empty(self.n_agents, dtype=np.float32)
         terminated = np.zeros(self.n_agents, dtype=bool)
         for i in range(self.n_agents):
-            rewards[i] = float(self._spec.reward_fn(obs[i], None))
+            # pass the applied action so specs can shape reward on effort
+            rewards[i] = float(self._spec.reward_fn(obs[i], actions[i]))
             terminated[i] = bool(self._spec.terminated_fn(obs[i]))
         truncated = self._agent_steps >= self.max_episode_steps
         self._episode_rewards += rewards

@@ -129,14 +129,14 @@ def _my_agent_spec() -> AgentSpec:
 The two harness callbacks, cartpole-style:
 
 ```python
-_SPEED = 1.0
+_FORCE = 10.0
 
 def _my_action_to_commands(action):
     # np.ravel handles a scalar (offline) or a length-1 row (the harness passes
     # each agent's action as a row of the (n_agents, act_dim) matrix).
     a = int(round(float(np.ravel(action)[0])))
-    v = _SPEED if a == 1 else -_SPEED
-    return [("slider_to_cart", "velocity", v)]
+    f = _FORCE if a == 1 else -_FORCE
+    return [("slider_to_cart", "force", f)]
 
 def _my_reset_joint_state(rng):
     return {
@@ -147,9 +147,12 @@ def _my_reset_joint_state(rng):
 
 > **Continuous actions** work the same way — set `action_space=spaces.Box(...)`
 > and have `action_to_commands` return force/velocity values from
-> `np.ravel(action)`. **Image / camera observations** (e.g. a line-follower)
-> need an obs source beyond `joint_obs`; that's a planned `AgentSpec` extension,
-> not yet wired.
+> `np.ravel(action)` (the built-in `cartpole_continuous` spec is the reference).
+> **Force-actuated models must spawn clear of the ground plane** (`spawn_z`
+> above the collision box) — a model resting on the ground is pinned by contact
+> friction, which velocity commands silently override but forces cannot.
+> **Image / camera observations** (e.g. a line-follower) need an obs source
+> beyond `joint_obs`; that's a planned `AgentSpec` extension, not yet wired.
 
 ### Domain randomization (sim-to-real)
 
@@ -166,11 +169,11 @@ AgentSpec(
 )
 ```
 
-`action_gain_randomization` (actuator-gain uncertainty) is the sharper knob:
-a cartpole policy trained at nominal gain collapses from 500 to ~18 steps under
-±20% gain, which is exactly the sim-to-real brittleness DR exists to fix. (Mass
-matters less under velocity control — the controller forces the velocity
-regardless of mass.) Per-*episode* physics DR would need a respawn path;
+`action_gain_randomization` models actuator-gain uncertainty (a nominal-trained
+policy can collapse under ±20% gain — exactly the sim-to-real brittleness DR
+exists to fix), and `mass_randomization` bites whenever actuation is
+force-based (F = ma couples them; under pure velocity control mass is largely
+masked). Per-*episode* physics DR would need a respawn path;
 observation/sensor-noise DR is available today via `TransformObservation`.
 
 ---
