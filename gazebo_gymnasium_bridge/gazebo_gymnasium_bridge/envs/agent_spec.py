@@ -173,22 +173,23 @@ _POLE_ANGLE_THRESHOLD = 0.20944
 _CART_POSITION_THRESHOLD = 2.4
 
 
-# m/s commanded on the slider (bang-bang). Tuned to 2.5 so the task is a real
-# RL problem, not trivial: a random policy survives only ~210 steps (median
-# ~166, sometimes <10), while a trained policy reaches the 500 cap. At <=1.0 a
-# random policy already near-solves it (~490); at >=3.0 bang-bang velocity is
-# too coarse to balance and PPO plateaus. (Force control would be the textbook
-# choice but is non-functional in this DART build — see ROADMAP.md.)
-_CART_SPEED = 2.5
+# N pushed on the slider (bang-bang force), the classic CartPole actuation.
+# The pole is genuinely unstable under force control: a constant push tips it
+# in ~3 steps and a random policy survives ~7 steps (median 6), while a trained
+# PPO policy reaches the 500-step cap — a textbook benchmark. NOTE: force
+# actuation requires the model to spawn CLEAR of the ground (see spawn_z below);
+# a cart resting on the ground plane is pinned by contact friction, which
+# velocity control would silently override (kinematic) but force cannot.
+_CART_FORCE = 10.0
 
 
 def _cartpole_action_to_commands(action):
-    # Discrete 1 -> +v, 0 -> -v, applied as a slider velocity command.
+    # Discrete 1 -> +F, 0 -> -F, applied as a slider force command.
     # Robust to a scalar (offline) or a length-1 array (the harness passes each
     # agent's action as a row of the (n_agents, act_dim) matrix).
     a = int(round(float(np.ravel(action)[0])))
-    v = _CART_SPEED if a == 1 else -_CART_SPEED
-    return [("slider_to_cart", "velocity", v)]
+    f = _CART_FORCE if a == 1 else -_CART_FORCE
+    return [("slider_to_cart", "force", f)]
 
 
 def _cartpole_reset_joint_state(rng):
@@ -220,7 +221,9 @@ def _cartpole_spec() -> AgentSpec:
             abs(obs[2]) > _POLE_ANGLE_THRESHOLD
             or abs(obs[0]) > _CART_POSITION_THRESHOLD
         ),
-        spawn_z=0.10,
+        # Clear of the ground plane: the cart's collision box must NOT rest on
+        # the ground or contact friction pins it against force actuation.
+        spawn_z=0.60,
         extra_joints=(("world_to_slider", "world", "slider"),),
         action_to_commands=_cartpole_action_to_commands,
         reset_joint_state=_cartpole_reset_joint_state,

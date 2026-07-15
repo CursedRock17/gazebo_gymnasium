@@ -96,6 +96,11 @@ def main():
                         help="name of the running gz world to spawn into "
                              "(must match the launched world SDF's <world "
                              "name=...>)")
+    parser.add_argument("--spawn-z", type=float, default=0.1,
+                        help="spawn height. Force-actuated models (the "
+                             "harness/ECM backends) must spawn CLEAR of the "
+                             "ground plane (e.g. 0.6) or contact friction "
+                             "pins the cart; match AgentSpec.spawn_z.")
     parser.add_argument("--wait", type=float, default=WAIT_FOR_WORLD_DEFAULT,
                         help="Seconds to wait for gz sim before first spawn.")
     parser.add_argument("--gap", type=float, default=GAP_BETWEEN_SPAWNS,
@@ -127,7 +132,7 @@ def main():
             "-name", f"cartpole_{i}",
             "-x", f"{x:.3f}",
             "-y", f"{y:.3f}",
-            "-z", "0.1",
+            "-z", f"{args.spawn_z:.3f}",
         ]
         print(f"[spawn_multi_cartpoles] {i + 1}/{n}: "
               f"cartpole_{i} at ({x:+.2f}, {y:+.2f})")

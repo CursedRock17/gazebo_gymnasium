@@ -51,9 +51,11 @@ def _box(size):
 
 
 def _bare_cartpole(index, x):
+    # z=0.60 keeps the cart clear of the ground plane — resting on it pins the
+    # cart with contact friction, which silently defeats force actuation.
     return f"""
     <model name="cartpole_{index}">
-      <pose>{x} 0 0.10 0 0 0</pose>
+      <pose>{x} 0 0.60 0 0 0</pose>
       <link name="slider">
         <inertial><mass>1</mass>{_I_CART}</inertial>
         <collision name="c">{_box("0.03 8 0.03")}</collision></link>

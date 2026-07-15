@@ -2,12 +2,13 @@
 
 Classic CartPole reproduced in Gazebo Harmonic, and the **reference example**
 for the whole library. A cart slides along a rail on the Y axis; a pole is
-hinged on top and rotates around the X axis. The agent applies a velocity
-command to the cart and keeps the pole upright. If you're adding a new agent,
-read this alongside [Creating your own agent](../creating_your_own_agent.md).
+hinged on top and rotates around the X axis. The agent pushes the cart with a
+**force** (the textbook CartPole actuation) and keeps the pole upright. If
+you're adding a new agent, read this alongside
+[Creating your own agent](../creating_your_own_agent.md).
 
 - **Observation** — `Box(4,)`: `[cart_pos, cart_vel, pole_angle, pole_ang_vel]`
-- **Action** — `Discrete(2)`: push the cart −/+ along the rail
+- **Action** — `Discrete(2)`: push the cart −/+ along the rail (±10 N)
 - **Reward** — `+1` per step alive
 - **Termination** — `|pole_angle| > 0.209 rad` or `|cart_pos| > 2.4 m`
 
@@ -27,9 +28,11 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend
 Two backends drive the same spec (see
 [the backend table](../creating_your_own_agent.md#the-two-backends)):
 
-- **peragent** — a world-level controller plugin, 2 topics/agent, reset by
-  re-spawning each model. Model:
+- **peragent** (legacy) — a world-level controller plugin, 2 topics/agent,
+  reset by re-spawning each model. Model:
   [`models/cartpole`](../../gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/cartpole).
+  ⚠️ Its JointController is **velocity**-based, so its dynamics differ from the
+  force-based spec the ECM backends use — policies do not transfer to it.
 - **harness** — one `MultiAgentHarness` plugin, 3 topics total (O(1) in N),
   reset **in place** via the ECM (no respawn race, clean per-agent pole
   randomization). Bare model:
@@ -37,12 +40,17 @@ Two backends drive the same spec (see
 
 ## Difficulty
 
-The cart is bang-bang **velocity**-controlled (force control is non-functional
-in this DART build). The commanded speed (`_CART_SPEED`, 2.5 m/s) is tuned so
-this is a *real* RL problem: a **random policy survives only ~210 steps**
-(median ~166, sometimes <10), while a trained PPO policy reaches the 500-step
-cap. Below ~1 m/s a random policy already near-solves it; above ~3 m/s bang-bang
-is too coarse to balance and learning plateaus.
+The cart is bang-bang **force**-controlled (`_CART_FORCE`, ±10 N) — the classic
+CartPole dynamics, genuinely unstable: a constant push tips the pole in ~3
+steps and a **random policy survives only ~7 steps** (median 6), while a
+trained PPO policy reaches the 500-step cap.
+
+One physical subtlety worth knowing: the model **spawns clear of the ground
+plane** (`spawn_z = 0.6`). A cart whose collision box rests on the ground is
+pinned by contact friction, which velocity control would silently override
+(it's a kinematic constraint) but force control cannot — this masked force
+actuation entirely until diagnosed. If you build your own force-actuated
+agent, keep it off the floor.
 
 ## Running it
 

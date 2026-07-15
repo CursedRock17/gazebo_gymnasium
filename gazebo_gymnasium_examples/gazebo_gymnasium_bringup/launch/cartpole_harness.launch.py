@@ -78,6 +78,9 @@ def generate_launch_description():
              # must match <world name=...> in cartpole_harness.sdf, otherwise
              # `create -world ...` targets a world that isn't running.
              "--world", "cartpole_harness",
+             # matches the cartpole AgentSpec.spawn_z — force actuation needs
+             # the cart clear of the ground plane (contact friction pins it).
+             "--spawn-z", "0.6",
              "--model-uri",
              "package://gazebo_gymnasium_resources/models/cartpole_bare"],
         output="screen",

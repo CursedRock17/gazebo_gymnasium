@@ -130,7 +130,10 @@ class TestRegistry:
         spec = get_spec("cartpole")
         assert spec.observation_space.shape == (4,)
         assert spec.action_space.n == 2
-        assert spec.spawn_z == 0.10
+        # force actuation: the cart must spawn clear of the ground plane
+        # (contact friction would pin it), so spawn_z is well above the cart's
+        # half-height rather than the old ground-hugging 0.10.
+        assert spec.spawn_z >= 0.5
 
     def test_cartpole_reward_and_termination(self):
         spec = get_spec("cartpole")
@@ -169,9 +172,10 @@ class TestHarnessActuation:
         assert spec.action_to_commands is not None
         push_right = spec.action_to_commands(1)
         push_left = spec.action_to_commands(0)
-        # symmetric bang-bang velocity on the slider; magnitude is the tuned
-        # difficulty knob (see _CART_SPEED), so assert structure + symmetry.
-        assert push_right[0][:2] == ("slider_to_cart", "velocity")
+        # symmetric bang-bang force on the slider (classic CartPole actuation);
+        # magnitude is the tuned knob (see _CART_FORCE), so assert structure +
+        # symmetry rather than the exact newton value.
+        assert push_right[0][:2] == ("slider_to_cart", "force")
         assert push_right[0][2] > 0
         assert push_left[0][2] == -push_right[0][2]
 

@@ -31,10 +31,12 @@ from a ~210-step random baseline to the 500-step cap). See
 - **Image-observation `AgentSpec` extension** for the line-follower (camera →
   `Twist`/DiffDrive); today `AgentSpec` only reads joint state.
 
-- **Force control for cartpole.** `Joint.set_force` is non-functional in this
-  DART build (a 30 N command barely moves the cart), so cartpole uses bang-bang
-  velocity control and the difficulty is tuned via `_CART_SPEED`. Fixing force
-  control would make it the textbook force-controlled CartPole.
+- **peragent backend dynamics.** The legacy per-agent backend still drives the
+  controller-equipped `cartpole` model with velocity commands (JointController),
+  so its dynamics differ from the force-based spec the ECM backends
+  (inprocess/harness) use — policies don't transfer to it. Either port it to
+  `gz-sim-apply-joint-force-system` or retire it once the harness backend is
+  live-validated.
 
 ## Quality / infrastructure
 
@@ -72,4 +74,10 @@ from a ~210-step random baseline to the 500-step cap). See
 - Population-based domain randomization (`AgentSpec.mass_randomization`,
   `action_gain_randomization`) — each of the N agents is a different dynamics
   sample; seed-reproducible. ±20% gain collapses a nominal policy 500→~18.
+- **Force-controlled CartPole** — the textbook actuation. `set_force` was never
+  broken: the cart's collision box rested on the ground plane at the old
+  `spawn_z=0.10` and contact friction pinned it (velocity control silently
+  overrode the contact; force could not). Spawning clear of the ground
+  (`spawn_z=0.60`) fixed it. Random policy ~7 steps, PPO solves to the 500 cap
+  — and mass DR now genuinely bites (F = ma).
 - flake8 + pep257 clean across the package under the project config.
