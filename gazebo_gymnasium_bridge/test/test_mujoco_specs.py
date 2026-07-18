@@ -136,20 +136,86 @@ class TestHopperSpecMath:
         assert spec.reward_fn(still, np.ones(3)) < spec.reward_fn(still, a)
 
 
+class TestWalker2dSpecMath:
+    """Offline: walker2d layout, actuation, health — the two-legged hopper."""
+
+    def test_spaces_and_obs_layout(self):
+        spec = get_spec("walker2d")
+        assert spec.observation_space.shape == (17,)
+        assert spec.action_space.shape == (6,)
+        assert sum(j.width for j in spec.joint_obs) == 17
+        # forward-slide position excluded, its velocity is obs[8]
+        assert spec.joint_obs[8].joint == "root_fwd"
+        assert not spec.joint_obs[8].position
+
+    def test_action_maps_six_torques(self):
+        spec = get_spec("walker2d")
+        cmds = spec.action_to_commands(np.array([1, 0, 0, -1, 0, 0]))
+        assert len(cmds) == 6
+        assert cmds[0][2] == -cmds[3][2] != 0
+        assert len(spec.action_to_commands(0)) == 6   # scalar probe safe
+
+    def test_health_termination(self):
+        spec = get_spec("walker2d")
+        healthy = np.zeros(17, dtype=np.float32)
+        assert spec.terminated_fn(healthy) is False
+        low = healthy.copy()
+        low[0] = -0.5                                   # z = 0.75 < 0.8
+        assert spec.terminated_fn(low) is True
+        pitched = healthy.copy()
+        pitched[1] = 1.2
+        assert spec.terminated_fn(pitched) is True
+
+
+class TestHalfCheetahSpecMath:
+    """Offline: cheetah layout, per-joint gears, no health termination."""
+
+    def test_spaces_and_obs_layout(self):
+        spec = get_spec("half_cheetah")
+        assert spec.observation_space.shape == (17,)
+        assert spec.action_space.shape == (6,)
+        assert sum(j.width for j in spec.joint_obs) == 17
+
+    def test_per_joint_gears(self):
+        spec = get_spec("half_cheetah")
+        cmds = spec.action_to_commands(np.ones(6))
+        torques = [c[2] for c in cmds]
+        assert torques == [120.0, 90.0, 60.0, 120.0, 60.0, 30.0]
+
+    def test_no_health_termination(self):
+        # MuJoCo semantics: cheetah episodes end on truncation only; the spec
+        # keeps a pure numerical guard.
+        spec = get_spec("half_cheetah")
+        slumped = np.zeros(17, dtype=np.float32)
+        slumped[0] = -0.6
+        slumped[1] = 0.9
+        assert spec.terminated_fn(slumped) is False
+        blown_up = np.full(17, 2000.0, dtype=np.float32)
+        assert spec.terminated_fn(blown_up) is True
+
+    def test_reward_is_velocity_minus_ctrl_cost(self):
+        spec = get_spec("half_cheetah")
+        obs = np.zeros(17, dtype=np.float32)
+        obs[8] = 2.0
+        assert spec.reward_fn(obs, np.zeros(6)) == pytest.approx(2.0)
+        assert spec.reward_fn(obs, np.ones(6)) == pytest.approx(2.0 - 0.6)
+
+
 # ---- real physics (in-process sim, headless) ------------------------------ #
 
 pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 
 
-def test_hopper_passive_collapse_terminates():
-    # Unactuated, the monopod must buckle and fall unhealthy within ~2 s.
+@pytest.mark.parametrize("agent,act_dim", [("hopper", 3), ("walker2d", 6)])
+def test_locomotor_passive_collapse_terminates(agent, act_dim):
+    # Unactuated, the legged robots must buckle and fall unhealthy quickly.
     from gazebo_gymnasium_bridge.envs import make_inprocess
-    env = make_inprocess("hopper", n_agents=1, seed=0)
+    env = make_inprocess(agent, n_agents=1, seed=0)
     try:
         env.reset()
         fell = None
         for k in range(150):
-            _o, _r, dones, _i = env.step(np.zeros((1, 3)))
+            _o, _r, dones, _i = env.step(np.zeros((1, act_dim)))
             if dones[0]:
                 fell = k
                 break
@@ -208,3 +274,19 @@ def test_idp_obs_finite_and_deterministic():
             env.close()
 
     assert np.array_equal(rollout(5), rollout(5))
+
+
+def test_cheetah_runs_without_termination():
+    # No health check: 80 random-torque steps must neither terminate nor
+    # produce non-finite state.
+    from gazebo_gymnasium_bridge.envs import make_inprocess
+    env = make_inprocess("half_cheetah", n_agents=1, seed=3)
+    try:
+        env.reset()
+        rng = np.random.default_rng(0)
+        for _ in range(80):
+            obs, rewards, dones, _i = env.step(rng.uniform(-1, 1, size=(1, 6)))
+            assert not dones[0]
+            assert np.isfinite(obs).all() and np.isfinite(rewards).all()
+    finally:
+        env.close()

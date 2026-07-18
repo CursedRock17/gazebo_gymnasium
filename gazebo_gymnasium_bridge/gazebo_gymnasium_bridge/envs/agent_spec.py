@@ -394,11 +394,144 @@ def _hopper_spec() -> AgentSpec:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Walker2d (MuJoCo port): planar biped — the hopper recipe with two legs.
+# Obs (17) = [z, pitch, 6 leg angles | v_fwd, v_z, v_pitch, 6 leg velocities].
+# --------------------------------------------------------------------------- #
+
+_WALKER_TORQUE = 100.0
+_WALKER_SPAWN_Z = 1.25
+_WALKER_Z_RANGE = (0.8, 2.0)
+_WALKER_MAX_PITCH = 1.0
+_WALKER_LEG_JOINTS = ("thigh_joint", "leg_joint", "foot_joint",
+                      "thigh_left_joint", "leg_left_joint", "foot_left_joint")
+
+
+def _walker_action_to_commands(action):
+    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                          -1.0, 1.0), 6)
+    return [(j, "force", float(a[i]) * _WALKER_TORQUE)
+            for i, j in enumerate(_WALKER_LEG_JOINTS)]
+
+
+def _walker_reward(obs, action):
+    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
+    return float(obs[8] + 1.0 - 1e-3 * float(np.square(a).sum()))
+
+
+def _walker_terminated(obs):
+    z = _WALKER_SPAWN_Z + float(obs[0])
+    healthy = (_WALKER_Z_RANGE[0] < z < _WALKER_Z_RANGE[1]
+               and abs(float(obs[1])) < _WALKER_MAX_PITCH
+               and bool(np.all(np.abs(obs) < 100.0)))
+    return not healthy
+
+
+def _walker_reset_joint_state(rng):
+    def d():
+        return (float(rng.uniform(-0.005, 0.005)),
+                float(rng.uniform(-0.005, 0.005)))
+    return {j: d() for j in (("root_fwd", "root_up", "root_pitch")
+                             + _WALKER_LEG_JOINTS)}
+
+
+def _walker2d_spec() -> AgentSpec:
+    obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(17,),
+                           dtype=np.float32)
+    pos = tuple(JointObs(j, velocity=False)
+                for j in ("root_up", "root_pitch") + _WALKER_LEG_JOINTS)
+    vel = tuple(JointObs(j, position=False)
+                for j in ("root_fwd", "root_up", "root_pitch")
+                + _WALKER_LEG_JOINTS)
+    return AgentSpec(
+        name="walker2d",
+        model_uri="package://gazebo_gymnasium_resources/models/walker2d_bare",
+        bare_model_uri=("package://gazebo_gymnasium_resources/models/"
+                        "walker2d_bare"),
+        observation_space=obs_space,
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(6,),
+                                dtype=np.float32),
+        joint_obs=pos + vel,
+        reward_fn=_walker_reward,
+        terminated_fn=_walker_terminated,
+        spawn_z=_WALKER_SPAWN_Z,
+        frame_skip=4,
+        max_episode_steps=1000,
+        extra_joints=(("world_to_anchor", "world", "anchor"),),
+        action_to_commands=_walker_action_to_commands,
+        reset_joint_state=_walker_reset_joint_state,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# HalfCheetah (MuJoCo port): planar, horizontal torso, back/front legs.
+# No health termination — episodes end on truncation only (MuJoCo semantics).
+# Obs (17) = [z, pitch, 6 leg angles | v_fwd, v_z, v_pitch, 6 leg velocities].
+# --------------------------------------------------------------------------- #
+
+_CHEETAH_SPAWN_Z = 0.77
+_CHEETAH_JOINTS = ("bthigh", "bshin", "bfoot", "fthigh", "fshin", "ffoot")
+_CHEETAH_GEARS = (120.0, 90.0, 60.0, 120.0, 60.0, 30.0)
+
+
+def _cheetah_action_to_commands(action):
+    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                          -1.0, 1.0), 6)
+    return [(j, "force", float(a[i]) * _CHEETAH_GEARS[i])
+            for i, j in enumerate(_CHEETAH_JOINTS)]
+
+
+def _cheetah_reward(obs, action):
+    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
+    return float(obs[8] - 0.1 * float(np.square(a).sum()))
+
+
+def _cheetah_reset_joint_state(rng):
+    def d():
+        return (float(rng.uniform(-0.005, 0.005)),
+                float(rng.uniform(-0.005, 0.005)))
+    return {j: d() for j in (("root_fwd", "root_up", "root_pitch")
+                             + _CHEETAH_JOINTS)}
+
+
+def _half_cheetah_spec() -> AgentSpec:
+    obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(17,),
+                           dtype=np.float32)
+    pos = tuple(JointObs(j, velocity=False)
+                for j in ("root_up", "root_pitch") + _CHEETAH_JOINTS)
+    vel = tuple(JointObs(j, position=False)
+                for j in ("root_fwd", "root_up", "root_pitch")
+                + _CHEETAH_JOINTS)
+    return AgentSpec(
+        name="half_cheetah",
+        model_uri=("package://gazebo_gymnasium_resources/models/"
+                   "half_cheetah_bare"),
+        bare_model_uri=("package://gazebo_gymnasium_resources/models/"
+                        "half_cheetah_bare"),
+        observation_space=obs_space,
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(6,),
+                                dtype=np.float32),
+        joint_obs=pos + vel,
+        reward_fn=_cheetah_reward,
+        # MuJoCo half-cheetah has no health termination; keep a pure numerical
+        # guard so a solver blow-up can't silently poison training.
+        terminated_fn=lambda obs: not bool(np.all(np.abs(obs) < 1000.0)),
+        spawn_z=_CHEETAH_SPAWN_Z,
+        frame_skip=5,
+        max_episode_steps=1000,
+        extra_joints=(("world_to_anchor", "world", "anchor"),),
+        action_to_commands=_cheetah_action_to_commands,
+        reset_joint_state=_cheetah_reset_joint_state,
+    )
+
+
 _SPEC_FACTORIES = {
     "cartpole": _cartpole_spec,
     "cartpole_continuous": _cartpole_continuous_spec,
     "inverted_double_pendulum": _inverted_double_pendulum_spec,
     "hopper": _hopper_spec,
+    "walker2d": _walker2d_spec,
+    "half_cheetah": _half_cheetah_spec,
 }
 
 

@@ -41,6 +41,8 @@ _REGISTERED = {
     "GazeboCartPoleContinuous-v0": "cartpole_continuous",
     "GazeboInvertedDoublePendulum-v0": "inverted_double_pendulum",
     "GazeboHopper-v0": "hopper",
+    "GazeboWalker2d-v0": "walker2d",
+    "GazeboHalfCheetah-v0": "half_cheetah",
 }
 
 

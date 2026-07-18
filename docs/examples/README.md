@@ -19,9 +19,12 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 | [CartPole](cartpole.md) | `Discrete(2)` / `Box(4,)` | inprocess + harness | ✅ Verified — force-controlled, PPO solves to the 500 cap |
 | [CartPole — continuous](cartpole.md#continuous-variant) | `Box(1,)` / `Box(4,)` | inprocess + harness | ✅ Working — SAC/TD3 entry point (InvertedPendulum analog) |
 | InvertedDoublePendulum | `Box(1,)` / `Box(6,)` | inprocess + harness | ✅ Verified — PPO 84 → 3650+ ep reward and climbing |
-| Hopper | `Box(3,)` / `Box(11,)` | inprocess + harness | ✅ Learnable — planar-joint root, ground-contact locomotion; PPO climbing |
-| Walker2d / HalfCheetah / Swimmer | continuous | — | 🚧 Same planar-joint recipe as Hopper — next in line |
-| Ant / Humanoid / Reacher / Pusher | continuous | — | 🚧 Need link-state obs (3D base) or target bodies |
+| Hopper | `Box(3,)` / `Box(11,)` | inprocess + harness | ✅ Verified — PPO 4 → 272 ep reward (4 → 134-step episodes) |
+| Walker2d | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Verified — PPO walks: 6.5 → 800 ep reward (600-step episodes) |
+| HalfCheetah | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Working — no-termination MuJoCo semantics, reward = forward velocity |
+| Reacher / Pusher | continuous | — | 🚧 Target-as-joints trick, next in line |
+| Ant / Humanoid | continuous | — | 🚧 Need link-state obs extension (3D free base) |
+| Swimmer | continuous | — | ❌ Not portable faithfully — swims via MuJoCo's viscous fluid medium; DART has no fluid drag |
 | Line follower | camera → `Twist` | — | 🚧 Camera obs extension (headless rendering already proven) |
 
 The MuJoCo models have world SDFs and visualization launches
