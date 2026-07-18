@@ -26,7 +26,27 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 | Pusher | continuous | — | 🚧 Same goal-as-joints trick, next in line |
 | Ant / Humanoid | continuous | — | 🚧 Need link-state obs extension (3D free base) |
 | Swimmer | continuous | — | ❌ Not portable faithfully — swims via MuJoCo's viscous fluid medium; DART has no fluid drag |
-| Line follower | `Box(2,)` wheels / `Box(64,64,3)` camera | inprocess | ✅ Working — vision-in-the-loop: onboard camera IS the observation, reward from the image |
+| Line follower | `Box(2,)` wheels / `Box(64,64,3)` camera | inprocess | ✅ Pipeline verified — learns from pixels (4.8 → ~92); masters the straight, fails the first corner (see solved bars) |
+
+## Solved bars — what "passing" means per environment
+
+A ✅ above means **learnability is verified** (a clean training curve from the
+random baseline, real physics, headless). *Solved* is a stricter, per-env bar:
+
+| Env | Solved bar | Best verified so far |
+|---|---|---|
+| CartPole (both) | mean ep reward at the **500-step cap** | **500.0 — SOLVED** (sweep, 3 perfect trials) |
+| InvertedDoublePendulum | mean ep length at the **1000-step cap** | 365 steps / 3652 reward @300k, still climbing |
+| Hopper | 1000-step cap + reward ≥ 1000 | 134 steps / 272 @400k, climbing |
+| Walker2d | 1000-step cap + reward ≥ 1500 | 710 steps / 1013 @400k, climbing |
+| HalfCheetah | open-ended — report sustained m/s (MuJoCo-solved ≈ 5–6 m/s) | ~1.46 m/s @400k |
+| Reacher | mean ep reward ≥ −5 (near-goal most of the episode) | −13 @100k (learning signal) |
+| Line follower | mean ep length at the **300-step cap** (never loses the line ⇒ takes corners) | 76–82 steps ≈ the first straight; frame-stacked attempt in progress |
+
+The state-based numbers above are single unswept PPO probes at modest budgets
+(300–400k steps) — they establish *learnability*, and the remaining gap to the
+bars is expected to close with longer budgets/tuning (as the cartpole sweep
+demonstrated), not architecture changes.
 
 The MuJoCo models have world SDFs and visualization launches
 (`ant.launch.py`, …) you can load in Gazebo/Foxglove, but they are **not RL
