@@ -151,8 +151,32 @@ def _my_reset_joint_state(rng):
 > **Force-actuated models must spawn clear of the ground plane** (`spawn_z`
 > above the collision box) — a model resting on the ground is pinned by contact
 > friction, which velocity commands silently override but forces cannot.
+> (Deliberate contact like a hopper's foot is fine — there contact *is* the
+> mechanism.)
 > **Image / camera observations** (e.g. a line-follower) need an obs source
 > beyond `joint_obs`; that's a planned `AgentSpec` extension, not yet wired.
+
+### Porting MuJoCo environments
+
+Three lessons from the ports (`inverted_double_pendulum`, `hopper`):
+
+- **Planar "floating" bases are just joints.** MuJoCo's hopper/walker root is
+  a slide-slide-hinge chain, not a free joint — model it the same way in SDF
+  (world-pinned anchor → prismatic forward → prismatic vertical → revolute
+  pitch → torso) and the standard joint-based obs/reset/actuation covers the
+  whole robot. Point the forward axis along +Y so agents spaced along X never
+  collide. Only true 3D free bases (ant, humanoid) need anything beyond joints.
+- **MuJoCo joints carry hidden dynamics you must reproduce.** Its defaults add
+  `armature` (reflected rotor inertia, ~1 kg·m²) and `damping` per joint;
+  without them, MuJoCo-scale torques (gear ≈ 200) make an SDF model explode in
+  one step. SDF has no armature tag — emulate it by adding the armature value
+  to each articulated link's inertia about its hinge axis, and set
+  `<dynamics><damping>` explicitly. Keep MuJoCo's joint *range* limits too
+  (position limits are safe; it's `<effort>` limits that break ECM actuation).
+- **Derived quantities live in Python, not the sim.** Tip positions,
+  forward-progress terms, health checks — compute them from the joint
+  observation inside `reward_fn`/`terminated_fn` (see `_idp_tip`), keeping the
+  spec layer sim-free and unit-testable.
 
 ### Domain randomization (sim-to-real)
 

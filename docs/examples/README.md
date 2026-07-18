@@ -18,8 +18,11 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 |---------|--------|----------|--------|
 | [CartPole](cartpole.md) | `Discrete(2)` / `Box(4,)` | inprocess + harness | ✅ Verified — force-controlled, PPO solves to the 500 cap |
 | [CartPole — continuous](cartpole.md#continuous-variant) | `Box(1,)` / `Box(4,)` | inprocess + harness | ✅ Working — SAC/TD3 entry point (InvertedPendulum analog) |
-| Ant / Hopper / Walker2d / Humanoid / Reacher / … | continuous | — | 🚧 SDFs auto-converted from MuJoCo; **AgentSpecs not written yet** |
-| Line follower | camera → `Twist` | — | 🚧 Needs the planned image-observation `AgentSpec` extension |
+| InvertedDoublePendulum | `Box(1,)` / `Box(6,)` | inprocess + harness | ✅ Verified — PPO 84 → 3650+ ep reward and climbing |
+| Hopper | `Box(3,)` / `Box(11,)` | inprocess + harness | ✅ Learnable — planar-joint root, ground-contact locomotion; PPO climbing |
+| Walker2d / HalfCheetah / Swimmer | continuous | — | 🚧 Same planar-joint recipe as Hopper — next in line |
+| Ant / Humanoid / Reacher / Pusher | continuous | — | 🚧 Need link-state obs (3D base) or target bodies |
+| Line follower | camera → `Twist` | — | 🚧 Camera obs extension (headless rendering already proven) |
 
 The MuJoCo models have world SDFs and visualization launches
 (`ant.launch.py`, …) you can load in Gazebo/Foxglove, but they are **not RL

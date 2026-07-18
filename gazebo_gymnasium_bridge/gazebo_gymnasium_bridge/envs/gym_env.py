@@ -40,6 +40,7 @@ _REGISTERED = {
     "GazeboCartPole-v0": "cartpole",
     "GazeboCartPoleContinuous-v0": "cartpole_continuous",
     "GazeboInvertedDoublePendulum-v0": "inverted_double_pendulum",
+    "GazeboHopper-v0": "hopper",
 }
 
 

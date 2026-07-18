@@ -91,9 +91,84 @@ class TestIDPSpecMath:
         assert -0.05 <= st["pole_to_pole2"][0] <= 0.05
 
 
+class TestHopperSpecMath:
+    """Offline: hopper observation layout, actuation, health, reward."""
+
+    def test_spaces_and_obs_layout(self):
+        spec = get_spec("hopper")
+        assert spec.observation_space.shape == (11,)
+        assert spec.action_space.shape == (3,)
+        # MuJoCo layout: 5 positions (forward slide excluded), 6 velocities.
+        widths = [(j.joint, j.position, j.velocity) for j in spec.joint_obs]
+        assert widths[0] == ("root_up", True, False)
+        assert widths[5] == ("root_fwd", False, True)
+        assert sum(j.width for j in spec.joint_obs) == 11
+
+    def test_action_maps_three_torques(self):
+        spec = get_spec("hopper")
+        cmds = spec.action_to_commands(np.array([1.0, -0.5, 0.25]))
+        assert [c[0] for c in cmds] == ["thigh_joint", "leg_joint",
+                                        "foot_joint"]
+        assert all(c[1] == "force" for c in cmds)
+        assert cmds[1][2] == pytest.approx(-cmds[0][2] / 2)
+        # scalar probes (used for joint discovery) must not raise
+        assert len(spec.action_to_commands(0)) == 3
+
+    def test_health_termination(self):
+        spec = get_spec("hopper")
+        healthy = np.zeros(11, dtype=np.float32)
+        assert spec.terminated_fn(healthy) is False
+        fallen = healthy.copy()
+        fallen[0] = -0.6            # torso below min height
+        assert spec.terminated_fn(fallen) is True
+        pitched = healthy.copy()
+        pitched[1] = 0.3            # beyond the pitch band
+        assert spec.terminated_fn(pitched) is True
+
+    def test_reward_rewards_forward_motion(self):
+        spec = get_spec("hopper")
+        still = np.zeros(11, dtype=np.float32)
+        moving = still.copy()
+        moving[5] = 1.5             # forward velocity
+        a = np.zeros(3)
+        assert spec.reward_fn(moving, a) > spec.reward_fn(still, a)
+        # control cost bites
+        assert spec.reward_fn(still, np.ones(3)) < spec.reward_fn(still, a)
+
+
 # ---- real physics (in-process sim, headless) ------------------------------ #
 
 pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
+
+
+def test_hopper_passive_collapse_terminates():
+    # Unactuated, the monopod must buckle and fall unhealthy within ~2 s.
+    from gazebo_gymnasium_bridge.envs import make_inprocess
+    env = make_inprocess("hopper", n_agents=1, seed=0)
+    try:
+        env.reset()
+        fell = None
+        for k in range(150):
+            _o, _r, dones, _i = env.step(np.zeros((1, 3)))
+            if dones[0]:
+                fell = k
+                break
+        assert fell is not None and fell < 100
+    finally:
+        env.close()
+
+
+def test_hopper_obs_finite_under_random_torques():
+    from gazebo_gymnasium_bridge.envs import make_inprocess
+    env = make_inprocess("hopper", n_agents=2, seed=1)
+    try:
+        env.reset()
+        rng = np.random.default_rng(0)
+        for _ in range(60):
+            obs, rewards, _d, _i = env.step(rng.uniform(-1, 1, size=(2, 3)))
+            assert np.isfinite(obs).all() and np.isfinite(rewards).all()
+    finally:
+        env.close()
 
 
 def test_idp_is_unstable_and_terminates():

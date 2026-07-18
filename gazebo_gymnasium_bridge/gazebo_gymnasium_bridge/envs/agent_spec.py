@@ -315,10 +315,90 @@ def _inverted_double_pendulum_spec() -> AgentSpec:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Hopper (MuJoCo port): planar monopod, root modeled as joints (MuJoCo-style),
+# forward = +Y. Obs (11) = [z_disp, pitch, thigh, leg, foot,
+#                           v_fwd, v_z, v_pitch, v_thigh, v_leg, v_foot].
+# --------------------------------------------------------------------------- #
+
+_HOPPER_TORQUE = 200.0        # N*m full-scale per actuated joint (MuJoCo gear)
+_HOPPER_SPAWN_Z = 1.25        # torso-root height at spawn (MuJoCo initial z)
+_HOPPER_MIN_Z = 0.7           # unhealthy below this absolute torso height
+_HOPPER_MAX_PITCH = 0.2       # rad, unhealthy beyond
+
+
+def _hopper_action_to_commands(action):
+    # np.resize pads scalar probes to 3; real actions come in as (3,).
+    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                          -1.0, 1.0), 3)
+    return [("thigh_joint", "force", float(a[0]) * _HOPPER_TORQUE),
+            ("leg_joint", "force", float(a[1]) * _HOPPER_TORQUE),
+            ("foot_joint", "force", float(a[2]) * _HOPPER_TORQUE)]
+
+
+def _hopper_reward(obs, action):
+    # forward velocity + alive bonus - control cost (MuJoCo weights).
+    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
+    return float(obs[5] + 1.0 - 1e-3 * float(np.square(a).sum()))
+
+
+def _hopper_terminated(obs):
+    z = _HOPPER_SPAWN_Z + float(obs[0])
+    healthy = (z > _HOPPER_MIN_Z
+               and abs(float(obs[1])) < _HOPPER_MAX_PITCH
+               and bool(np.all(np.abs(obs) < 100.0)))
+    return not healthy
+
+
+def _hopper_reset_joint_state(rng):
+    def d():
+        return (float(rng.uniform(-0.005, 0.005)),
+                float(rng.uniform(-0.005, 0.005)))
+    return {j: d() for j in ("root_fwd", "root_up", "root_pitch",
+                             "thigh_joint", "leg_joint", "foot_joint")}
+
+
+def _hopper_spec() -> AgentSpec:
+    obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(11,),
+                           dtype=np.float32)
+    return AgentSpec(
+        name="hopper",
+        model_uri="package://gazebo_gymnasium_resources/models/hopper_bare",
+        bare_model_uri=("package://gazebo_gymnasium_resources/models/"
+                        "hopper_bare"),
+        observation_space=obs_space,
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(3,),
+                                dtype=np.float32),
+        # MuJoCo layout: positions (root x excluded), then all velocities.
+        joint_obs=(
+            JointObs("root_up", velocity=False),
+            JointObs("root_pitch", velocity=False),
+            JointObs("thigh_joint", velocity=False),
+            JointObs("leg_joint", velocity=False),
+            JointObs("foot_joint", velocity=False),
+            JointObs("root_fwd", position=False),
+            JointObs("root_up", position=False),
+            JointObs("root_pitch", position=False),
+            JointObs("thigh_joint", position=False),
+            JointObs("leg_joint", position=False),
+            JointObs("foot_joint", position=False),
+        ),
+        reward_fn=_hopper_reward,
+        terminated_fn=_hopper_terminated,
+        spawn_z=_HOPPER_SPAWN_Z,
+        frame_skip=4,
+        max_episode_steps=1000,
+        extra_joints=(("world_to_anchor", "world", "anchor"),),
+        action_to_commands=_hopper_action_to_commands,
+        reset_joint_state=_hopper_reset_joint_state,
+    )
+
+
 _SPEC_FACTORIES = {
     "cartpole": _cartpole_spec,
     "cartpole_continuous": _cartpole_continuous_spec,
     "inverted_double_pendulum": _inverted_double_pendulum_spec,
+    "hopper": _hopper_spec,
 }
 
 

@@ -21,11 +21,14 @@ from a ~210-step random baseline to the 500-step cap). See
   path. The population-based variant (below) sidesteps this and is usually
   enough. Observation/sensor-noise DR is achievable today via a standard
   `TransformObservation` wrapper.
-- **Port the stub MuJoCo envs to `AgentSpec`s.** The SDFs are auto-converted
-  and load in Gazebo (`ant`, `hopper`, `walker2d`, `humanoid`,
-  `humanoidstandup`, `reacher`, `pusher`, `swimmer`, `point`), but none has an
-  `AgentSpec` yet — each needs obs/action/reward/actuation written. Reacher
-  (TD3) is the natural next slot.
+- **Port the remaining MuJoCo envs to `AgentSpec`s.** Done so far:
+  `inverted_double_pendulum`, `hopper` (both learnability-verified headless;
+  `cartpole_continuous` covers InvertedPendulum). The hopper established the
+  planar-joint-root recipe + MuJoCo armature/damping emulation (see the
+  porting notes in docs/creating_your_own_agent.md), so `walker2d`,
+  `half_cheetah` (after its SDF frame fix), and `swimmer` are mechanical next
+  steps. `reacher`/`pusher` need target bodies (target-as-joints trick);
+  `ant`/`humanoid` need a link-state obs extension for their 3D free bases.
 - **`half_cheetah`** — hand-rename the duplicate frame names in the converted
   SDF so it loads, then give it a spec.
 - **Image-observation `AgentSpec` extension** for the line-follower (camera →
