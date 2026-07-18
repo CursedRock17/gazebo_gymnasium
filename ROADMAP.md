@@ -34,9 +34,12 @@ from a ~210-step random baseline to the 500-step cap). See
 - **Line follower: reach the solved bar.** The camera extension is BUILT
   (`image_obs`, per-agent camera topics, pose-restoring resets — see the
   guide) and the vision pipeline learns decisively, but policies so far master
-  the straight and fail the first 90° corner. Levers: frame stacking (done in
-  entry points), longer budgets (vision needs 500k+), corner-aware shaping or
-  a rounded-corner track variant.
+  the straight and fail the first 90° corner. Tried: frame stacking
+  (VecFrameStack 4) — at a 100k budget it did NOT beat the single-frame
+  plateau (ep_len 66 vs 80), and CPU PPO+CNN on a 12-channel stack runs at
+  only ~4-8 env-steps/s (gradient updates dominate). Next levers, in order:
+  GPU training (GAZEBO_GYM_DEVICE=cuda), corner-aware reward shaping or a
+  rounded-corner track variant, grayscale/2-frame stacks to cut compute.
 - **Harness image transport** — cameras currently flow through the in-process
   backend only; carrying frames to the launched-sim client would enable
   GUI + vision together (per-agent topic rewrite in the spawner + image
