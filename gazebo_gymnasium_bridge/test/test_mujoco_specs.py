@@ -201,6 +201,39 @@ class TestHalfCheetahSpecMath:
         assert spec.reward_fn(obs, np.ones(6)) == pytest.approx(2.0 - 0.6)
 
 
+class TestReacherSpecMath:
+    """Offline: reacher kinematics, goal-in-obs, dense reward."""
+
+    def test_spaces_and_layout(self):
+        spec = get_spec("reacher")
+        assert spec.observation_space.shape == (6,)
+        assert spec.action_space.shape == (2,)
+        assert spec.max_episode_steps == 50
+
+    def test_fingertip_kinematics(self):
+        from gazebo_gymnasium_bridge.envs.agent_spec import _reacher_fingertip
+        x, y = _reacher_fingertip(np.zeros(6))
+        assert (x, y) == (pytest.approx(0.21), pytest.approx(0.0))
+        x, y = _reacher_fingertip(np.array([np.pi / 2, 0, 0, 0, 0, 0]))
+        assert (x, y) == (pytest.approx(0.0, abs=1e-9), pytest.approx(0.21))
+
+    def test_reward_is_negative_distance(self):
+        spec = get_spec("reacher")
+        at_goal = np.array([0, 0, 0.21, 0.0, 0, 0], dtype=np.float32)
+        far = np.array([0, 0, -0.14, -0.14, 0, 0], dtype=np.float32)
+        a = np.zeros(2)
+        assert spec.reward_fn(at_goal, a) == pytest.approx(0.0, abs=1e-6)
+        assert spec.reward_fn(far, a) < spec.reward_fn(at_goal, a)
+
+    def test_reset_randomizes_goal_within_reach(self):
+        spec = get_spec("reacher")
+        rng = np.random.default_rng(0)
+        for _ in range(20):
+            st = spec.reset_joint_state(rng)
+            g = np.hypot(st["target_x"][0], st["target_y"][0])
+            assert g <= 0.198 < 0.21, "goal must stay within arm reach"
+
+
 # ---- real physics (in-process sim, headless) ------------------------------ #
 
 pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
@@ -288,5 +321,21 @@ def test_cheetah_runs_without_termination():
             obs, rewards, dones, _i = env.step(rng.uniform(-1, 1, size=(1, 6)))
             assert not dones[0]
             assert np.isfinite(obs).all() and np.isfinite(rewards).all()
+    finally:
+        env.close()
+
+
+def test_reacher_goal_moves_between_episodes():
+    # The goal is two prismatic joints, so per-episode randomization flows
+    # through the ordinary in-place reset — verify it actually moves.
+    from gazebo_gymnasium_bridge.envs import make_inprocess
+    env = make_inprocess("reacher", n_agents=1, seed=0)
+    try:
+        obs = env.reset()
+        g1 = obs[0, 2:4].copy()
+        for _ in range(60):                      # run past the 50-step cap
+            obs, _r, _d, _i = env.step(np.zeros((1, 2)))
+        g2 = obs[0, 2:4].copy()
+        assert not np.allclose(g1, g2), "goal should re-randomize on reset"
     finally:
         env.close()

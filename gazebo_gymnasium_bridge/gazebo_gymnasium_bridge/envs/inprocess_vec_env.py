@@ -196,6 +196,14 @@ class InProcessHarnessVecEnv(VecEnv):
         self._fx.finalize()
         self._server = self._fx.server()
         self._step_server(1)  # resolve joints, settle
+        if not self._resolved:
+            # Without this, a failed world load (bad SDF, invalid inertia,
+            # missing joint) would run silently on all-zero observations.
+            raise RuntimeError(
+                f"in-process world for {spec.name!r} did not resolve all "
+                f"agents' joints after the first tick — the world SDF likely "
+                f"failed to load (check stderr for gz [Err] lines) or the "
+                f"model's joint names don't match the spec")
 
         print(f"[InProcessHarnessVecEnv] ready (agent={spec.name!r}, "
               f"n_agents={n_agents}, frame_skip={self.frame_skip}, "

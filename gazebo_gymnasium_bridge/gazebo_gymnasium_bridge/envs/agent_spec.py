@@ -525,6 +525,76 @@ def _half_cheetah_spec() -> AgentSpec:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Reacher (MuJoCo port): 2-link horizontal-plane arm + goal-as-joints target.
+# Obs (6) = [th0, th1, target_x, target_y, v0, v1]; dense distance reward.
+# --------------------------------------------------------------------------- #
+
+_REACHER_L0, _REACHER_L1 = 0.1, 0.11
+_REACHER_TORQUE = 5.0
+
+
+def _reacher_fingertip(obs):
+    th0, th1 = float(obs[0]), float(obs[1])
+    x = _REACHER_L0 * np.cos(th0) + _REACHER_L1 * np.cos(th0 + th1)
+    y = _REACHER_L0 * np.sin(th0) + _REACHER_L1 * np.sin(th0 + th1)
+    return x, y
+
+
+def _reacher_reward(obs, action):
+    fx, fy = _reacher_fingertip(obs)
+    dist = float(np.hypot(fx - float(obs[2]), fy - float(obs[3])))
+    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
+    return float(-dist - 0.1 * float(np.square(a).sum()))
+
+
+def _reacher_action_to_commands(action):
+    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                          -1.0, 1.0), 2)
+    return [("joint0", "force", float(a[0]) * _REACHER_TORQUE),
+            ("joint1", "force", float(a[1]) * _REACHER_TORQUE)]
+
+
+def _reacher_reset_joint_state(rng):
+    # arm pose randomized like MuJoCo; the GOAL moves through the same reset
+    # path because it is two prismatic joints (goal within reach, |g|<=0.198).
+    return {
+        "joint0": (float(rng.uniform(-0.1, 0.1)), 0.0),
+        "joint1": (float(rng.uniform(-0.1, 0.1)), 0.0),
+        "target_x": (float(rng.uniform(-0.14, 0.14)), 0.0),
+        "target_y": (float(rng.uniform(-0.14, 0.14)), 0.0),
+    }
+
+
+def _reacher_spec() -> AgentSpec:
+    obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,),
+                           dtype=np.float32)
+    return AgentSpec(
+        name="reacher",
+        model_uri="package://gazebo_gymnasium_resources/models/reacher_bare",
+        bare_model_uri=("package://gazebo_gymnasium_resources/models/"
+                        "reacher_bare"),
+        observation_space=obs_space,
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(2,),
+                                dtype=np.float32),
+        joint_obs=(JointObs("joint0", velocity=False),
+                   JointObs("joint1", velocity=False),
+                   JointObs("target_x", velocity=False),
+                   JointObs("target_y", velocity=False),
+                   JointObs("joint0", position=False),
+                   JointObs("joint1", position=False)),
+        reward_fn=_reacher_reward,
+        terminated_fn=lambda obs: not bool(np.all(np.abs(obs) < 100.0)),
+        spawn_z=0.05,
+        frame_skip=2,           # MuJoCo reacher dt = 0.02
+        max_episode_steps=50,   # MuJoCo reacher truncates at 50
+        extra_joints=(("world_to_base", "world", "base"),
+                      ("world_to_target_anchor", "world", "target_anchor")),
+        action_to_commands=_reacher_action_to_commands,
+        reset_joint_state=_reacher_reset_joint_state,
+    )
+
+
 _SPEC_FACTORIES = {
     "cartpole": _cartpole_spec,
     "cartpole_continuous": _cartpole_continuous_spec,
@@ -532,6 +602,7 @@ _SPEC_FACTORIES = {
     "hopper": _hopper_spec,
     "walker2d": _walker2d_spec,
     "half_cheetah": _half_cheetah_spec,
+    "reacher": _reacher_spec,
 }
 
 

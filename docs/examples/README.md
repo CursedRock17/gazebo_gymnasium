@@ -21,8 +21,9 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 | InvertedDoublePendulum | `Box(1,)` / `Box(6,)` | inprocess + harness | ✅ Verified — PPO 84 → 3650+ ep reward and climbing |
 | Hopper | `Box(3,)` / `Box(11,)` | inprocess + harness | ✅ Verified — PPO 4 → 272 ep reward (4 → 134-step episodes) |
 | Walker2d | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Verified — PPO walks: 6.5 → 800 ep reward (600-step episodes) |
-| HalfCheetah | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Working — no-termination MuJoCo semantics, reward = forward velocity |
-| Reacher / Pusher | continuous | — | 🚧 Target-as-joints trick, next in line |
+| HalfCheetah | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Verified — PPO runs at ~1.15 m/s sustained (reward 0 → 1150) |
+| Reacher | `Box(2,)` / `Box(6,)` | inprocess + harness | ✅ Working — goal-as-joints target, dense distance reward |
+| Pusher | continuous | — | 🚧 Same goal-as-joints trick, next in line |
 | Ant / Humanoid | continuous | — | 🚧 Need link-state obs extension (3D free base) |
 | Swimmer | continuous | — | ❌ Not portable faithfully — swims via MuJoCo's viscous fluid medium; DART has no fluid drag |
 | Line follower | camera → `Twist` | — | 🚧 Camera obs extension (headless rendering already proven) |

@@ -43,6 +43,7 @@ _REGISTERED = {
     "GazeboHopper-v0": "hopper",
     "GazeboWalker2d-v0": "walker2d",
     "GazeboHalfCheetah-v0": "half_cheetah",
+    "GazeboReacher-v0": "reacher",
 }
 
 

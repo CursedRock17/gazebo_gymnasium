@@ -54,7 +54,8 @@ def test_gym_make_step_reset_api():
                                     "GazeboInvertedDoublePendulum-v0",
                                     "GazeboHopper-v0",
                                     "GazeboWalker2d-v0",
-                                    "GazeboHalfCheetah-v0"])
+                                    "GazeboHalfCheetah-v0",
+                                    "GazeboReacher-v0"])
 def test_passes_gymnasium_env_checker(env_id):
     pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
     from gymnasium.utils.env_checker import check_env
