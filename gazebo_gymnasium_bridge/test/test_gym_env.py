@@ -50,7 +50,8 @@ def test_gym_make_step_reset_api():
 
 
 @pytest.mark.parametrize("env_id", ["GazeboCartPole-v0",
-                                    "GazeboCartPoleContinuous-v0"])
+                                    "GazeboCartPoleContinuous-v0",
+                                    "GazeboInvertedDoublePendulum-v0"])
 def test_passes_gymnasium_env_checker(env_id):
     pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
     from gymnasium.utils.env_checker import check_env

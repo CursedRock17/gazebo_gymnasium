@@ -250,9 +250,75 @@ def _cartpole_continuous_spec() -> AgentSpec:
     )
 
 
+# --------------------------------------------------------------------------- #
+# InvertedDoublePendulum (MuJoCo port): cart + two hinged 0.6 m poles.
+# Obs layout: [cart_pos, cart_vel, th1, w1, th2, w2]  (th2 relative to pole 1).
+# --------------------------------------------------------------------------- #
+
+_IDP_POLE_LEN = 0.6
+_IDP_TIP_MAX = 2 * _IDP_POLE_LEN
+_IDP_TIP_THRESHOLD = 1.0     # terminate when the tip drops below this height
+_IDP_FORCE = 100.0           # N full-scale slider force for a Box(-1,1) action
+
+
+def _idp_tip(obs):
+    """Tip (x, height) from joint state — x absolute, height cart-relative."""
+    th1, th2 = float(obs[2]), float(obs[4])
+    x = float(obs[0]) + _IDP_POLE_LEN * (np.sin(th1) + np.sin(th1 + th2))
+    h = _IDP_POLE_LEN * (np.cos(th1) + np.cos(th1 + th2))
+    return x, h
+
+
+def _idp_reward(obs, action):
+    # Shaped like MuJoCo's: alive bonus minus tip-distance and velocity
+    # penalties (coefficients tuned to this model's scale, documented variant).
+    x, h = _idp_tip(obs)
+    w1, w2 = float(obs[3]), float(obs[5])
+    return float(10.0 - 0.01 * x * x - 10.0 * (_IDP_TIP_MAX - h) ** 2
+                 - 1e-3 * (w1 * w1 + w2 * w2))
+
+
+def _idp_action_to_commands(action):
+    a = float(np.clip(np.ravel(action)[0], -1.0, 1.0))
+    return [("slider_to_cart", "force", a * _IDP_FORCE)]
+
+
+def _idp_reset_joint_state(rng):
+    return {
+        "slider_to_cart": (0.0, 0.0),
+        "cart_to_pole": (float(rng.uniform(-0.05, 0.05)), 0.0),
+        "pole_to_pole2": (float(rng.uniform(-0.05, 0.05)), 0.0),
+    }
+
+
+def _inverted_double_pendulum_spec() -> AgentSpec:
+    obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,),
+                           dtype=np.float32)
+    return AgentSpec(
+        name="inverted_double_pendulum",
+        model_uri=("package://gazebo_gymnasium_resources/models/"
+                   "inverted_double_pendulum_bare"),
+        bare_model_uri=("package://gazebo_gymnasium_resources/models/"
+                        "inverted_double_pendulum_bare"),
+        observation_space=obs_space,
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(1,),
+                                dtype=np.float32),
+        joint_obs=(JointObs("slider_to_cart"), JointObs("cart_to_pole"),
+                   JointObs("pole_to_pole2")),
+        reward_fn=_idp_reward,
+        terminated_fn=lambda obs: bool(_idp_tip(obs)[1] <= _IDP_TIP_THRESHOLD),
+        spawn_z=0.60,        # force actuation: keep the cart off the ground
+        max_episode_steps=1000,
+        extra_joints=(("world_to_slider", "world", "slider"),),
+        action_to_commands=_idp_action_to_commands,
+        reset_joint_state=_idp_reset_joint_state,
+    )
+
+
 _SPEC_FACTORIES = {
     "cartpole": _cartpole_spec,
     "cartpole_continuous": _cartpole_continuous_spec,
+    "inverted_double_pendulum": _inverted_double_pendulum_spec,
 }
 
 

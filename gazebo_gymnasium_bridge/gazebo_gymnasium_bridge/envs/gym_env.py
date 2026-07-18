@@ -39,6 +39,7 @@ from .agent_spec import get_spec
 _REGISTERED = {
     "GazeboCartPole-v0": "cartpole",
     "GazeboCartPoleContinuous-v0": "cartpole_continuous",
+    "GazeboInvertedDoublePendulum-v0": "inverted_double_pendulum",
 }
 
 
