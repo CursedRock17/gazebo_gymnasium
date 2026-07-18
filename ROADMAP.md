@@ -31,14 +31,16 @@ from a ~210-step random baseline to the 500-step cap). See
   `ant`/`humanoid` need a link-state obs extension for their 3D free bases.
 - **`half_cheetah`** — hand-rename the duplicate frame names in the converted
   SDF so it loads, then give it a spec.
-- **Image-observation `AgentSpec` extension** for the line-follower (camera →
-  `Twist`/DiffDrive); today `AgentSpec` only reads joint state.
-  **Feasibility confirmed** (2026-07 spike): a `<sensor type="camera">` renders
-  headlessly inside the in-process `TestFixture` (ogre2 + EGL, no display) and
-  publishes real pixels on a gz topic — 64×64 RGB verified. Cost: rendering
-  drops the sim from ~9000 to ~180 ticks/s, so camera envs will train ~50×
-  slower than state-based ones (mitigate via camera `update_rate` and small
-  frames). Remaining work is the spec/obs plumbing, not feasibility.
+- **Line follower: reach the solved bar.** The camera extension is BUILT
+  (`image_obs`, per-agent camera topics, pose-restoring resets — see the
+  guide) and the vision pipeline learns decisively, but policies so far master
+  the straight and fail the first 90° corner. Levers: frame stacking (done in
+  entry points), longer budgets (vision needs 500k+), corner-aware shaping or
+  a rounded-corner track variant.
+- **Harness image transport** — cameras currently flow through the in-process
+  backend only; carrying frames to the launched-sim client would enable
+  GUI + vision together (per-agent topic rewrite in the spawner + image
+  subscription in HarnessVecEnv).
 
 - **peragent backend dynamics.** The legacy per-agent backend still drives the
   controller-equipped `cartpole` model with velocity commands (JointController),
