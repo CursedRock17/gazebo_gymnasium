@@ -38,6 +38,7 @@ from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_inprocess
 from gazebo_gymnasium_bridge.envs import make_multi
 from gazebo_gymnasium_bridge.envs import registered_specs
+from gazebo_gymnasium_bridge.envs import wrap_for_observations
 
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
@@ -66,6 +67,9 @@ def main():
     p.add_argument("--timesteps", type=int, default=200_000)
     p.add_argument("--world", default=None,
                    help="gz world name (default: <agent>_multi)")
+    p.add_argument("--frame-stack", type=int, default=4,
+                   help="frames stacked for IMAGE observations (1 disables; "
+                        "ignored for state observations)")
     p.add_argument("--backend", default="inprocess",
                    choices=("inprocess", "harness", "peragent"),
                    help="inprocess: sim hosted in this process, no launch "
@@ -80,6 +84,7 @@ def main():
     vec_env = _factories[args.backend](
         args.agent, n_agents=args.n_agents, world_name=args.world,
         reset_timeout=reset_to, step_timeout=step_to)
+    vec_env, policy = wrap_for_observations(vec_env, args.frame_stack)
 
     model_dir = MODELS_ROOT / f"{args.agent}_multi"
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -101,9 +106,9 @@ def main():
         except (ValueError, RuntimeError) as exc:
             print(f"[train] WARNING cannot load ({type(exc).__name__}: {exc}); "
                   f"starting fresh")
-            model = AlgoCls("MlpPolicy", vec_env, **algo_kwargs)
+            model = AlgoCls(policy, vec_env, **algo_kwargs)
     else:
-        model = AlgoCls("MlpPolicy", vec_env, **algo_kwargs)
+        model = AlgoCls(policy, vec_env, **algo_kwargs)
 
     ckpt = CheckpointCallback(
         save_freq=max(1, 10_000 // args.n_agents), save_path=str(model_dir),

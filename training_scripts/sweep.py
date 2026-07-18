@@ -36,6 +36,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import VecMonitor
 
 from gazebo_gymnasium_bridge.envs import make_inprocess
+from gazebo_gymnasium_bridge.envs import wrap_for_observations
 
 
 # Search space — small and hand-picked to reliably solve the cartpole spec.
@@ -88,7 +89,8 @@ def run_trial(idx, cfg, args, writer):
             wb = None
 
     env = VecMonitor(make_inprocess(args.agent, n_agents=args.n_agents))
-    model = sb3.PPO("MlpPolicy", env, verbose=0, **cfg)
+    env, policy = wrap_for_observations(env)
+    model = sb3.PPO(policy, env, verbose=0, **cfg)
     cb = CurveLogger(max(2000, args.timesteps // 25), idx, writer, wb)
     t0 = time.perf_counter()
     model.learn(total_timesteps=args.timesteps, callback=cb)

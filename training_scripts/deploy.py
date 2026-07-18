@@ -34,6 +34,7 @@ import stable_baselines3 as sb3
 from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_inprocess
 from gazebo_gymnasium_bridge.envs import make_multi
+from gazebo_gymnasium_bridge.envs import wrap_for_observations
 
 
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
@@ -56,6 +57,8 @@ def main():
     p.add_argument("--world", default=None)
     p.add_argument("--backend", default="inprocess",
                    choices=("inprocess", "harness", "peragent"))
+    p.add_argument("--frame-stack", type=int, default=4,
+                   help="must match training (image observations only)")
     args = p.parse_args()
 
     model_path = (Path(args.model) if args.model else
@@ -70,6 +73,7 @@ def main():
     env = _factories[args.backend](
         args.agent, n_agents=args.n_agents, world_name=args.world,
         reset_timeout=reset_to, step_timeout=step_to)
+    env, _policy = wrap_for_observations(env, args.frame_stack)
     model = _ALGOS[args.algo].load(str(model_path))
     print(f"[deploy] {model_path} -> deterministic eval, "
           f"{args.episodes} episode(s)")

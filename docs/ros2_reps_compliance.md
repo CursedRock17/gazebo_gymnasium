@@ -87,7 +87,7 @@ sub-checklist. Summary:
 - Level 4 ("demos / tutorials / experiments") is the appropriate
   starting point for a research-flavored package.
 - We exceed Level 4's minimums on several axes:
-  - Testing: 178 pytest tests incl. a scale/endurance/robustness stress suite (Level 4 requires none).
+  - Testing: 275 pytest tests across 8 environments incl. stress and vision suites (Level 4 requires none).
   - CI lint: ament_flake8 / ament_pep257 / ament_copyright all green.
   - Public API documented in `docs/sphinx/` + per-env tutorials.
 - Path to Level 3 (introspection tools) would require formal change
@@ -165,7 +165,7 @@ with realistic data.
 ## Summary
 
 We've explicitly aimed at **REP-2004 Level 4** (demos/tutorials), which
-sets the bar low enough that our 178-test pytest suite, lint gates, and
+sets the bar low enough that our 275-test pytest suite, lint gates, and
 sphinx docs all comfortably clear it. The other REPs that apply
 (REP-2000, REP-2003, REP-2006) are fully met. The remaining REPs are
 either non-applicable to a research-style env package (REP-2001, 2005,

@@ -21,7 +21,7 @@ take on the formal change-control overhead).
 | **Versioning** | Not required | ✅ Semver in every `package.xml` (`0.1.0`) |
 | **Change control** | Not required | ✅ CI workflow (`.github/workflows/ci.yml`) runs the full suite + linters on every push/PR (Ubuntu Noble, the REP-2000 Tier 1 platform) |
 | **Documentation** | Not required | ✅ Per-env tutorial in `docs/examples/`; Sphinx skeleton in `docs/sphinx/`; `CONTRIBUTING.md` |
-| **Testing** | Not required | ✅ 178 pytest tests — spec/VecEnv contract, library integration, in-sim harness (ECM core + plugin), stress (scale/endurance/robustness), SDF validity + gz-check, and flake8/pep257/copyright lint |
+| **Testing** | Not required | ✅ 275 pytest tests — 8 envs (spec math, real-physics probes, learnability), SB3/gymnasium contract, in-sim harness, stress, vision (camera obs), SDF validity + gz-check, and flake8/pep257/copyright lint |
 | **Platform Support** | Tier 1 platforms | ✅ Tested on Ubuntu Noble 24.04 + ROS 2 Jazzy + gz Harmonic |
 | **Security** | Not required | ✅ `SECURITY.md` with disclosure contact |
 
@@ -31,7 +31,7 @@ These would be the **minimum** under higher tiers; we've already done
 the work, just not the change-control / Tier-1-CI requirements that
 gate Level 3 and above.
 
-- **Test coverage**: 178 tests across the spec layer, the SB3 VecEnv contract,
+- **Test coverage**: 275 tests across the spec layer, the SB3 VecEnv contract,
   library-integration smoke tests (PPO/A2C on the cartpole spec), the in-sim
   harness (ECM core + plugin round-trip), a stress suite (16–64 agents,
   thousands of steps, malformed-input / timeout robustness), SDF validity

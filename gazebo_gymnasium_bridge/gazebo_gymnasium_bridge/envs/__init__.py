@@ -37,6 +37,8 @@ from .inprocess_vec_env import make_inprocess
 from .multi_agent_env import make_multi
 from .multi_agent_env import MultiAgentGazeboVecEnv
 from .multi_cartpole import MultiCartPoleVecEnv
+from .obs_wrap import is_image_space
+from .obs_wrap import wrap_for_observations
 
 # Register the gymnasium ids (GazeboCartPole-v0, ...) on import, so
 # `import gazebo_gymnasium_bridge; gymnasium.make("GazeboCartPole-v0")` works.
@@ -52,6 +54,8 @@ __all__ = [
     "GazeboEnv",
     "GazeboVectorEnv",
     "register_envs",
+    "is_image_space",
+    "wrap_for_observations",
     "AgentSpec",
     "JointObs",
     "get_spec",
