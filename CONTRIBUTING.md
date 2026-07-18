@@ -9,24 +9,14 @@ this document only lists what's project-specific.
 ## Quick checks before opening a PR
 
 ```bash
-# Build the workspace (uses the in-repo venv)
-colcon build --symlink-install
+# Build the workspace
+pixi run build
 
-# Lint
-./venv/bin/python -m pytest gazebo_gymnasium_bridge/test/ -v
-ament_lint_auto  # if you have ROS 2 sourced
+# Full test suite — functional + stress + the three ament linters
+pixi run test
 
-# Smoke-test all envs (no Gazebo needed — transport is mocked)
-./venv/bin/python -m pytest gazebo_gymnasium_bridge/test/test_library_integration.py -v
-
-# Static SDF checks (no Gazebo needed — pure XML inspection)
-./venv/bin/python -m pytest gazebo_gymnasium_bridge/test/test_sdf_validity.py -v
-
-# Semantic SDF checks via `gz sdf --check` (skips cleanly if `gz` not on PATH)
-./venv/bin/python -m pytest gazebo_gymnasium_bridge/test/test_sdf_loads_in_gazebo.py -v
-
-# Full ROS 2 ament lint suite (flake8 + pep257 + copyright headers)
-scripts/lint.sh
+# Just the linters (flake8 + pep257 + copyright headers)
+pixi run lint
 ```
 
 `scripts/lint.sh` wraps the three ament linters with project-specific
@@ -40,7 +30,7 @@ config:
 - `ament_copyright` checks every project Python file has an Apache-2.0
   header.
 
-If you add a new Python file, run `./venv/bin/python
+If you add a new Python file, run `pixi run python
 scripts/add_license_headers.py` once to prepend the standard header (the
 helper is idempotent — already-headered files are skipped).
 
@@ -77,7 +67,7 @@ All tests must pass before review. CI runs `colcon test` on every PR.
 
 ## Package conventions
 
-This repo has three top-level ROS 2 packages plus a learning library:
+This repo has four top-level ROS 2 packages:
 
 | Package | Build type | Purpose |
 |---------|------------|---------|
@@ -85,7 +75,6 @@ This repo has three top-level ROS 2 packages plus a learning library:
 | `gazebo_gymnasium_examples/gazebo_gymnasium_bringup` | `ament_cmake` | Launch files only |
 | `gazebo_gymnasium_examples/gazebo_gymnasium_resources` | `ament_cmake` | SDF worlds, models, plugins (installed assets) |
 | `gazebo_gymnasium_msgs` | `ament_cmake` | Custom ROS 2 message types |
-| `gazebo_gymnasium_reinforcement_learning` | (pure Python) | Algorithm implementations (custom PPO, etc.) |
 
 When adding new resources (models, worlds, plugins), drop them in the
 appropriate `gazebo_gymnasium_resources/<category>/` directory; install
@@ -127,7 +116,7 @@ N copies of it in a single world as an SB3 `VecEnv`. The full walkthrough is in
 
 Open a GitHub issue with:
 - ROS 2 distribution + Gazebo version (`ros2 --version` and `gz sim --version`)
-- Python version (`./venv/bin/python --version`)
+- Python version (`pixi run python --version`)
 - Exact reproducer (the `ros2 launch` command + the trainer invocation)
 - Full stack trace if any
 

@@ -17,7 +17,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / 'gazebo_gymnasium_bridge'))
-sys.path.insert(0, str(PROJECT_ROOT / 'gazebo_gymnasium_reinforcement_learning'))
 
 # -- Project info ------------------------------------------------------------
 

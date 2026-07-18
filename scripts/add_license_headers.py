@@ -35,7 +35,6 @@ TARGET_DIRS = [
     "gazebo_gymnasium_bridge",
     "gazebo_gymnasium_examples",
     "gazebo_gymnasium_msgs",
-    "gazebo_gymnasium_reinforcement_learning",
     "scripts",
     "training_scripts",
 ]

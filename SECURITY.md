@@ -67,7 +67,6 @@ The disclosure policy covers code in this repository:
 - `gazebo_gymnasium_bridge/` — env classes, helpers
 - `gazebo_gymnasium_examples/` — SDF worlds, models, plugins, launch files
 - `gazebo_gymnasium_msgs/` — message definitions
-- `gazebo_gymnasium_reinforcement_learning/` — custom RL algorithms
 - `training_scripts/` — example training entry points
 - `scripts/` — generators, validators, lint helpers
 
