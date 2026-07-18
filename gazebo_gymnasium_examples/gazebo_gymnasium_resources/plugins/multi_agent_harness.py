@@ -89,13 +89,14 @@ class MultiAgentHarness:
               f"topics={ACTION_TOPIC}/{RESET_TOPIC}->{OBS_TOPIC}")
 
     def configure(self, entity, element, ecm, event_mgr):
-        # SDF params win; env vars are the fallback so a single fixed world SDF
-        # works for any N (the launch just exports GAZEBO_GYM_AGENT / _N_AGENTS).
+        # Config comes from env vars (the launch exports GAZEBO_GYM_AGENT /
+        # _N_AGENTS), so one fixed world SDF works for any N. The sdformat
+        # `element` is readable too (get_string returns '' for missing keys),
+        # but env vars are the single source of truth the launch already sets —
+        # keeping configure trivial keeps this rarely-exercised surface small.
         import os
-        agent = (element.get_string("agent_name")
-                 or os.environ.get("GAZEBO_GYM_AGENT", "cartpole"))
-        n = int(element.get_double("n_agents")
-                or int(os.environ.get("GAZEBO_GYM_N_AGENTS", "1")))
+        agent = os.environ.get("GAZEBO_GYM_AGENT", "cartpole")
+        n = int(os.environ.get("GAZEBO_GYM_N_AGENTS", "1"))
         self.setup(agent, n)
 
     # ------------------------------------------------------------------ #
