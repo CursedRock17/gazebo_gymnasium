@@ -153,8 +153,15 @@ def _my_reset_joint_state(rng):
 > friction, which velocity commands silently override but forces cannot.
 > (Deliberate contact like a hopper's foot is fine — there contact *is* the
 > mechanism.)
-> **Image / camera observations** (e.g. a line-follower) need an obs source
-> beyond `joint_obs`; that's a planned `AgentSpec` extension, not yet wired.
+> **Image / camera observations** are supported: set `image_obs=(H, W, C)` and
+> an uint8 Box observation space, put a `<sensor type="camera">` with
+> `<topic>camera</topic>` on the model (the world builder rewrites it to
+> `/rl/camera_<i>` per agent and loads the render system), and compute
+> reward/termination from the image in plain Python — see the built-in
+> `line_follower` spec. Mobile bases set `reset_model_pose=True` so the
+> chassis returns to its spawn pose on reset, and `per_agent_include_uri`
+> gives each agent its own static scenery (e.g. a line track). Rendering costs
+> ~50× the physics-only throughput; keep frames small (64×64).
 
 ### Porting MuJoCo environments
 

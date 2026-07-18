@@ -26,7 +26,7 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 | Pusher | continuous | — | 🚧 Same goal-as-joints trick, next in line |
 | Ant / Humanoid | continuous | — | 🚧 Need link-state obs extension (3D free base) |
 | Swimmer | continuous | — | ❌ Not portable faithfully — swims via MuJoCo's viscous fluid medium; DART has no fluid drag |
-| Line follower | camera → `Twist` | — | 🚧 Camera obs extension (headless rendering already proven) |
+| Line follower | `Box(2,)` wheels / `Box(64,64,3)` camera | inprocess | ✅ Working — vision-in-the-loop: onboard camera IS the observation, reward from the image |
 
 The MuJoCo models have world SDFs and visualization launches
 (`ant.launch.py`, …) you can load in Gazebo/Foxglove, but they are **not RL

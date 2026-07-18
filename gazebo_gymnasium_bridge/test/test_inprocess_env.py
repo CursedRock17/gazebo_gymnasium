@@ -102,13 +102,13 @@ def test_mass_randomization_scales_sdf():
     from gazebo_gymnasium_bridge.envs.agent_spec import get_spec
 
     base = get_spec("cartpole")
-    w0 = ip._build_world(base, 4, 3.0, np.random.default_rng(0))
+    w0, _ = ip._build_world(base, 4, 3.0, np.random.default_rng(0))
     assert set(re.findall(r"<mass>([-\d.eE+]+)</mass>", w0)) == {"1"}, \
         "mass randomization off by default -> unscaled masses"
 
     spec = replace(base, mass_randomization=0.4)
-    w1 = ip._build_world(spec, 4, 3.0, np.random.default_rng(0))
-    w2 = ip._build_world(spec, 4, 3.0, np.random.default_rng(0))
+    w1, _ = ip._build_world(spec, 4, 3.0, np.random.default_rng(0))
+    w2, _ = ip._build_world(spec, 4, 3.0, np.random.default_rng(0))
     assert w1 == w2, "same seed must reproduce the randomized world"
     masses = {round(float(m), 4)
               for m in re.findall(r"<mass>([-\d.eE+]+)</mass>", w1)}

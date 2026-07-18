@@ -46,11 +46,20 @@ class HarnessCore:
         self.spec = spec
         self.n_agents = n_agents
         self._joints = {}                 # (agent_i, joint_name) -> Joint
+        self._models = {}                 # agent_i -> Model
         self._resolved = [False] * n_agents
         self._needed = self._collect_needed_joints()
+        # (x, y, z, yaw) per agent — used to restore mobile bases on reset
+        # when spec.reset_model_pose is set (joint resets alone can't bring a
+        # free chassis home). Filled in by the world builder.
+        self._spawn_poses = None
         # Per-agent actuator gain (multiplies velocity/force commands) — the
         # control-authority axis of domain randomization. Default 1.0 (off).
         self._action_gains = [1.0] * n_agents
+
+    def set_spawn_poses(self, poses):
+        """Record each agent's spawn pose for model-pose restoring resets."""
+        self._spawn_poses = list(poses)
 
     def set_action_gains(self, gains):
         """Set the per-agent actuator gain multiplier (len n_agents)."""
@@ -87,6 +96,7 @@ class HarnessCore:
                 all_ok = False
                 continue
             model = Model(model_entity)
+            self._models[i] = model
             ok = True
             for jn in self._needed:
                 je = model.joint_by_name(ecm, jn)
@@ -150,6 +160,11 @@ class HarnessCore:
                 continue
             joint.reset_position(ecm, [float(pos)])
             joint.reset_velocity(ecm, [float(vel)])
+        if (getattr(self.spec, "reset_model_pose", False)
+                and self._spawn_poses is not None and i in self._models):
+            from gz.math7 import Pose3d
+            x, y, z, yaw = self._spawn_poses[i]
+            self._models[i].set_world_pose_cmd(ecm, Pose3d(x, y, z, 0, 0, yaw))
 
     def reset(self, ecm, rng):
         """Reset every agent's joints in place (positions + velocities)."""

@@ -44,6 +44,7 @@ _REGISTERED = {
     "GazeboWalker2d-v0": "walker2d",
     "GazeboHalfCheetah-v0": "half_cheetah",
     "GazeboReacher-v0": "reacher",
+    "GazeboLineFollower-v0": "line_follower",
 }
 
 

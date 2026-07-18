@@ -92,11 +92,26 @@ class AgentSpec:
     reward_fn: Callable[[np.ndarray, object], float]
     terminated_fn: Callable[[np.ndarray], bool]
     bare_model_uri: str = ""
+    # --- Image observations (vision-in-the-loop) ---
+    # (H, W, C) when the observation is the agent's onboard camera instead of
+    # joint state. The world builder then loads the render/sensors system,
+    # rewrites the model's camera <topic> to /rl/camera_<i> per agent, and the
+    # in-process env reads frames from those topics. joint_obs may be empty.
+    image_obs: Optional[tuple] = None
+    # Static scenery included once per agent at that agent's spawn offset
+    # (e.g. each rover gets its own line track). Any package:// model URI.
+    per_agent_include_uri: str = ""
+    # If True the whole model's world pose is restored to its spawn pose on
+    # reset (mobile bases aren't world-pinned, so joint resets alone won't
+    # bring them home).
+    reset_model_pose: bool = False
     # Population-based dynamics randomization: fraction by which each agent's
     # mass + inertia is scaled, sampled per agent as U(1-x, 1+x) when the world
     # is built (0.0 = off). With N agents in one world this samples N points
     # from the dynamics distribution, so a policy trained across them is robust
     # to mass error — cheap domain randomization for sim-to-real, no ECM needed.
+    spawn_y: float = 0.0
+    spawn_yaw: float = 0.0
     mass_randomization: float = 0.0
     # Control-authority randomization: fraction by which each agent's actuator
     # command (velocity/force) is scaled, sampled per agent as U(1-x, 1+x)
@@ -127,13 +142,20 @@ class AgentSpec:
     reset_joint_state: Optional[Callable] = None
 
     def __post_init__(self):
-        obs_dim = self.observation_space.shape[0]
-        joint_dim = sum(j.width for j in self.joint_obs)
-        if joint_dim != obs_dim:
-            raise ValueError(
-                f"AgentSpec({self.name!r}): joint_obs widths sum to "
-                f"{joint_dim} but observation_space has {obs_dim} dims"
-            )
+        if self.image_obs is not None:
+            if tuple(self.observation_space.shape) != tuple(self.image_obs):
+                raise ValueError(
+                    f"AgentSpec({self.name!r}): observation_space shape "
+                    f"{self.observation_space.shape} != image_obs "
+                    f"{self.image_obs}")
+        else:
+            obs_dim = self.observation_space.shape[0]
+            joint_dim = sum(j.width for j in self.joint_obs)
+            if joint_dim != obs_dim:
+                raise ValueError(
+                    f"AgentSpec({self.name!r}): joint_obs widths sum to "
+                    f"{joint_dim} but observation_space has {obs_dim} dims"
+                )
         if self.spawn_z <= 0.0:
             raise ValueError(
                 f"AgentSpec({self.name!r}): spawn_z must be > 0 to clear the "
@@ -595,6 +617,78 @@ def _reacher_spec() -> AgentSpec:
     )
 
 
+# --------------------------------------------------------------------------- #
+# Line follower: differential-drive rover, onboard 64x64 camera as the WHOLE
+# observation. Reward/termination are computed from the image itself (line
+# centroid in the lower half), so the env is self-contained vision-in-the-loop.
+# --------------------------------------------------------------------------- #
+
+_LF_IMAGE = (64, 64, 3)
+_LF_WHEEL_SPEED = 15.0        # rad/s full scale (~0.5 m/s at r=0.034)
+_LF_DARK = 60                 # a pixel is "line" when max(R,G,B) < this
+
+
+def _lf_line_centroid(img):
+    """Return the x-centroid (0..1) of dark pixels in the lower half, or None."""
+    img = np.asarray(img)
+    bottom = img[img.shape[0] // 2:, :, :]
+    mask = bottom.max(axis=2) < _LF_DARK
+    if not mask.any():
+        return None
+    xs = np.nonzero(mask)[1]
+    return float(xs.mean()) / (bottom.shape[1] - 1)
+
+
+def _lf_reward(obs, action):
+    c = _lf_line_centroid(obs)
+    if c is None:
+        return 0.0
+    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
+    centered = 1.0 - 2.0 * abs(c - 0.5)
+    forward = float(np.resize(a, 2).mean())     # same-sign commands = forward
+    return float(centered + 0.5 * forward)
+
+
+def _lf_action_to_commands(action):
+    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                          -1.0, 1.0), 2)
+    return [("left_axle", "velocity", float(a[0]) * _LF_WHEEL_SPEED),
+            ("right_axle", "velocity", float(a[1]) * _LF_WHEEL_SPEED)]
+
+
+def _lf_reset_joint_state(rng):
+    return {"left_axle": (0.0, 0.0), "right_axle": (0.0, 0.0)}
+
+
+def _line_follower_spec() -> AgentSpec:
+    return AgentSpec(
+        name="line_follower",
+        model_uri="package://gazebo_gymnasium_resources/models/rover_bare",
+        bare_model_uri=("package://gazebo_gymnasium_resources/models/"
+                        "rover_bare"),
+        observation_space=spaces.Box(low=0, high=255, shape=_LF_IMAGE,
+                                     dtype=np.uint8),
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(2,),
+                                dtype=np.float32),
+        joint_obs=(),
+        image_obs=_LF_IMAGE,
+        per_agent_include_uri=("package://gazebo_gymnasium_resources/models/"
+                               "line_track"),
+        reward_fn=_lf_reward,
+        terminated_fn=lambda obs: _lf_line_centroid(obs) is None,
+        # the old known-good start pose: on the y=-1 straight, aligned with it
+        spawn_y=-1.0,
+        spawn_yaw=1.5708,
+        spawn_z=0.085,
+        x_spacing=6.0,          # each agent gets its own ~2.4 m track loop
+        frame_skip=5,
+        max_episode_steps=300,
+        reset_model_pose=True,  # mobile base: restore chassis pose on reset
+        action_to_commands=_lf_action_to_commands,
+        reset_joint_state=_lf_reset_joint_state,
+    )
+
+
 _SPEC_FACTORIES = {
     "cartpole": _cartpole_spec,
     "cartpole_continuous": _cartpole_continuous_spec,
@@ -603,6 +697,7 @@ _SPEC_FACTORIES = {
     "walker2d": _walker2d_spec,
     "half_cheetah": _half_cheetah_spec,
     "reacher": _reacher_spec,
+    "line_follower": _line_follower_spec,
 }
 
 
