@@ -185,6 +185,32 @@ Three lessons from the ports (`inverted_double_pendulum`, `hopper`):
   observation inside `reward_fn`/`terminated_fn` (see `_idp_tip`), keeping the
   spec layer sim-free and unit-testable.
 
+### The spec toolkit — don't hand-write the plumbing
+
+The patterns every port repeats are core helpers (all in `agent_spec.py`,
+exported from `envs`). A complete planar locomotor spec is ~15 lines:
+
+```python
+from gazebo_gymnasium_bridge.envs import (
+    proportional_forces, pos_then_vel_obs, uniform_reset,
+    forward_progress_reward, planar_health_termination)
+
+ACT = ("thigh_joint", "leg_joint", "foot_joint")
+ROOT = ("root_fwd", "root_up", "root_pitch")
+spec = AgentSpec(
+    ...,
+    joint_obs=pos_then_vel_obs(("root_up", "root_pitch") + ACT, ROOT + ACT),
+    action_to_commands=proportional_forces(ACT, 200.0),   # or per-joint gears
+    reward_fn=forward_progress_reward(vel_index=5),
+    terminated_fn=planar_health_termination(spawn_z=1.25, min_z=0.7,
+                                            max_pitch=0.2),
+    reset_joint_state=uniform_reset(ROOT + ACT, 0.005),
+)
+```
+
+All helpers clip actions to the Box bounds and survive scalar probes; the
+built-in hopper/walker2d/half_cheetah/reacher specs are written this way.
+
 ### Domain randomization (sim-to-real)
 
 Two `AgentSpec` fields randomize dynamics *across the N agents in the one

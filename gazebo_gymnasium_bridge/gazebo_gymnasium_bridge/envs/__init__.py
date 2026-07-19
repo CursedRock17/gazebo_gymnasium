@@ -23,10 +23,16 @@ is just ``n_agents=1`` — there are no per-model or single-agent env classes.
 """
 
 from .agent_spec import AgentSpec
+from .agent_spec import forward_progress_reward
 from .agent_spec import get_spec
 from .agent_spec import JointObs
+from .agent_spec import planar_health_termination
+from .agent_spec import pos_then_vel_obs
+from .agent_spec import proportional_forces
+from .agent_spec import proportional_velocities
 from .agent_spec import register_spec
 from .agent_spec import registered_specs
+from .agent_spec import uniform_reset
 from .gym_env import GazeboEnv
 from .gym_env import register_envs
 from .gym_vector_env import GazeboVectorEnv
@@ -61,5 +67,11 @@ __all__ = [
     "get_spec",
     "register_spec",
     "registered_specs",
+    "proportional_forces",
+    "proportional_velocities",
+    "pos_then_vel_obs",
+    "uniform_reset",
+    "forward_progress_reward",
+    "planar_health_termination",
     "MultiCartPoleVecEnv",
 ]

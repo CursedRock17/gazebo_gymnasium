@@ -189,6 +189,88 @@ class AgentSpec:
 
 
 # --------------------------------------------------------------------------- #
+# Spec-building helpers — the patterns every port repeats.
+#
+# Distilled from the eight built-in specs: torque/velocity action mapping with
+# clipping and scalar-probe safety, MuJoCo's positions-then-velocities obs
+# layout, uniform reset noise, forward-progress rewards, and planar health
+# termination. Compose these instead of hand-writing the closures.
+# --------------------------------------------------------------------------- #
+
+
+def proportional_forces(joints, gears):
+    """Map a Box(-1,1) action to per-joint forces/torques.
+
+    ``gears`` is one float for all joints or a per-joint sequence. Robust to
+    scalar probes (joint discovery calls with 0/1) via np.resize.
+    """
+    joints = tuple(joints)
+    g = np.resize(np.asarray(gears, dtype=float), len(joints))
+
+    def _cmds(action):
+        a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                              -1.0, 1.0), len(joints))
+        return [(j, "force", float(a[i] * g[i]))
+                for i, j in enumerate(joints)]
+    return _cmds
+
+
+def proportional_velocities(joints, speeds):
+    """Map a Box(-1,1) action to per-joint velocity commands."""
+    joints = tuple(joints)
+    s = np.resize(np.asarray(speeds, dtype=float), len(joints))
+
+    def _cmds(action):
+        a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
+                              -1.0, 1.0), len(joints))
+        return [(j, "velocity", float(a[i] * s[i]))
+                for i, j in enumerate(joints)]
+    return _cmds
+
+
+def pos_then_vel_obs(pos_joints, vel_joints):
+    """Build the MuJoCo observation layout: positions, then velocities."""
+    return (tuple(JointObs(j, velocity=False) for j in pos_joints)
+            + tuple(JointObs(j, position=False) for j in vel_joints))
+
+
+def uniform_reset(joints, pos_eps, vel_eps=None):
+    """Reset every joint to U(-pos_eps, pos_eps) position (and velocity)."""
+    joints = tuple(joints)
+    v_eps = pos_eps if vel_eps is None else vel_eps
+
+    def _reset(rng):
+        return {j: (float(rng.uniform(-pos_eps, pos_eps)),
+                    float(rng.uniform(-v_eps, v_eps))) for j in joints}
+    return _reset
+
+
+def forward_progress_reward(vel_index, alive_bonus=1.0, ctrl_cost=1e-3):
+    """Locomotion reward: forward velocity + alive bonus - control cost."""
+    def _reward(obs, action):
+        a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
+        return float(obs[vel_index] + alive_bonus
+                     - ctrl_cost * float(np.square(a).sum()))
+    return _reward
+
+
+def planar_health_termination(spawn_z, min_z, max_pitch, max_z=np.inf,
+                              z_index=0, pitch_index=1, obs_bound=100.0):
+    """MuJoCo-style planar health check (height band, pitch band, obs bound).
+
+    ``obs[z_index]`` is the vertical-slide displacement (absolute height =
+    spawn_z + displacement); ``obs[pitch_index]`` the root pitch.
+    """
+    def _terminated(obs):
+        z = spawn_z + float(obs[z_index])
+        healthy = (min_z < z < max_z
+                   and abs(float(obs[pitch_index])) < max_pitch
+                   and bool(np.all(np.abs(obs) < obs_bound)))
+        return not healthy
+    return _terminated
+
+
+# --------------------------------------------------------------------------- #
 # Built-in agent specs (the registry the make_multi() factory draws from)
 # --------------------------------------------------------------------------- #
 
@@ -253,12 +335,8 @@ def _cartpole_spec() -> AgentSpec:
     )
 
 
-def _cartpole_continuous_action_to_commands(action):
-    # Box(-1, 1) -> proportional slider force in [-_CART_FORCE, +_CART_FORCE].
-    # The continuous analog of the discrete bang-bang spec (same model, same
-    # dynamics), mirroring Gymnasium's MuJoCo InvertedPendulum.
-    a = float(np.clip(np.ravel(action)[0], -1.0, 1.0))
-    return [("slider_to_cart", "force", a * _CART_FORCE)]
+_cartpole_continuous_action_to_commands = proportional_forces(
+    ("slider_to_cart",), _CART_FORCE)
 
 
 def _cartpole_continuous_spec() -> AgentSpec:
@@ -300,9 +378,8 @@ def _idp_reward(obs, action):
                  - 1e-3 * (w1 * w1 + w2 * w2))
 
 
-def _idp_action_to_commands(action):
-    a = float(np.clip(np.ravel(action)[0], -1.0, 1.0))
-    return [("slider_to_cart", "force", a * _IDP_FORCE)]
+_idp_action_to_commands = proportional_forces(("slider_to_cart",),
+                                              _IDP_FORCE)
 
 
 def _idp_reset_joint_state(rng):
@@ -349,35 +426,13 @@ _HOPPER_MIN_Z = 0.7           # unhealthy below this absolute torso height
 _HOPPER_MAX_PITCH = 0.2       # rad, unhealthy beyond
 
 
-def _hopper_action_to_commands(action):
-    # np.resize pads scalar probes to 3; real actions come in as (3,).
-    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
-                          -1.0, 1.0), 3)
-    return [("thigh_joint", "force", float(a[0]) * _HOPPER_TORQUE),
-            ("leg_joint", "force", float(a[1]) * _HOPPER_TORQUE),
-            ("foot_joint", "force", float(a[2]) * _HOPPER_TORQUE)]
-
-
-def _hopper_reward(obs, action):
-    # forward velocity + alive bonus - control cost (MuJoCo weights).
-    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
-    return float(obs[5] + 1.0 - 1e-3 * float(np.square(a).sum()))
-
-
-def _hopper_terminated(obs):
-    z = _HOPPER_SPAWN_Z + float(obs[0])
-    healthy = (z > _HOPPER_MIN_Z
-               and abs(float(obs[1])) < _HOPPER_MAX_PITCH
-               and bool(np.all(np.abs(obs) < 100.0)))
-    return not healthy
-
-
-def _hopper_reset_joint_state(rng):
-    def d():
-        return (float(rng.uniform(-0.005, 0.005)),
-                float(rng.uniform(-0.005, 0.005)))
-    return {j: d() for j in ("root_fwd", "root_up", "root_pitch",
-                             "thigh_joint", "leg_joint", "foot_joint")}
+_HOPPER_ACT = ("thigh_joint", "leg_joint", "foot_joint")
+_hopper_action_to_commands = proportional_forces(_HOPPER_ACT, _HOPPER_TORQUE)
+_hopper_reward = forward_progress_reward(vel_index=5)
+_hopper_terminated = planar_health_termination(
+    _HOPPER_SPAWN_Z, _HOPPER_MIN_Z, _HOPPER_MAX_PITCH)
+_hopper_reset_joint_state = uniform_reset(
+    ("root_fwd", "root_up", "root_pitch") + _HOPPER_ACT, 0.005)
 
 
 def _hopper_spec() -> AgentSpec:
@@ -392,19 +447,9 @@ def _hopper_spec() -> AgentSpec:
         action_space=spaces.Box(low=-1.0, high=1.0, shape=(3,),
                                 dtype=np.float32),
         # MuJoCo layout: positions (root x excluded), then all velocities.
-        joint_obs=(
-            JointObs("root_up", velocity=False),
-            JointObs("root_pitch", velocity=False),
-            JointObs("thigh_joint", velocity=False),
-            JointObs("leg_joint", velocity=False),
-            JointObs("foot_joint", velocity=False),
-            JointObs("root_fwd", position=False),
-            JointObs("root_up", position=False),
-            JointObs("root_pitch", position=False),
-            JointObs("thigh_joint", position=False),
-            JointObs("leg_joint", position=False),
-            JointObs("foot_joint", position=False),
-        ),
+        joint_obs=pos_then_vel_obs(
+            ("root_up", "root_pitch") + _HOPPER_ACT,
+            ("root_fwd", "root_up", "root_pitch") + _HOPPER_ACT),
         reward_fn=_hopper_reward,
         terminated_fn=_hopper_terminated,
         spawn_z=_HOPPER_SPAWN_Z,
@@ -429,42 +474,22 @@ _WALKER_LEG_JOINTS = ("thigh_joint", "leg_joint", "foot_joint",
                       "thigh_left_joint", "leg_left_joint", "foot_left_joint")
 
 
-def _walker_action_to_commands(action):
-    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
-                          -1.0, 1.0), 6)
-    return [(j, "force", float(a[i]) * _WALKER_TORQUE)
-            for i, j in enumerate(_WALKER_LEG_JOINTS)]
-
-
-def _walker_reward(obs, action):
-    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
-    return float(obs[8] + 1.0 - 1e-3 * float(np.square(a).sum()))
-
-
-def _walker_terminated(obs):
-    z = _WALKER_SPAWN_Z + float(obs[0])
-    healthy = (_WALKER_Z_RANGE[0] < z < _WALKER_Z_RANGE[1]
-               and abs(float(obs[1])) < _WALKER_MAX_PITCH
-               and bool(np.all(np.abs(obs) < 100.0)))
-    return not healthy
-
-
-def _walker_reset_joint_state(rng):
-    def d():
-        return (float(rng.uniform(-0.005, 0.005)),
-                float(rng.uniform(-0.005, 0.005)))
-    return {j: d() for j in (("root_fwd", "root_up", "root_pitch")
-                             + _WALKER_LEG_JOINTS)}
+_walker_action_to_commands = proportional_forces(_WALKER_LEG_JOINTS,
+                                                 _WALKER_TORQUE)
+_walker_reward = forward_progress_reward(vel_index=8)
+_walker_terminated = planar_health_termination(
+    _WALKER_SPAWN_Z, _WALKER_Z_RANGE[0], _WALKER_MAX_PITCH,
+    max_z=_WALKER_Z_RANGE[1])
+_walker_reset_joint_state = uniform_reset(
+    ("root_fwd", "root_up", "root_pitch") + _WALKER_LEG_JOINTS, 0.005)
 
 
 def _walker2d_spec() -> AgentSpec:
     obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(17,),
                            dtype=np.float32)
-    pos = tuple(JointObs(j, velocity=False)
-                for j in ("root_up", "root_pitch") + _WALKER_LEG_JOINTS)
-    vel = tuple(JointObs(j, position=False)
-                for j in ("root_fwd", "root_up", "root_pitch")
-                + _WALKER_LEG_JOINTS)
+    layout = pos_then_vel_obs(
+        ("root_up", "root_pitch") + _WALKER_LEG_JOINTS,
+        ("root_fwd", "root_up", "root_pitch") + _WALKER_LEG_JOINTS)
     return AgentSpec(
         name="walker2d",
         model_uri="package://gazebo_gymnasium_resources/models/walker2d_bare",
@@ -473,7 +498,7 @@ def _walker2d_spec() -> AgentSpec:
         observation_space=obs_space,
         action_space=spaces.Box(low=-1.0, high=1.0, shape=(6,),
                                 dtype=np.float32),
-        joint_obs=pos + vel,
+        joint_obs=layout,
         reward_fn=_walker_reward,
         terminated_fn=_walker_terminated,
         spawn_z=_WALKER_SPAWN_Z,
@@ -496,34 +521,20 @@ _CHEETAH_JOINTS = ("bthigh", "bshin", "bfoot", "fthigh", "fshin", "ffoot")
 _CHEETAH_GEARS = (120.0, 90.0, 60.0, 120.0, 60.0, 30.0)
 
 
-def _cheetah_action_to_commands(action):
-    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
-                          -1.0, 1.0), 6)
-    return [(j, "force", float(a[i]) * _CHEETAH_GEARS[i])
-            for i, j in enumerate(_CHEETAH_JOINTS)]
-
-
-def _cheetah_reward(obs, action):
-    a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
-    return float(obs[8] - 0.1 * float(np.square(a).sum()))
-
-
-def _cheetah_reset_joint_state(rng):
-    def d():
-        return (float(rng.uniform(-0.005, 0.005)),
-                float(rng.uniform(-0.005, 0.005)))
-    return {j: d() for j in (("root_fwd", "root_up", "root_pitch")
-                             + _CHEETAH_JOINTS)}
+_cheetah_action_to_commands = proportional_forces(_CHEETAH_JOINTS,
+                                                  _CHEETAH_GEARS)
+_cheetah_reward = forward_progress_reward(vel_index=8, alive_bonus=0.0,
+                                          ctrl_cost=0.1)
+_cheetah_reset_joint_state = uniform_reset(
+    ("root_fwd", "root_up", "root_pitch") + _CHEETAH_JOINTS, 0.005)
 
 
 def _half_cheetah_spec() -> AgentSpec:
     obs_space = spaces.Box(low=-np.inf, high=np.inf, shape=(17,),
                            dtype=np.float32)
-    pos = tuple(JointObs(j, velocity=False)
-                for j in ("root_up", "root_pitch") + _CHEETAH_JOINTS)
-    vel = tuple(JointObs(j, position=False)
-                for j in ("root_fwd", "root_up", "root_pitch")
-                + _CHEETAH_JOINTS)
+    layout = pos_then_vel_obs(
+        ("root_up", "root_pitch") + _CHEETAH_JOINTS,
+        ("root_fwd", "root_up", "root_pitch") + _CHEETAH_JOINTS)
     return AgentSpec(
         name="half_cheetah",
         model_uri=("package://gazebo_gymnasium_resources/models/"
@@ -533,7 +544,7 @@ def _half_cheetah_spec() -> AgentSpec:
         observation_space=obs_space,
         action_space=spaces.Box(low=-1.0, high=1.0, shape=(6,),
                                 dtype=np.float32),
-        joint_obs=pos + vel,
+        joint_obs=layout,
         reward_fn=_cheetah_reward,
         # MuJoCo half-cheetah has no health termination; keep a pure numerical
         # guard so a solver blow-up can't silently poison training.
@@ -570,11 +581,8 @@ def _reacher_reward(obs, action):
     return float(-dist - 0.1 * float(np.square(a).sum()))
 
 
-def _reacher_action_to_commands(action):
-    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
-                          -1.0, 1.0), 2)
-    return [("joint0", "force", float(a[0]) * _REACHER_TORQUE),
-            ("joint1", "force", float(a[1]) * _REACHER_TORQUE)]
+_reacher_action_to_commands = proportional_forces(("joint0", "joint1"),
+                                                  _REACHER_TORQUE)
 
 
 def _reacher_reset_joint_state(rng):
@@ -649,11 +657,8 @@ def _lf_reward(obs, action):
     return float(centered + 0.5 * forward)
 
 
-def _lf_action_to_commands(action):
-    a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(),
-                          -1.0, 1.0), 2)
-    return [("left_axle", "velocity", float(a[0]) * _LF_WHEEL_SPEED),
-            ("right_axle", "velocity", float(a[1]) * _LF_WHEEL_SPEED)]
+_lf_action_to_commands = proportional_velocities(
+    ("left_axle", "right_axle"), _LF_WHEEL_SPEED)
 
 
 def _lf_reset_joint_state(rng):
