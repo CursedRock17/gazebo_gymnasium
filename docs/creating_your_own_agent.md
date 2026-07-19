@@ -23,7 +23,11 @@ import gymnasium as gym
 env = gym.make("GazeboCartPole-v0")     # standard 5-tuple step / (obs, info) reset
 ```
 
-The complete reference implementation is the cartpole spec in
+Two worked tutorials accompany this guide:
+[CartPole](examples/cartpole.md) (the reference environment) and
+[Porting Hopper, annotated](examples/porting_hopper.md) — the narrated story of
+a real port, including how each physics trap was diagnosed from headless
+probes. The complete reference implementation is the cartpole spec in
 [`gazebo_gymnasium_bridge/gazebo_gymnasium_bridge/envs/agent_spec.py`](../gazebo_gymnasium_bridge/gazebo_gymnasium_bridge/envs/agent_spec.py).
 Copy it and change the parts described below.
 

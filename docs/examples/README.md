@@ -19,7 +19,7 @@ vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1)
 | [CartPole](cartpole.md) | `Discrete(2)` / `Box(4,)` | inprocess + harness | ✅ Verified — force-controlled, PPO solves to the 500 cap |
 | [CartPole — continuous](cartpole.md#continuous-variant) | `Box(1,)` / `Box(4,)` | inprocess + harness | ✅ Working — SAC/TD3 entry point (InvertedPendulum analog) |
 | InvertedDoublePendulum | `Box(1,)` / `Box(6,)` | inprocess + harness | ✅ Verified — PPO 84 → 3650+ ep reward and climbing |
-| Hopper | `Box(3,)` / `Box(11,)` | inprocess + harness | ✅ Verified — PPO 4 → 272 ep reward (4 → 134-step episodes) |
+| [Hopper](porting_hopper.md) | `Box(3,)` / `Box(11,)` | inprocess + harness | ✅ Verified — PPO 4 → 272 ep reward; **annotated porting tutorial** |
 | Walker2d | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Verified — PPO walks: 6.5 → 800 ep reward (600-step episodes) |
 | HalfCheetah | `Box(6,)` / `Box(17,)` | inprocess + harness | ✅ Verified — PPO runs at ~1.15 m/s sustained (reward 0 → 1150) |
 | Reacher | `Box(2,)` / `Box(6,)` | inprocess + harness | ✅ Working — goal-as-joints target, dense distance reward |
