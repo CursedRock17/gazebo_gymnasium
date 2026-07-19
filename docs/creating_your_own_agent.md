@@ -29,7 +29,7 @@ Copy it and change the parts described below.
 
 ---
 
-## The two backends
+## The three backends
 
 Everything you write below (the spec + the model SDF) is shared. What differs
 is *how the env talks to Gazebo* — pick with `make_inprocess` / `make_harness`
@@ -109,8 +109,10 @@ def _my_agent_spec() -> AgentSpec:
         # Per-agent natural-termination test (e.g. the pole fell over).
         terminated_fn=lambda obs: bool(abs(obs[2]) > 0.20944),
 
-        # Spawn geometry. spawn_z MUST be > 0 to clear the ground plane.
-        spawn_z=0.10,
+        # Spawn geometry. Force-actuated models MUST spawn clear of the
+        # ground plane — resting on it pins the model with contact friction
+        # (this exact trap, at spawn_z=0.10, masked cartpole force control).
+        spawn_z=0.60,
 
         # Extra world-scope joints the spawner adds around the model. Each is
         # (joint_name, parent, child); "world" as parent pins to the world.
@@ -246,20 +248,35 @@ from gazebo_gymnasium_bridge.envs.agent_spec import register_spec
 register_spec("myagent", _my_agent_spec)
 ```
 
-Verify:
+Verify — no launch needed, this spins the real sim in-process:
 
 ```python
-from gazebo_gymnasium_bridge.envs import registered_specs, make_harness
-print(registered_specs())          # ['cartpole', 'myagent']
-env = make_harness("myagent", n_agents=4)
+from gazebo_gymnasium_bridge.envs import registered_specs, make_inprocess
+print(registered_specs())              # [..., 'myagent']
+env = make_inprocess("myagent", n_agents=4)
+obs = env.reset()                      # raises loudly if the model is broken
+```
+
+Optionally give it a standard Gymnasium id too (any tool can then
+`gym.make` it):
+
+```python
+import gymnasium as gym
+gym.register(id="MyAgent-v0",
+             entry_point="gazebo_gymnasium_bridge.envs.gym_env:GazeboEnv",
+             kwargs={"agent": "myagent"})
 ```
 
 ---
 
 ## Step 4 — Test the spec offline (no simulator)
 
-The spec layer is deliberately free of any `gz.*` import, so you can unit-test
-observation/reward/termination with a duck-typed fake message — see
+The quickest physics check is the in-process env itself (see the probes in
+[`test/test_mujoco_specs.py`](../gazebo_gymnasium_bridge/test/test_mujoco_specs.py):
+passive instability, obs finiteness, determinism — copy one and swap the name).
+Below that, the spec layer is deliberately free of any `gz.*` import, so you
+can unit-test observation/reward/termination with a duck-typed fake message —
+see
 [`test/test_agent_spec.py`](../gazebo_gymnasium_bridge/test/test_agent_spec.py).
 To exercise real ECM actuation headlessly (no full launch), drive `HarnessCore`
 from a `gz.sim8.TestFixture` as in
@@ -293,32 +310,32 @@ pixi run build          # or: colcon build --symlink-install
 
 ## Step 6 — Run it
 
-Two terminals (single-agent is just `n_agents:=1`):
+**Fastest path — one command, no launch** (the default in-process backend;
+policy and image wrappers are picked automatically):
 
 ```bash
-# Terminal 1 — the simulator + in-sim harness
-ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=16 headless:=true
-
-# Terminal 2 — train, deploy, or bring your own RL library
-python training_scripts/train.py  --agent myagent --n_agents 16 --backend harness
-python training_scripts/deploy.py --agent myagent --n_agents 16 --backend harness --model models/final.zip
+python training_scripts/train.py --agent myagent --n_agents 16
+python training_scripts/sweep.py --agent myagent --n_agents 16   # hyperparameters
+python training_scripts/deploy.py --agent myagent --n_agents 4   # evaluate
 ```
 
-Because the env is a standard SB3 `VecEnv`, any Gymnasium-speaking trainer
-(SB3, RLlib, CleanRL, your own loop) drives it unchanged:
+**Watch it live** (two terminals — the Step 5 launch, then the harness client):
+
+```bash
+ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=4 headless:=false
+python training_scripts/deploy.py --agent myagent --n_agents 4 --backend harness
+```
+
+Or bring your own trainer — the env is a standard SB3 `VecEnv` (agents
+auto-reset independently, same-step convention):
 
 ```python
 import stable_baselines3 as sb3
-from gazebo_gymnasium_bridge.envs import make_harness
+from gazebo_gymnasium_bridge.envs import make_inprocess, wrap_for_observations
 
-vec_env = make_harness("myagent", n_agents=16)
-model = sb3.PPO("MlpPolicy", vec_env, n_steps=64)
-model.learn(total_timesteps=1_000_000)
-model.save("models/final.zip")
+vec_env, policy = wrap_for_observations(make_inprocess("myagent", n_agents=16))
+sb3.PPO(policy, vec_env, n_steps=64).learn(total_timesteps=1_000_000)
 ```
-
-`train.py` scales the transport timeouts with `n_agents` for you and prints an
-`[EpisodeSummary]` line each time the group auto-resets.
 
 ---
 
@@ -329,8 +346,9 @@ model.save("models/final.zip")
 - [ ] `AgentSpec` with `joint_obs` widths summing to `observation_space.shape[0]`.
 - [ ] `action_to_commands` + `reset_joint_state` for the harness backend.
 - [ ] `register_spec("<name>", factory)` runs at import.
-- [ ] World SDF loading `MultiAgentHarness` + a launch that spawns N models.
-- [ ] `pixi run build`, then launch + `train.py --agent <name> --backend harness`.
+- [ ] `pixi run build`, then `train.py --agent <name>` (in-process — no launch).
+- [ ] Optional, to watch live: world SDF loading `MultiAgentHarness` + a
+      launch that spawns N models (Step 5), then `--backend harness`.
 
 See [`docs/examples/cartpole.md`](examples/cartpole.md) for the fully worked
 reference, and [`README.md`](../README.md) for environment setup.
