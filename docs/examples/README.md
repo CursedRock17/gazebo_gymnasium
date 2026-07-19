@@ -7,9 +7,8 @@ Python class, and "MultiCartPole", "MultiAnt", … are just named specs. To add
 your own, follow [Creating your own agent](../creating_your_own_agent.md).
 
 ```python
-from gazebo_gymnasium_bridge.envs import make_multi, make_harness
-vec_env = make_multi("cartpole",  n_agents=16)   # per-agent backend
-vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend (O(1) transport)
+from gazebo_gymnasium_bridge.envs import make_inprocess
+vec_env = make_inprocess("hopper", n_agents=16)   # one sim, no launch needed
 ```
 
 ## Status
@@ -48,11 +47,10 @@ The state-based numbers above are single unswept PPO probes at modest budgets
 bars is expected to close with longer budgets/tuning (as the cartpole sweep
 demonstrated), not architecture changes.
 
-The MuJoCo models have world SDFs and visualization launches
-(`ant.launch.py`, …) you can load in Gazebo/Foxglove, but they are **not RL
-environments yet** — each needs an `AgentSpec` (obs/action/reward/actuation)
-written for it. That's exactly the porting exercise the
-[create-your-own-agent guide](../creating_your_own_agent.md) walks through.
+The 🚧 rows (pusher, ant, humanoid) still have only visualization assets — no
+`AgentSpec` yet. Porting one is the exercise the
+[create-your-own-agent guide](../creating_your_own_agent.md) covers, and
+[Porting Hopper, annotated](porting_hopper.md) narrates in full.
 
 ## The architecture (shared by every spec)
 
