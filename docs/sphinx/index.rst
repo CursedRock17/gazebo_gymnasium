@@ -19,10 +19,10 @@ Guides
 
 The narrative documentation lives in the repository (Markdown):
 
-* `Creating your own agent <https://github.com/OWNER/REPO/blob/main/docs/creating_your_own_agent.md>`_ — the reference guide.
-* `Porting Hopper, annotated <https://github.com/OWNER/REPO/blob/main/docs/examples/porting_hopper.md>`_ — a narrated real port.
-* `CartPole walkthrough <https://github.com/OWNER/REPO/blob/main/docs/examples/cartpole.md>`_ — the reference environment.
-* `Environment status and solved bars <https://github.com/OWNER/REPO/blob/main/docs/examples/README.md>`_.
+* `Creating your own agent <https://github.com/CursedRock17/gazebo_gymnasium/blob/main/docs/creating_your_own_agent.md>`_ — the reference guide.
+* `Porting Hopper, annotated <https://github.com/CursedRock17/gazebo_gymnasium/blob/main/docs/examples/porting_hopper.md>`_ — a narrated real port.
+* `CartPole walkthrough <https://github.com/CursedRock17/gazebo_gymnasium/blob/main/docs/examples/cartpole.md>`_ — the reference environment.
+* `Environment status and solved bars <https://github.com/CursedRock17/gazebo_gymnasium/blob/main/docs/examples/README.md>`_.
 
 API reference
 -------------

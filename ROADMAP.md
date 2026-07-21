@@ -73,7 +73,7 @@ from a ~210-step random baseline to the 500-step cap). See
   canonical MuJoCo, and the same numbers for the launched-sim backends.
 - **Read the Docs**: `.readthedocs.yaml` + `docs/requirements.txt` are in
   place and the Sphinx API reference builds warning-free. Remaining: connect
-  the repository on readthedocs.org and replace the OWNER/REPO placeholders.
+  the repository on readthedocs.org and replace the CursedRock17/gazebo_gymnasium placeholders.
 
 ## Done
 

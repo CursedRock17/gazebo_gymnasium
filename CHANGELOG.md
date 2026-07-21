@@ -109,6 +109,6 @@ a different dynamics sample.
 - `ant`/`humanoid` need a link-state observation extension for their 3D free
   bases; `pusher` is not yet ported.
 
-<!-- TODO(release): replace OWNER/REPO with the published GitHub path. -->
-[Unreleased]: https://github.com/OWNER/REPO/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/REPO/releases/tag/v0.1.0
+<!-- TODO(release): replace CursedRock17/gazebo_gymnasium with the published GitHub path. -->
+[Unreleased]: https://github.com/CursedRock17/gazebo_gymnasium/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/CursedRock17/gazebo_gymnasium/releases/tag/v0.1.0

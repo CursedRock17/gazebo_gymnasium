@@ -29,7 +29,13 @@ pixi run train --agent hopper --n_agents 16    # after the two install steps bel
 - Target platform: **Ubuntu Noble 24.04 + ROS 2 Jazzy + Gazebo Harmonic** (Tier 1 per [REP-2000](https://ros.org/reps/rep-2000.html))
 
 ## Installation
-Tested on Ubuntu 24.04 (Noble) with ROS 2 Jazzy and Gazebo Harmonic.
+
+**Platform:** Linux x86-64 only. `pixi.lock` is solved for `linux-64`, and the
+underlying ROS 2 Jazzy + Gazebo Harmonic conda packages are built for it —
+`pixi install` on macOS or Windows will fail to resolve. Developed and tested
+on Ubuntu 24.04 (Noble); other x86-64 Linux distributions should work, since
+Pixi brings its own ROS and Gazebo rather than using the system's. On Windows,
+use WSL2.
 
 ### Pixi (recommended)
 
@@ -49,7 +55,7 @@ CI, or robot.
 curl -fsSL https://pixi.sh/install.sh | bash
 
 # 2. Clone, resolve the environment (ROS 2 + Gazebo + RL libs in one solve), build
-git clone <repo-url> gazebo_gymnasium
+git clone https://github.com/CursedRock17/gazebo_gymnasium.git gazebo_gymnasium
 cd gazebo_gymnasium
 pixi install
 pixi run build
@@ -121,7 +127,7 @@ sudo apt install ros-jazzy-ros-gz gz-harmonic
 ```bash
 mkdir -p ~/gym_ws/src
 cd ~/gym_ws/src
-git clone <repo-url> gazebo_gymnasium
+git clone https://github.com/CursedRock17/gazebo_gymnasium.git gazebo_gymnasium
 ```
 
 #### Install ROS dependencies
