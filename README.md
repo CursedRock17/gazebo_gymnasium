@@ -1,9 +1,24 @@
 # Gazebo Gymnasium
-------------------------
-This repository reserves as integration between OpenAI's [Gymnasium](https://gymnasium.farama.org/)
-package along with ROS 2 & [Gazebo](https://gazebosim.org/docs/latest/getstarted/).
-It allows user to engage reinforcement learning through simulation, then port that data to real 
-life, allowing for an easier integration process of a robot model.
+
+**Train reinforcement-learning agents in [Gazebo](https://gazebosim.org/docs/latest/getstarted/),
+with the standard [Gymnasium](https://gymnasium.farama.org/) API.**
+
+Gazebo Gymnasium turns a Gazebo robot into a Gymnasium environment you can train
+with [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) (or any
+Gym-speaking library). You describe one agent as a single `AgentSpec` — its
+model, observation, action, reward, and termination — and the framework runs
+*N* copies of it in one Gazebo world as a vectorized environment. Because it's
+built on real Gazebo physics and ROS 2, a policy you train in sim is a step
+away from the same robot in the real world.
+
+Eight environments ship ready to train (CartPole, InvertedDoublePendulum,
+Hopper, Walker2d, HalfCheetah, Reacher, and a camera-based line follower), and
+[adding your own](docs/creating_your_own_agent.md) is about 15 lines of Python
+plus a model file.
+
+```bash
+pixi run train --agent hopper --n_agents 16    # after the two install steps below
+```
 
 **Standards & policies** (see `docs/ros2_reps_compliance.md` for the full mapping):
 
@@ -27,31 +42,49 @@ venv, no source-built Gazebo. Everything is pinned in `pixi.lock`, so
 clone + `pixi install` reproduces the exact environment on any Linux machine,
 CI, or robot.
 
+**Install (one time):**
+
 ```bash
-# 1. Install pixi (one-time)
+# 1. Install pixi
 curl -fsSL https://pixi.sh/install.sh | bash
 
-# 2. Clone + resolve the environment (ROS 2 + Gazebo + RL libs, one solve)
+# 2. Clone, resolve the environment (ROS 2 + Gazebo + RL libs in one solve), build
 git clone <repo-url> gazebo_gymnasium
 cd gazebo_gymnasium
 pixi install
-pixi run build          # colcon build --symlink-install
-
-# 3. Run — two terminals
-pixi run sim            # terminal 1: the simulator
-pixi run train          # terminal 2: training (single-agent = --n_agents 1)
-pixi run deploy         # evaluate a saved policy
-pixi run test           # the test suite
+pixi run build
 ```
 
-Override agent / count / algorithm by calling the script inside the env:
+**Train — one command, no launch needed.** The default backend hosts the
+simulator inside the training process, so a single command trains any of the
+built-in environments headlessly:
 
 ```bash
-pixi run -- bash -c 'source install/setup.sh && \
-  python training_scripts/train.py --agent cartpole --n_agents 16 --timesteps 200000'
+pixi run train                                 # CartPole, 4 agents (the default)
+pixi run train --agent hopper --n_agents 16    # any environment, any agent count
+pixi run train --agent walker2d --timesteps 400000
 ```
 
-Task definitions live in `pixi.toml`.
+Then evaluate, sweep hyperparameters, or run the tests — every flag passes
+straight through to the underlying script:
+
+```bash
+pixi run deploy --agent hopper --n_agents 4    # roll out a trained policy
+pixi run sweep  --agent cartpole               # hyperparameter sweep (CSV + optional W&B)
+pixi run test                                  # the full test suite (no simulator needed)
+```
+
+See the available agents any time with `pixi run train --help`. Task
+definitions live in `pixi.toml`.
+
+**Watch it live (optional).** Training is headless by default. To see an agent
+in the Gazebo GUI, launch the simulator in one terminal and drive it from
+another (CartPole ships a launch file today; other agents train headless):
+
+```bash
+pixi run sim                                   # terminal 1: Gazebo GUI
+pixi run deploy --backend harness              # terminal 2: run the policy in it
+```
 
 ### Next steps
 
@@ -181,6 +214,31 @@ builds. (The launch files no longer pin `PYTHONHOME`; that was a
 source-build-era workaround that breaks the homogeneous conda Python.)
 
 ## Troubleshooting
+
+> Most fresh-machine issues are one of the two below. The rest of this section
+> covers the manual apt path.
+
+### Commands run, but use the wrong Gazebo/Python (system apt instead of pixi)
+
+**Symptom:** inside `pixi run …` a launch "finishes cleanly" with no window, or
+`gz`/`python` behave as if the pixi packages aren't installed. This happens on
+machines that *also* have ROS 2 / Gazebo installed from apt: the shell resolves
+`/usr/bin/gz` (or `/usr/bin/python3`), whose system Python can't import the
+conda/pixi libraries.
+
+**Fix:** let pixi own the whole command so its environment wins. The `pixi run`
+tasks already do this (they `source install/setup.sh` inside the pixi env).
+When running something by hand, wrap it the same way rather than calling `gz` /
+`python` from a bare shell:
+
+```bash
+pixi run bash -c 'source install/setup.sh && which gz && gz sim --version'
+```
+
+If `which gz` points at `/usr/bin/gz` *inside* that command, your apt install is
+shadowing pixi on `PATH` — start from a clean shell (no `source /opt/ros/...`
+in your `.bashrc`) and use the `pixi run` tasks. A pixi-only machine never hits
+this.
 
 ### `Failed to load system plugin [gz-sim-python-system-loader-system] : Could not find shared library.`
 

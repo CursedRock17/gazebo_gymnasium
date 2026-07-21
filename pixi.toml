@@ -25,13 +25,26 @@ autopep8 = ">=2.3.2, <3"
 # Build the ROS workspace (run once, and after editing ament_cmake pkgs).
 build = "colcon build --symlink-install"
 
-# Simulator (terminal 1). Override args with e.g.
-#   pixi run sim  (defaults) or: pixi run -- bash -c 'source install/setup.sh && ros2 launch ...'
-sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py n_agents:=4 headless:=false'"
+# Train any environment — one command, no launch needed (the default backend
+# hosts the sim in-process). Every training_scripts/train.py flag passes
+# straight through, so:
+#   pixi run train                                  # cartpole, 4 agents
+#   pixi run train --agent hopper --n_agents 16     # any registered spec
+#   pixi run train --agent walker2d --timesteps 400000
+train  = "bash -c 'source install/setup.sh && exec python training_scripts/train.py \"$@\"' --"
 
-# Training / eval (terminal 2).
-train  = "bash -c 'source install/setup.sh && python training_scripts/train.py  --agent cartpole --n_agents 4'"
-deploy = "bash -c 'source install/setup.sh && python training_scripts/deploy.py --agent cartpole --n_agents 4'"
+# Evaluate a trained policy (same pass-through). E.g.
+#   pixi run deploy --agent hopper --n_agents 4
+deploy = "bash -c 'source install/setup.sh && exec python training_scripts/deploy.py \"$@\"' --"
+
+# Hyperparameter sweep (headless, CSV + optional W&B). E.g.
+#   pixi run sweep --agent cartpole --timesteps 250000
+sweep  = "bash -c 'source install/setup.sh && exec python training_scripts/sweep.py \"$@\"' --"
+
+# OPTIONAL — watch a trained agent live in the Gazebo GUI. Only cartpole ships
+# a launch file today; every other agent trains headless via `pixi run train`.
+#   pixi run sim  (then, in another terminal) pixi run deploy --backend harness
+sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=4 headless:=false'"
 
 # Full suite — functional + stress + lint (flake8/pep257/copyright). No
 # simulator needed: transport is mocked and the harness/stress tests use the

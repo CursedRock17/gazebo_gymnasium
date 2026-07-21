@@ -79,21 +79,36 @@ The 🚧 rows (pusher, ant, humanoid) still have only visualization assets — n
 
 ## Training and deploying
 
-```bash
-# Terminal 1 — simulator (single-agent is just n_agents:=1)
-ros2 launch gazebo_gymnasium_bringup cartpole_multi.launch.py n_agents:=16 headless:=true
+The default path needs **no launch** — the in-process backend hosts the sim in
+the training process:
 
-# Terminal 2 — train, then roll out
-python training_scripts/train.py  --agent cartpole --n_agents 16 --timesteps 200000
-python training_scripts/deploy.py --agent cartpole --n_agents 16 --model models/final.zip
+```bash
+pixi run train  --agent cartpole --n_agents 16 --timesteps 200000
+pixi run deploy --agent cartpole --n_agents 16
 ```
 
-Two terminals let you swap trainers without restarting the sim. Add
-`--backend harness` (and launch `cartpole_harness.launch.py`) to use the
-batched-harness backend — O(1) transport and in-place reset, which scales to
-large N without the per-agent discovery timeouts or respawn race. `train.py`
-scales those timeouts with `n_agents` for you and prints an `[EpisodeSummary]`
-each group auto-reset.
+That's the fastest option and the one to use for training and CI. Two other
+backends exist for when you want a *launched* simulator you can watch:
+
+| `--backend` | Sim location | Launch needed? | Use it for |
+|---|---|---|---|
+| `inprocess` (default) | training process | no | training, CI — fastest |
+| `harness` | launched `gz sim` | yes | watching a live/GUI sim (O(1) transport, in-place reset) |
+| `peragent` | launched `gz sim` | yes | small-N quick starts |
+
+To use a launched backend, start the simulator in one terminal and train/deploy
+against it in another:
+
+```bash
+# Terminal 1 — the simulator (GUI; headless:=true for none)
+ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=4 headless:=false
+
+# Terminal 2 — drive it
+pixi run deploy --agent cartpole --n_agents 4 --backend harness
+```
+
+`train.py` scales the transport timeouts with `n_agents` for you and prints an
+`[EpisodeSummary]` line each group auto-reset.
 
 ## Background docs (deeper dives)
 
