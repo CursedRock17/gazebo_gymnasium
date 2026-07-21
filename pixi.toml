@@ -41,6 +41,10 @@ deploy = "bash -c 'source install/setup.sh && exec python training_scripts/deplo
 #   pixi run sweep --agent cartpole --timesteps 250000
 sweep  = "bash -c 'source install/setup.sh && exec python training_scripts/sweep.py \"$@\"' --"
 
+# Throughput benchmark — steps/s per environment, and scaling across agent
+# counts. E.g. pixi run benchmark --agent hopper --scale 1,4,16,32
+benchmark = "bash -c 'source install/setup.sh && exec python training_scripts/benchmark.py \"$@\"' --"
+
 # OPTIONAL — watch a trained agent live in the Gazebo GUI. Only cartpole ships
 # a launch file today; every other agent trains headless via `pixi run train`.
 #   pixi run sim  (then, in another terminal) pixi run deploy --backend harness

@@ -1,0 +1,62 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please check the [Troubleshooting section](../../blob/main/README.md#troubleshooting).
+        The most common issue by far is an apt-installed ROS 2/Gazebo shadowing
+        the pixi environment on `PATH`.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected, and what you got instead. Paste the full error.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands you ran.
+      placeholder: |
+        pixi run train --agent hopper --n_agents 16
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      options:
+        - inprocess (default, no launch)
+        - harness (launched gz sim)
+        - peragent (launched gz sim)
+        - not applicable
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Environment / spec
+      placeholder: "cartpole, hopper, line_follower, or your own spec name"
+  - type: textarea
+    id: env-info
+    attributes:
+      label: Environment info
+      description: |
+        Please paste the output of:
+        `pixi run bash -c 'source install/setup.sh && which gz && gz sim --version && python -c "import sys; print(sys.version)"'`
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install?
+      options:
+        - Pixi (recommended path)
+        - apt + colcon (advanced path)
+    validations:
+      required: true

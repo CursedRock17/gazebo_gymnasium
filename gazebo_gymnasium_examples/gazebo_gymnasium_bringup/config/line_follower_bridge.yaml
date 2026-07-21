@@ -1,3 +1,6 @@
+# REFERENCE TEMPLATE — not wired to any shipped launch.
+# The RL data path uses gz-transport directly; this file documents the
+# REP-2003 SensorDataQoS settings for users bridging a camera into ROS 2.
 # ros_gz_bridge mappings for the line_follower world.
 #
 # Notable QoS override: the camera image topic uses BEST_EFFORT

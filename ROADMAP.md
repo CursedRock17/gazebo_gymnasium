@@ -63,15 +63,17 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Quality / infrastructure
 
-- **CI**: `.github/workflows/ci.yml` is in place (pixi build + full suite +
-  linters on Ubuntu Noble, the REP-2000 Tier 1 platform). Remaining: confirm
-  its first green run on GitHub, then add a nightly schedule — the last gating
-  items for [Quality Level 3](QUALITY_DECLARATION.md).
-- **Performance & stress benchmarks**: wall-clock steps/second per env vs
-  canonical MuJoCo, and scaling curves across `n_agents` for both backends.
-  Stress coverage lives in `test/test_stress.py`; a published benchmark script
-  is still TODO.
-- **Read the Docs** hosting for the Sphinx site once the API surface is stable.
+- **CI**: `.github/workflows/ci.yml` runs the pixi build + full suite +
+  linters on Ubuntu Noble (the REP-2000 Tier 1 platform), on every push/PR,
+  nightly, and on demand. Remaining: its first green run on GitHub — the last
+  gating item for [Quality Level 3](QUALITY_DECLARATION.md).
+- **Performance benchmarks**: `training_scripts/benchmark.py` publishes
+  steps/second per environment and scaling curves across `n_agents`
+  (`--scale 1,4,16,32`, CSV output). Still TODO: a comparison run against
+  canonical MuJoCo, and the same numbers for the launched-sim backends.
+- **Read the Docs**: `.readthedocs.yaml` + `docs/requirements.txt` are in
+  place and the Sphinx API reference builds warning-free. Remaining: connect
+  the repository on readthedocs.org and replace the OWNER/REPO placeholders.
 
 ## Done
 

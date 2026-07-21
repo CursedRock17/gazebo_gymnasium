@@ -1,1 +1,4 @@
-docs/sphinx/_build/
+_build/
+build/
+install/
+log/

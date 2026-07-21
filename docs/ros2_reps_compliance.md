@@ -12,14 +12,14 @@ REPs are at <https://ros.org/reps/>. The TL;DR per REP:
 | 2000 | Target Platforms | ✅ Compliant (Jazzy, Ubuntu Noble Tier 1) |
 | 2001 | Variants | N/A — research package, not a distro variant |
 | 2002 | Rolling Release | ⚠️ Partial — version numbering aligned, no rolling sync |
-| 2003 | Sensor + Map QoS | ✅ Compliant (camera uses `SensorDataQoS`/BEST_EFFORT) |
+| 2003 | Sensor + Map QoS | ⚠️ Mostly N/A — RL data flows over gz-transport, not ROS topics |
 | 2004 | Package Quality | ✅ Declared at **Level 4** (see `QUALITY_DECLARATION.md`) |
 | 2005 | Common Packages | N/A — not seeking inclusion |
 | 2006 | Vulnerability Disclosure | ✅ Policy at `SECURITY.md` |
 | 2007 | Type Adapters | N/A — no custom adapters |
 | 2008 | Hardware Acceleration | ⚠️ Partial — `GAZEBO_GYM_DEVICE` flag for CPU/CUDA selection |
 | 2009 | Type Negotiation | N/A — fixed message types only |
-| 2014 | Benchmarking | ⚠️ Partial — per-step metrics published, LTTng tracing not yet wired |
+| 2014 | Benchmarking | ⚠️ Partial — throughput benchmark + per-step metrics; LTTng tracing not wired |
 
 ## REP-2000: Releases & Target Platforms
 
@@ -67,13 +67,19 @@ features. Release repos in `ros2-gbp` for automated bloom releases.
 subscribers use `SensorDataQoS` (BEST_EFFORT, VOLATILE). Map publishers
 use RELIABLE + TRANSIENT_LOCAL.
 
-**Our status: ✅ Compliant for the one applicable case.**
-- The line_follower world publishes the rover's camera image. The
-  `ros_gz_bridge` config at
-  `gazebo_gymnasium_bringup/config/line_follower_bridge.yaml` sets the
-  camera image topic to `ros_qos: {reliability: best_effort, durability:
-  volatile}` — matches REP-2003's `SensorDataQoS` recommendation.
-- We don't publish any map topics, so the map-QoS half doesn't apply.
+**Our status: ⚠️ Largely not applicable, with one reference config.**
+- **The RL data path does not use ROS topics.** Observations, actions, and
+  camera frames move over gz-transport — in-process for the default backend
+  (no IPC at all), and over `/rl/*` gz topics for the launched-simulator
+  harness. REP-2003 governs ROS 2 sensor topics, so it does not bind the path
+  that actually carries our sensor data.
+- **Where it does apply**, we follow it: the `ros_gz_bridge` config at
+  `gazebo_gymnasium_bringup/config/line_follower_bridge.yaml` sets the camera
+  image topic to `ros_qos: {reliability: best_effort, durability: volatile}` —
+  REP-2003's `SensorDataQoS` recommendation. It is kept as a **reference
+  template** for users bridging sensor data into ROS 2; no shipped launch
+  wires it today.
+- We publish no map topics, so the map-QoS half doesn't apply.
 
 ## REP-2004: Package Quality
 
@@ -87,11 +93,12 @@ sub-checklist. Summary:
 - Level 4 ("demos / tutorials / experiments") is the appropriate
   starting point for a research-flavored package.
 - We exceed Level 4's minimums on several axes:
-  - Testing: 275 pytest tests across 8 environments incl. stress and vision suites (Level 4 requires none).
+  - Testing: 260+ pytest tests across 8 environments incl. stress and vision suites (Level 4 requires none).
   - CI lint: ament_flake8 / ament_pep257 / ament_copyright all green.
   - Public API documented in `docs/sphinx/` + per-env tutorials.
-- Path to Level 3 (introspection tools) would require formal change
-  control + Tier 1 platform CI; documented in the QUALITY_DECLARATION.
+- Path to Level 3 (introspection tools): change control and nightly Tier 1
+  CI are now in place; the remaining gate is the first green run on GitHub.
+  Documented in the QUALITY_DECLARATION.
 
 ## REP-2005: Common Packages
 
@@ -153,6 +160,10 @@ throughput, memory, power, real-time capability. Reproducible methodology
 with realistic data.
 
 **Our status: ⚠️ Partial.**
+- ✅ Reproducible throughput benchmark: `training_scripts/benchmark.py`
+  reports env-steps/s and agent-steps/s per environment with a random policy
+  (no learner in the loop), plus scaling curves across `n_agents`
+  (`--scale 1,4,16,32`) and CSV output.
 - ✅ Per-step env metrics published via
   `gazebo_gymnasium_msgs/EnvMetrics` on `/env/metrics`: `steps_per_sec`,
   `mean_step_ms`, `episode_reward`, `current_step`, `total_steps`,

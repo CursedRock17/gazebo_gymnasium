@@ -71,6 +71,7 @@ straight through to the underlying script:
 ```bash
 pixi run deploy --agent hopper --n_agents 4    # roll out a trained policy
 pixi run sweep  --agent cartpole               # hyperparameter sweep (CSV + optional W&B)
+pixi run benchmark --agent hopper --scale 1,4,16,32   # throughput / scaling
 pixi run test                                  # the full test suite (no simulator needed)
 ```
 
@@ -92,6 +93,11 @@ pixi run deploy --backend harness              # terminal 2: run the policy in i
   environment, both backends, all launch/train arguments.
 - [**docs/creating_your_own_agent.md**](docs/creating_your_own_agent.md) —
   add your own robot as one `AgentSpec` and train it.
+- [**docs/examples/porting_hopper.md**](docs/examples/porting_hopper.md) — an
+  annotated real port, including how each physics trap was diagnosed.
+- [**docs/examples/README.md**](docs/examples/README.md) — every environment's
+  status, verified results, and what counts as "solved".
+- [**CHANGELOG.md**](CHANGELOG.md) — release notes and known limitations.
 
 ### From apt + colcon (advanced)
 
