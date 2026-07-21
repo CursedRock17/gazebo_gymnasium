@@ -46,6 +46,13 @@ from .agent_spec import get_spec
 
 # real_time_factor=0 removes gz-sim's wall-clock throttle (run as fast as the
 # hardware allows) — the single biggest training-throughput lever.
+# Whether a camera-backed env has EVER been built in this process. gz-sim's
+# rendering scene is a process-wide singleton that is not torn down by close()
+# — building a second one, even sequentially, corrupts the scene ("Visual [x]
+# already exists") and then segfaults. Latches True permanently; see the guard
+# in __init__.
+_IMAGE_ENV_CREATED = False
+
 _PHYSICS = ("""<physics name="fast" type="ignored">
       <max_step_size>0.01</max_step_size>
       <real_time_factor>0</real_time_factor>
@@ -227,6 +234,23 @@ class InProcessHarnessVecEnv(VecEnv):
         # (n, H, W, C) and the joint read in _on_post is skipped.
         self._image_mode = spec.image_obs is not None
         if self._image_mode:
+            # gz-sim's rendering/Sensors system is effectively a per-PROCESS
+            # singleton: constructing a second camera-backed world while one is
+            # still alive segfaults inside native code, which would kill the
+            # caller outright. Fail clearly instead.
+            global _IMAGE_ENV_CREATED
+            if _IMAGE_ENV_CREATED:
+                raise RuntimeError(
+                    "a camera-based environment has already been created in "
+                    "this process. gz-sim's rendering scene is a process-wide "
+                    "singleton that close() does not tear down, so building a "
+                    "second one corrupts the scene and then segfaults. Build "
+                    "it in a FRESH PROCESS instead (e.g. multiprocessing, or "
+                    "SB3's SubprocVecEnv). Note this limit is per process, not "
+                    "per agent: one env can host many agents — use "
+                    "n_agents=16 rather than 16 separate envs.")
+            _IMAGE_ENV_CREATED = True
+        if self._image_mode:
             from gz.msgs10.image_pb2 import Image
             from gz.transport13 import Node
             h, w, c = spec.image_obs
@@ -399,6 +423,8 @@ class InProcessHarnessVecEnv(VecEnv):
         return obs, rewards, dones, infos
 
     def close(self):
+        # NOTE: _IMAGE_ENV_CREATED is deliberately NOT cleared here — the
+        # renderer stays initialized for the life of the process.
         if self._image_mode and getattr(self, "_img_node", None) is not None:
             # Quiesce the camera subscriptions BEFORE teardown: a transport
             # thread caught mid-callback during interpreter exit aborts with

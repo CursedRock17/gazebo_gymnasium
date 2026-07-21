@@ -29,6 +29,7 @@ import pytest
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
+from gazebo_gymnasium_bridge.envs import inprocess_vec_env as ip  # noqa: E402
 from gazebo_gymnasium_bridge.envs.agent_spec import (  # noqa: E402
     _lf_line_centroid,
     get_spec,
@@ -94,6 +95,31 @@ env.close()
 """
 
 
+_MULTI_AGENT_PROBE = """
+import numpy as np
+from gazebo_gymnasium_bridge.envs import make_inprocess
+from gazebo_gymnasium_bridge.envs.agent_spec import _lf_line_centroid
+
+N = 4
+env = make_inprocess("line_follower", n_agents=N, seed=0)
+try:
+    obs = env.reset()
+    seen = [_lf_line_centroid(obs[i]) for i in range(N)]
+    print("centroids:", seen)
+    if all(c is not None for c in seen):
+        print("ALL_AGENTS_SEE_LINE")
+    term = np.zeros(N, dtype=int)
+    for _ in range(20):
+        obs, _r, dones, _i = env.step(np.tile([0.8, 0.8], (N, 1)))
+        term += dones.astype(int)
+    print("terminations:", term.tolist())
+    if term.sum() == 0:
+        print("NO_SPURIOUS_TERMINATIONS")
+finally:
+    env.close()
+"""
+
+
 @functools.lru_cache(maxsize=1)
 def _rendering_works():
     """Return whether a camera environment can be built on this machine.
@@ -139,6 +165,39 @@ def test_camera_is_live_while_driving(lf_env):
         obs, _r, _d, _i = lf_env.step(np.array([[0.8, 0.8]]))
     diff = float(np.abs(obs.astype(int) - obs0.astype(int)).mean())
     assert diff > 0.5, "camera frames must change as the rover drives"
+
+
+def test_every_agent_gets_its_own_track():
+    """N agents must each get their own scenery, not share agent 0's.
+
+    Without `per_agent_include_uri`, agents 1..N-1 would spawn on bare ground,
+    see no line, and terminate on step 1 — silently poisoning training with
+    near-empty episodes while agent 0 looked fine.
+    """
+    spec = get_spec("line_follower")
+    rng = np.random.default_rng(0)
+    sdf, poses = ip._build_world(spec, 4, spec.x_spacing, rng)
+    assert sdf.count('<model name="line_follower_') == 4
+    assert sdf.count("scenery_") == 4, "one track per agent"
+    # tracks must not overlap: the model is 2.2 m across, spacing is wider
+    xs = sorted(p[0] for p in poses)
+    assert min(b - a for a, b in zip(xs, xs[1:])) > 2.2
+
+    if not _rendering_works():                       # pragma: no cover
+        pytest.skip("headless camera rendering unavailable on this machine")
+    # Must run in its own process: only ONE camera env may exist per process
+    # (gz-sim's render scene is a process-wide singleton), and the module
+    # fixture above has already claimed this process's slot.
+    proc = subprocess.run([sys.executable, "-c", _MULTI_AGENT_PROBE],
+                          capture_output=True, text=True, timeout=300)
+    assert proc.returncode == 0, (
+        f"multi-agent camera probe failed (rc={proc.returncode})\n"
+        f"{proc.stdout[-600:]}\n{proc.stderr[-600:]}")
+    assert "ALL_AGENTS_SEE_LINE" in proc.stdout, (
+        f"not every agent saw its own track:\n{proc.stdout[-600:]}")
+    assert "NO_SPURIOUS_TERMINATIONS" in proc.stdout, (
+        f"an agent terminated early, likely a missing track:\n"
+        f"{proc.stdout[-600:]}")
 
 
 def test_line_loss_terminates_and_pose_reset_recovers(lf_env):

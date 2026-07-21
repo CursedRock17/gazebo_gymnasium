@@ -102,6 +102,10 @@ a different dynamics sample.
   comes from running N agents in one world, not from GPU physics.
 - Vision environments train ~40× slower than state-based ones; the learner is
   the bottleneck on CPU. Set `GAZEBO_GYM_DEVICE=cuda` on an NVIDIA host.
+- Only one camera-based environment can exist per process (gz-sim's rendering
+  scene is a process-wide singleton). This limits environments, not agents —
+  one env hosts any number of agents, each with its own camera and scenery.
+  A clear `RuntimeError` is raised rather than crashing.
 - The line follower learns from pixels but does not yet complete the track
   (it masters the straight and loses the line at the first corner).
 - Swimmer is not portable faithfully — it relies on MuJoCo's viscous fluid

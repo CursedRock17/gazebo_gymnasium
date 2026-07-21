@@ -166,8 +166,19 @@ def _my_reset_joint_state(rng):
 > reward/termination from the image in plain Python — see the built-in
 > `line_follower` spec. Mobile bases set `reset_model_pose=True` so the
 > chassis returns to its spawn pose on reset, and `per_agent_include_uri`
-> gives each agent its own static scenery (e.g. a line track). Rendering costs
-> ~50× the physics-only throughput; keep frames small (64×64).
+> gives each agent its own static scenery (e.g. a line track) — so
+> `n_agents=16` really does build 16 tracks, one per rover, and each agent's
+> camera publishes to its own `/rl/camera_<i>` topic.
+>
+> **One camera environment per process.** gz-sim's rendering scene is a
+> process-wide singleton that `close()` does not tear down, so creating a
+> second image-observation env in the same process is a hard native crash.
+> The library raises a clear `RuntimeError` instead. This is a limit on
+> *environments*, not agents: one env can host many agents, so use
+> `n_agents=16` rather than 16 separate envs. If you genuinely need two, put
+> the second in a separate process (`multiprocessing`, SB3's `SubprocVecEnv`).
+>
+> Rendering costs ~50× the physics-only throughput; keep frames small (64×64).
 
 ### Porting MuJoCo environments
 
