@@ -18,7 +18,9 @@ Offline tests cover the image-processing spec math on synthetic frames; the
 physics tests render the real onboard camera headlessly in the in-process sim.
 """
 
+import functools
 from pathlib import Path
+import subprocess
 import sys
 
 import numpy as np
@@ -85,17 +87,39 @@ class TestLineFollowerSpecMath:
 pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 
 
+_PROBE = """
+from gazebo_gymnasium_bridge.envs import make_inprocess
+env = make_inprocess("line_follower", n_agents=1, seed=0)
+env.close()
+"""
+
+
+@functools.lru_cache(maxsize=1)
+def _rendering_works():
+    """Return whether a camera environment can be built on this machine.
+
+    Run in a SUBPROCESS on purpose. On a host without a usable render device
+    (GPU-less CI runners, minimal containers) gz-sim's rendering stack can die
+    with a SIGSEGV inside native code rather than raising — and a native crash
+    takes the whole pytest process with it, so no in-process ``try/except``
+    can contain it. Probing in a child process keeps the suite alive and lets
+    us skip honestly instead of reporting a false failure.
+    """
+    try:
+        proc = subprocess.run([sys.executable, "-c", _PROBE],
+                              capture_output=True, timeout=180)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return proc.returncode == 0
+
+
 @pytest.fixture(scope="module")
 def lf_env():
     from gazebo_gymnasium_bridge.envs import make_inprocess
-    try:
-        env = make_inprocess("line_follower", n_agents=1, seed=0)
-    except RuntimeError as exc:                      # pragma: no cover
-        # The library is deliberately loud when no camera frames arrive (a
-        # silent all-black observation stream would be worse). Here that means
-        # the machine can't render headlessly at all — skip rather than fail,
-        # so the suite stays green on rendering-less CI runners and containers.
-        pytest.skip(f"headless rendering unavailable: {exc}")
+    if not _rendering_works():                       # pragma: no cover
+        pytest.skip("headless camera rendering unavailable on this machine "
+                    "(no usable render device); vision tests skipped")
+    env = make_inprocess("line_follower", n_agents=1, seed=0)
     yield env
     env.close()
 
