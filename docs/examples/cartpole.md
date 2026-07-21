@@ -1,0 +1,148 @@
+# CartPole
+
+Classic CartPole reproduced in Gazebo Harmonic, and the **reference example**
+for the whole library. A cart slides along a rail on the Y axis; a pole is
+hinged on top and rotates around the X axis. The agent pushes the cart with a
+**force** (the textbook CartPole actuation) and keeps the pole upright. If
+you're adding a new agent, read this alongside
+[Creating your own agent](../creating_your_own_agent.md).
+
+- **Observation** — `Box(4,)`: `[cart_pos, cart_vel, pole_angle, pole_ang_vel]`
+- **Action** — `Discrete(2)`: push the cart −/+ along the rail (±10 N)
+- **Reward** — `+1` per step alive
+- **Termination** — `|pole_angle| > 0.209 rad` or `|cart_pos| > 2.4 m`
+
+## How it's built
+
+Everything is one `AgentSpec` (`_cartpole_spec()` in
+[`envs/agent_spec.py`](../../gazebo_gymnasium_bridge/gazebo_gymnasium_bridge/envs/agent_spec.py)).
+The framework runs *N* copies of it in a single Gazebo world as an SB3
+`VecEnv` — there is no per-env Python class:
+
+```python
+from gazebo_gymnasium_bridge.envs import make_multi, make_harness
+vec_env = make_multi("cartpole",  n_agents=16)   # per-agent backend
+vec_env = make_harness("cartpole", n_agents=16)  # batched-harness backend
+```
+
+Two backends drive the same spec (see
+[the backend table](../creating_your_own_agent.md#the-two-backends)):
+
+- **peragent** (legacy) — a world-level controller plugin, 2 topics/agent,
+  reset by re-spawning each model. Model:
+  [`models/cartpole`](../../gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/cartpole).
+  ⚠️ Its JointController is **velocity**-based, so its dynamics differ from the
+  force-based spec the ECM backends use — policies do not transfer to it.
+- **harness** — one `MultiAgentHarness` plugin, 3 topics total (O(1) in N),
+  reset **in place** via the ECM (no respawn race, clean per-agent pole
+  randomization). Bare model:
+  [`models/cartpole_bare`](../../gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/cartpole_bare).
+
+## Difficulty
+
+The cart is bang-bang **force**-controlled (`_CART_FORCE`, ±10 N) — the classic
+CartPole dynamics, genuinely unstable: a constant push tips the pole in ~3
+steps and a **random policy survives only ~7 steps** (median 6), while a
+trained PPO policy reaches the 500-step cap.
+
+One physical subtlety worth knowing: the model **spawns clear of the ground
+plane** (`spawn_z = 0.6`). A cart whose collision box rests on the ground is
+pinned by contact friction, which velocity control would silently override
+(it's a kinematic constraint) but force control cannot — this masked force
+actuation entirely until diagnosed. If you build your own force-actuated
+agent, keep it off the floor.
+
+## Continuous variant
+
+`cartpole_continuous` is the same model and dynamics with a **`Box(-1, 1)`**
+action mapped proportionally to slider force (±10 N) — the analog of
+Gymnasium's MuJoCo InvertedPendulum, and the entry point for continuous-control
+algorithms (SAC/TD3/DDPG):
+
+```python
+from gazebo_gymnasium_bridge.envs import make_inprocess
+env = make_inprocess("cartpole_continuous", n_agents=8)   # SB3 VecEnv
+
+import gymnasium as gym
+env = gym.make("GazeboCartPoleContinuous-v0")             # standard gym.Env
+```
+
+## Running it
+
+**Fastest — one command, no launch** (the in-process backend hosts the sim in
+the training process):
+
+```bash
+python training_scripts/train.py --agent cartpole --n_agents 16
+# ...or sweep hyperparameters headlessly to solve it:
+python training_scripts/sweep.py --n_agents 16 --timesteps 250000
+```
+
+**Watch it in a launched sim** (two terminals; `headless:=false` for the GUI):
+
+```bash
+# Terminal 1 — simulator
+ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=16 headless:=true
+# Terminal 2 — train against it
+python training_scripts/train.py --agent cartpole --n_agents 16 --backend harness
+```
+
+Or the pixi shortcuts:
+
+```bash
+pixi run sim      # cartpole_multi.launch.py, GUI
+pixi run train    # train.py against it
+pixi run deploy   # roll out a trained policy
+```
+
+### Launch arguments
+
+| Arg | Default | What it does |
+|-----|---------|--------------|
+| `n_agents` | `4` | Number of cartpoles spawned into the one world. |
+| `headless` | `true` | `false` runs the Gazebo GUI (lower RTF; fewer agents recommended). |
+
+### Training arguments (`train.py`)
+
+| Arg | Default | What it does |
+|-----|---------|--------------|
+| `--agent` | `cartpole` | Registered spec name. |
+| `--n_agents` | `4` | Must match the launch. Timeouts scale with this automatically. |
+| `--backend` | `peragent` | `peragent` or `harness` — must match the launched world. |
+| `--algo` | `ppo` | `ppo`/`a2c` (discrete). |
+| `--timesteps` | `200000` | Total env steps. |
+
+## What "good" looks like
+
+Each group auto-reset prints an `[EpisodeSummary]` line. Mean episode length
+climbs from a few steps toward the `max_episode_steps` cap (500) as PPO learns
+to balance. With the harness backend you should see **no** `Visual: … already
+exists` warnings and poles starting upright with small per-agent variation —
+that's the in-place ECM reset working.
+
+## Bring your own trainer
+
+Three interop surfaces, all sharing one `AgentSpec`:
+
+```python
+# 1. Stable-Baselines3 (its own VecEnv API) — the fastest path
+import stable_baselines3 as sb3
+from stable_baselines3.common.vec_env import VecNormalize
+from gazebo_gymnasium_bridge.envs import make_inprocess
+
+vec = VecNormalize(make_inprocess("cartpole", n_agents=16))   # normalize obs
+sb3.PPO("MlpPolicy", vec, n_steps=64).learn(total_timesteps=1_000_000)
+
+# 2. Any Gymnasium tool (RLlib, CleanRL, Tianshou, TorchRL) — standard env
+import gazebo_gymnasium_bridge          # registers the ids
+import gymnasium as gym
+env = gym.make("GazeboCartPole-v0")     # (obs, reward, terminated, truncated, info)
+
+# 3. The efficient N-in-one sim as a native gymnasium vector env
+vec = gym.make_vec("GazeboCartPole-v0", num_envs=16,
+                   vectorization_mode="vector_entry_point")
+```
+
+The **observation has unbounded velocity components**, so wrap with obs
+normalization (`VecNormalize` for SB3, `NormalizeObservation` /
+`NormalizeReward` for Gymnasium) before training with most algorithms.

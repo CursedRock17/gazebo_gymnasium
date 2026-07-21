@@ -1,0 +1,10 @@
+# Documentation build only. Read the Docs builds in its own environment; the
+# heavy native runtime (gz-transport, gz-sim, torch, SB3) is mocked out via
+# autodoc_mock_imports in docs/sphinx/conf.py.
+#
+# numpy is installed for real rather than mocked: the spec layer imports it at
+# module scope, and mocking it makes autodoc silently emit an EMPTY API
+# reference instead of failing loudly.
+sphinx>=7.0
+sphinx-rtd-theme>=2.0
+numpy>=1.26

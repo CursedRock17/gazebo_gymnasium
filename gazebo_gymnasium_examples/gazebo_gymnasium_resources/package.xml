@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>gazebo_gymnasium_resources</name>
+  <version>0.1.0</version>
+  <description>Gazebo assets — SDF worlds, models (URDF/SDF + meshes), and in-sim Python sync-gate plugins — used by the gazebo_gymnasium examples.</description>
+  <maintainer email="lwendlan@umd.edu">Lucas Wendland</maintainer>
+  <author email="lwendlan@umd.edu">Lucas Wendland</author>
+  <license>Apache-2.0</license>
+
+  <!-- This package installs static assets only (SDF, URDF, meshes, Python
+       plugin sources for the gz PythonSystemLoader). No build-time or
+       runtime dependency on gazebo_gymnasium_bridge — the env classes
+       there USE these assets, not the other way around. -->
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

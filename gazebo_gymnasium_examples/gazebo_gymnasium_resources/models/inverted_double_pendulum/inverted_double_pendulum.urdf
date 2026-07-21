@@ -1,0 +1,138 @@
+<?xml version="1.0"?>
+<robot name="inverted_double_pendulum">
+	<link name="rail">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="cart">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="cart">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="10.47198" />
+			<inertia ixx="0.06981" ixy="0" ixz="0" iyy="0.17453" iyz="0" izz="0.17453" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 1.57080 -0.00000" xyz="0.00000 0.00000 0.00000" />
+			<geometry>
+				<cylinder length="0.20000" radius="0.10000" />
+			</geometry>
+		</collision>
+	</link>
+	<link name="pole">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="pole">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.30000" />
+			<mass value="4.19874" />
+			<inertia ixx="0.16942" ixy="0" ixz="0" iyy="0.16942" iyz="0" izz="0.00567" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.30000" />
+			<geometry>
+				<cylinder length="0.60000" radius="0.04500" />
+			</geometry>
+		</collision>
+	</link>
+	<link name="pole2">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+	</link>
+	<link name="pole2">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.30000" />
+			<mass value="4.19874" />
+			<inertia ixx="0.16942" ixy="0" ixz="0" iyy="0.16942" iyz="0" izz="0.00567" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.30000" />
+			<geometry>
+				<cylinder length="0.60000" radius="0.04500" />
+			</geometry>
+		</collision>
+	</link>
+	<joint name="slider" type="prismatic">
+		<parent link="rail" />
+		<child link="cart" />
+		<limit effort="0.00000" lower="-1.00000" upper="1.00000" velocity="0.00000" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="1.00000 0.00000 0.00000" />
+	</joint>
+	<joint name="jointfix_2_2" type="fixed">
+		<parent link="cart" />
+		<child link="cart" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+	<joint name="hinge" type="continuous">
+		<parent link="cart" />
+		<child link="pole" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 1.00000 0.00000" />
+	</joint>
+	<joint name="jointfix_1_4" type="fixed">
+		<parent link="pole" />
+		<child link="pole" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+	<joint name="hinge2" type="continuous">
+		<parent link="pole" />
+		<child link="pole2" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.60000" />
+		<axis xyz="0.00000 1.00000 0.00000" />
+	</joint>
+	<joint name="jointfix_0_6" type="fixed">
+		<parent link="pole2" />
+		<child link="pole2" />
+		<dynamics damping="1.0" friction="0.0001" />
+		<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+		<axis xyz="0.00000 0.00000 0.00000" />
+	</joint>
+<link name="floor">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 -3.00000" />
+			<geometry>
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_floor" type="fixed"><parent link="rail" /><child link="floor" /></joint><link name="rail">
+		<inertial>
+			<origin rpy="0.00000 -0.00000 0.00000" xyz="0.00000 0.00000 0.00000" />
+			<mass value="1e-06" />
+			<inertia ixx="1e-09" ixy="0" ixz="0" iyy="1e-09" iyz="0" izz="1e-09" />
+		</inertial>
+		<collision>
+			<origin rpy="0.00000 1.57080 -0.00000" xyz="0.00000 0.00000 0.00000" />
+			<geometry>
+				<cylinder length="2.00000" radius="0.02000" />
+			</geometry>
+		</collision>
+	</link>
+<joint name="world_to_rail" type="fixed"><parent link="rail" /><child link="rail" /></joint></robot>

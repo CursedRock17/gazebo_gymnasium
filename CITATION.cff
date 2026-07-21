@@ -1,0 +1,31 @@
+# Citation metadata (https://citation-file-format.github.io/).
+# GitHub renders this as a "Cite this repository" button.
+cff-version: 1.2.0
+title: "Gazebo Gymnasium: Gazebo Harmonic robots as Gymnasium reinforcement-learning environments"
+message: "If you use this software in your research, please cite it as below."
+type: software
+authors:
+  - family-names: Wendland
+    given-names: Lucas
+    email: lwendlan@umd.edu
+version: 0.1.0
+date-released: "2026-07-20"
+license: Apache-2.0
+repository-code: "https://github.com/CursedRock17/gazebo_gymnasium"
+abstract: >-
+  Gazebo Gymnasium exposes robots simulated in Gazebo Harmonic as standard
+  Farama Gymnasium environments trainable with Stable-Baselines3. A single
+  AgentSpec dataclass describes one agent — its model, observation, action,
+  reward, and termination — and the framework runs N copies of it in one
+  Gazebo world as a vectorized environment, with the simulator optionally
+  hosted inside the training process for headless, unthrottled rollouts.
+  It ships eight environments, including MuJoCo-equivalent locomotion tasks
+  and a camera-based line follower that learns from pixels.
+keywords:
+  - reinforcement learning
+  - robotics
+  - Gazebo
+  - Gymnasium
+  - ROS 2
+  - simulation
+  - sim-to-real

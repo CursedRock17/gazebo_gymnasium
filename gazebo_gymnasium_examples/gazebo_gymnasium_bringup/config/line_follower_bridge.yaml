@@ -1,0 +1,63 @@
+# REFERENCE TEMPLATE — not wired to any shipped launch.
+# The RL data path uses gz-transport directly; this file documents the
+# REP-2003 SensorDataQoS settings for users bridging a camera into ROS 2.
+# ros_gz_bridge mappings for the line_follower world.
+#
+# Notable QoS override: the camera image topic uses BEST_EFFORT
+# reliability because gz publishes it as BEST_EFFORT on the gz-transport
+# side. A default-RELIABLE ROS subscriber (Foxglove's default) would see
+# zero messages. Setting the bridge's ROS-side publisher to BEST_EFFORT
+# fixes the "no camera image in Foxglove" issue.
+#
+# Note: /env/metrics is no longer bridged. The env class now publishes
+# `gazebo_gymnasium_msgs/EnvMetrics` directly as a ROS topic via rclpy,
+# so each value (steps_per_sec, episode_reward, ...) shows up in
+# Foxglove as a named field instead of an array index.
+
+- ros_topic_name: "/tf"
+  gz_topic_name: "/world/line_follower/pose/info"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/joint_states"
+  gz_topic_name: "/world/line_follower/model/rover/joint_state"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/world/line_follower/stats"
+  gz_topic_name: "/world/line_follower/stats"
+  ros_type_name: "ros_gz_interfaces/msg/WorldStatistics"
+  gz_type_name: "gz.msgs.WorldStatistics"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/clock"
+  gz_topic_name: "/world/line_follower/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "/rover/camera/image"
+  gz_topic_name: "/world/line_follower/model/rover/link/camera_link/sensor/camera/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+  ros_qos:
+    reliability: best_effort
+    durability: volatile
+
+- ros_topic_name: "/rover/camera/camera_info"
+  gz_topic_name: "/world/line_follower/model/rover/link/camera_link/sensor/camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+  ros_qos:
+    reliability: best_effort
+    durability: volatile
+
+- ros_topic_name: "/model/rover/odometry"
+  gz_topic_name: "/model/rover/odometry"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS

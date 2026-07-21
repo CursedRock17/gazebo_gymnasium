@@ -227,3 +227,7 @@ build/*
 
 # Tensorboard Stuff
 tb_logs/*
+
+# RL training outputs (trained policies / checkpoints)
+models/**/*.zip
+rosbags/

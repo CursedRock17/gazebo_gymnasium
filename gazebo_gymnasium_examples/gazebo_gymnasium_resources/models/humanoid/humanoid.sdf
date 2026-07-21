@@ -1,0 +1,996 @@
+<?xml version="1.0"?>
+<sdf version='1.11'>
+  <model name='humanoid'>
+    <link name='torso'>
+      <inertial>
+        <pose>-0.0099999988773456332 0 -0.1199999865281476 0 0 0</pose>
+        <mass>8.9074609999999996</mass>
+        <inertia>
+          <ixx>0.21526001539999839</ixx>
+          <ixy>0</ixy>
+          <ixz>-1.1999998633660521e-09</ixz>
+          <iyy>0.1811200154999984</iyy>
+          <iyz>0</iyz>
+          <izz>0.082250001099999984</izz>
+        </inertia>
+      </inertial>
+      <collision name='torso_collision'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.14000000000000001</length>
+            <radius>0.070000000000000007</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='torso_visual'>
+        <pose>0 0 0 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.14000000000000001</length>
+            <radius>0.070000000000000007</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='torso_collision_1'>
+        <pose>0 0 0.19 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.089999999999999997</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='torso_1_visual'>
+        <pose>0 0 0.19 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.089999999999999997</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='torso_collision_2'>
+        <pose>-0.01 0 -0.12 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.12</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='torso_2_visual'>
+        <pose>-0.01 0 -0.12 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.12</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='abdomen_z' type='revolute'>
+      <pose relative_to='torso'>-0.01026 0 -0.19500000000000001 0 -0.0039999999999999983 0</pose>
+      <parent>torso</parent>
+      <child>link1_2</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-0.78539999999999999</lower>
+          <upper>0.78539999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_2'>
+      <pose relative_to='abdomen_z'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='abdomen_y' type='revolute'>
+      <pose relative_to='link1_2'>0 0 0 0 0 0</pose>
+      <parent>link1_2</parent>
+      <child>link1_3</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.3089999999999999</lower>
+          <upper>0.52359999999999995</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_3'>
+      <pose relative_to='abdomen_y'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.064999971263745321 0 0 0</pose>
+        <mass>2.2619509999999998</mass>
+        <inertia>
+          <ixx>0.013570005224998131</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.0054300052249981346</iyy>
+          <iyz>0</iyz>
+          <izz>0.013570001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_3_fixed_joint_lump__lwaist_collision'>
+        <pose>0 0 -0.065000000000000002 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.12</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_3_fixed_joint_lump__lwaist_visual'>
+        <pose>0 0 -0.065000000000000002 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.12</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='abdomen_x' type='revolute'>
+      <pose relative_to='link1_3'>-0.00040000000000000002 0 -0.13 0 -0.0039999999999999983 0</pose>
+      <parent>link1_3</parent>
+      <child>link1_5</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-0.61087000000000002</lower>
+          <upper>0.61087000000000002</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_5'>
+      <pose relative_to='abdomen_x'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>-0.019999996977112661 0 -0.099999984885563317 0 0 0</pose>
+        <mass>6.6161909999999997</mass>
+        <inertia>
+          <ixx>0.074320010999998479</ixx>
+          <ixy>0</ixy>
+          <ixz>-1.999999698840127e-09</ixz>
+          <iyy>0.035730011399998443</iyy>
+          <iyz>0</iyz>
+          <izz>0.074320001399999933</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_5_fixed_joint_lump__pelvis_collision'>
+        <pose>-0.02 0 -0.10000000000000001 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.14000000000000001</length>
+            <radius>0.089999999999999997</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_5_fixed_joint_lump__pelvis_visual'>
+        <pose>-0.02 0 -0.10000000000000001 -1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.14000000000000001</length>
+            <radius>0.089999999999999997</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='left_hip_x' type='revolute'>
+      <pose relative_to='link1_5'>0 0.10000000000000001 -0.14000000000000001 0 0 0</pose>
+      <parent>link1_5</parent>
+      <child>link1_14</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-0.43633</lower>
+          <upper>0.08727</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_14'>
+      <pose relative_to='left_hip_x'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='left_hip_z' type='revolute'>
+      <pose relative_to='link1_14'>0 0 0 0 0 0</pose>
+      <parent>link1_14</parent>
+      <child>link1_15</child>
+      <axis>
+        <xyz>0 0 -1</xyz>
+        <limit>
+          <lower>-1.0471999999999999</lower>
+          <upper>0.61087000000000002</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_15'>
+      <pose relative_to='left_hip_z'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='left_hip_y' type='revolute'>
+      <pose relative_to='link1_15'>0 0 0 0 0 0</pose>
+      <parent>link1_15</parent>
+      <child>link1_16</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.9198599999999999</lower>
+          <upper>0.34906999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_16'>
+      <pose relative_to='left_hip_y'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 -0.0049999989477563112 -0.16999996422371461 0 0 0</pose>
+        <mass>4.7517510000000014</mass>
+        <inertia>
+          <ixx>0.092120029924993879</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.090760029899993905</iyy>
+          <iyz>-8.4999982052913481e-10</iyz>
+          <izz>0.012760001025</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_16_fixed_joint_lump__left_thigh_collision'>
+        <pose>0 -0.0050000000000000001 -0.17000000000000001 3.11219 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.34015000000000001</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_16_fixed_joint_lump__left_thigh_visual'>
+        <pose>0 -0.0050000000000000001 -0.17000000000000001 3.11219 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.34015000000000001</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='left_knee' type='revolute'>
+      <pose relative_to='link1_16'>0 -0.01 -0.38300000000000001 0 0 0</pose>
+      <parent>link1_16</parent>
+      <child>link1_18</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-2.7925300000000002</lower>
+          <upper>-0.034909999999999997</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_18'>
+      <pose relative_to='left_knee'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.28721474574333761 0 0 0</pose>
+        <mass>4.5228510000000002</mass>
+        <inertia>
+          <ixx>0.1421127384444052</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.1421127384444052</iyy>
+          <iyz>0</iyz>
+          <izz>0.011040001000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_18_fixed_joint_lump__left_shin_collision'>
+        <pose>0 0 -0.17000000000000001 3.1415899999999999 0 3.1415899999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.29999999999999999</length>
+            <radius>0.049000000000000002</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_18_fixed_joint_lump__left_shin_visual'>
+        <pose>0 0 -0.17000000000000001 3.1415899999999999 0 3.1415899999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.29999999999999999</length>
+            <radius>0.049000000000000002</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_18_fixed_joint_lump__left_foot_collision_1'>
+        <pose>0 0 -0.37 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.074999999999999997</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_18_fixed_joint_lump__left_foot_1_visual'>
+        <pose>0 0 -0.37 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.074999999999999997</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='right_hip_x' type='revolute'>
+      <pose relative_to='link1_5'>0 -0.10000000000000001 -0.14000000000000001 0 0 0</pose>
+      <parent>link1_5</parent>
+      <child>link1_7</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-0.43633</lower>
+          <upper>0.08727</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_7'>
+      <pose relative_to='right_hip_x'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='right_hip_z' type='revolute'>
+      <pose relative_to='link1_7'>0 0 0 0 0 0</pose>
+      <parent>link1_7</parent>
+      <child>link1_8</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1.0471999999999999</lower>
+          <upper>0.61087000000000002</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_8'>
+      <pose relative_to='right_hip_z'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='right_hip_y' type='revolute'>
+      <pose relative_to='link1_8'>0 0 0 0 0 0</pose>
+      <parent>link1_8</parent>
+      <child>link1_9</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.9198599999999999</lower>
+          <upper>0.34906999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_9'>
+      <pose relative_to='right_hip_y'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0.0049999989477563112 -0.16999996422371461 0 0 0</pose>
+        <mass>4.7517510000000014</mass>
+        <inertia>
+          <ixx>0.092120029924993879</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.090760029899993905</iyy>
+          <iyz>8.4999982052913481e-10</iyz>
+          <izz>0.012760001025</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_9_fixed_joint_lump__right_thigh_collision'>
+        <pose>0 0.0050000000000000001 -0.17000000000000001 -3.11219 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.34015000000000001</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_9_fixed_joint_lump__right_thigh_visual'>
+        <pose>0 0.0050000000000000001 -0.17000000000000001 -3.11219 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.34015000000000001</length>
+            <radius>0.059999999999999998</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='right_knee' type='revolute'>
+      <pose relative_to='link1_9'>0 0.01 -0.38300000000000001 0 0 0</pose>
+      <parent>link1_9</parent>
+      <child>link1_11</child>
+      <axis>
+        <xyz>0 -1 0</xyz>
+        <limit>
+          <lower>-2.7925300000000002</lower>
+          <upper>-0.034909999999999997</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_11'>
+      <pose relative_to='right_knee'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.28721474574333761 0 0 0</pose>
+        <mass>4.5228510000000002</mass>
+        <inertia>
+          <ixx>0.1421127384444052</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.1421127384444052</iyy>
+          <iyz>0</iyz>
+          <izz>0.011040001000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_11_fixed_joint_lump__right_shin_collision'>
+        <pose>0 0 -0.17000000000000001 3.1415899999999999 0 3.1415899999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.29999999999999999</length>
+            <radius>0.049000000000000002</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_11_fixed_joint_lump__right_shin_visual'>
+        <pose>0 0 -0.17000000000000001 3.1415899999999999 0 3.1415899999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.29999999999999999</length>
+            <radius>0.049000000000000002</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_11_fixed_joint_lump__right_foot_collision_1'>
+        <pose>0 0 -0.37 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.074999999999999997</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_11_fixed_joint_lump__right_foot_1_visual'>
+        <pose>0 0 -0.37 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.074999999999999997</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='left_shoulder1' type='revolute'>
+      <pose relative_to='torso'>0 0.17000000000000001 0.059999999999999998 0 0 0</pose>
+      <parent>torso</parent>
+      <child>link1_26</child>
+      <axis>
+        <xyz>2 -1 1</xyz>
+        <limit>
+          <lower>-1.0471999999999999</lower>
+          <upper>1.48353</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_26'>
+      <pose relative_to='left_shoulder1'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='left_shoulder2' type='revolute'>
+      <pose relative_to='link1_26'>0 0 0 0 0 0</pose>
+      <parent>link1_26</parent>
+      <child>link1_27</child>
+      <axis>
+        <xyz>0 1 1</xyz>
+        <limit>
+          <lower>-1.0471999999999999</lower>
+          <upper>1.48353</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_27'>
+      <pose relative_to='left_shoulder2'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.079999951838591862 0.079999951838591862 -0.079999951838591862 0 0 0</pose>
+        <mass>1.661081</mass>
+        <inertia>
+          <ixx>0.023680013799992291</ixx>
+          <ixy>-6.3999961458921506e-09</ixy>
+          <ixz>6.3999961458921506e-09</ixz>
+          <iyy>0.023680013799992291</iyy>
+          <iyz>6.3999961458921506e-09</iyz>
+          <izz>0.02267001379999229</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_27_fixed_joint_lump__left_upper_arm_collision'>
+        <pose>0.080000000000000002 0.080000000000000002 -0.080000000000000002 -2.3561899999999998 0.61548000000000003 -1.3089999999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_27_fixed_joint_lump__left_upper_arm_visual'>
+        <pose>0.080000000000000002 0.080000000000000002 -0.080000000000000002 -2.3561899999999998 0.61548000000000003 -1.3089999999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='left_elbow' type='revolute'>
+      <pose relative_to='link1_27'>0.17999999999999999 0.17999999999999999 -0.17999999999999999 0 0 0</pose>
+      <parent>link1_27</parent>
+      <child>link1_29</child>
+      <axis>
+        <xyz>0 -1 -1</xyz>
+        <limit>
+          <lower>-1.5708</lower>
+          <upper>0.87265999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_29'>
+      <pose relative_to='left_elbow'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.229541</mass>
+        <inertia>
+          <ixx>0.014190001000000001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.014190001000000001</iyy>
+          <iyz>0</iyz>
+          <izz>0.013740001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_29_fixed_joint_lump__left_lower_arm_collision'>
+        <pose>0.089999999999999997 -0.089999999999999997 0.089999999999999997 0.78539999999999976 0.61548000000000003 0.26180000000000009</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.031</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_29_fixed_joint_lump__left_lower_arm_visual'>
+        <pose>0.089999999999999997 -0.089999999999999997 0.089999999999999997 0.78539999999999976 0.61548000000000003 0.26180000000000009</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.031</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_29_fixed_joint_lump__left_lower_arm_collision_1'>
+        <pose>0.17999999999999999 -0.17999999999999999 0.17999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.040000000000000001</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_29_fixed_joint_lump__left_lower_arm_1_visual'>
+        <pose>0.17999999999999999 -0.17999999999999999 0.17999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.040000000000000001</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='right_shoulder1' type='revolute'>
+      <pose relative_to='torso'>0 -0.17000000000000001 0.059999999999999998 0 0 0</pose>
+      <parent>torso</parent>
+      <child>link1_21</child>
+      <axis>
+        <xyz>2 1 1</xyz>
+        <limit>
+          <lower>-1.48353</lower>
+          <upper>1.0471999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_21'>
+      <pose relative_to='right_shoulder1'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>9.9999999999999995e-07</mass>
+        <inertia>
+          <ixx>1.0000000000000001e-09</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.0000000000000001e-09</iyy>
+          <iyz>0</iyz>
+          <izz>1.0000000000000001e-09</izz>
+        </inertia>
+      </inertial>
+    </link>
+    <joint name='right_shoulder2' type='revolute'>
+      <pose relative_to='link1_21'>0 0 0 0 0 0</pose>
+      <parent>link1_21</parent>
+      <child>link1_22</child>
+      <axis>
+        <xyz>0 -1 1</xyz>
+        <limit>
+          <lower>-1.48353</lower>
+          <upper>1.0471999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_22'>
+      <pose relative_to='right_shoulder2'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.079999951838591862 -0.079999951838591862 -0.079999951838591862 0 0 0</pose>
+        <mass>1.661081</mass>
+        <inertia>
+          <ixx>0.023680013799992291</ixx>
+          <ixy>6.3999961458921506e-09</ixy>
+          <ixz>6.3999961458921506e-09</ixz>
+          <iyy>0.023680013799992291</iyy>
+          <iyz>-6.3999961458921506e-09</iyz>
+          <izz>0.02267001379999229</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_22_fixed_joint_lump__right_upper_arm_collision'>
+        <pose>0.080000000000000002 -0.080000000000000002 -0.080000000000000002 2.3561899999999998 0.61548000000000003 1.3089999999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_22_fixed_joint_lump__right_upper_arm_visual'>
+        <pose>0.080000000000000002 -0.080000000000000002 -0.080000000000000002 2.3561899999999998 0.61548000000000003 1.3089999999999999</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+    <joint name='right_elbow' type='revolute'>
+      <pose relative_to='link1_22'>0.17999999999999999 -0.17999999999999999 -0.17999999999999999 0 0 0</pose>
+      <parent>link1_22</parent>
+      <child>link1_24</child>
+      <axis>
+        <xyz>0 -1 1</xyz>
+        <limit>
+          <lower>-1.5708</lower>
+          <upper>0.87265999999999999</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <damping>1</damping>
+          <friction>0.0001</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='link1_24'>
+      <pose relative_to='right_elbow'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.229541</mass>
+        <inertia>
+          <ixx>0.014190001000000001</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.014190001000000001</iyy>
+          <iyz>0</iyz>
+          <izz>0.013740001</izz>
+        </inertia>
+      </inertial>
+      <collision name='link1_24_fixed_joint_lump__right_lower_arm_collision'>
+        <pose>0.089999999999999997 0.089999999999999997 0.089999999999999997 -0.78539999999999976 0.61548000000000003 -0.26180000000000009</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.031</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='link1_24_fixed_joint_lump__right_lower_arm_visual'>
+        <pose>0.089999999999999997 0.089999999999999997 0.089999999999999997 -0.78539999999999976 0.61548000000000003 -0.26180000000000009</pose>
+        <geometry>
+          <cylinder>
+            <length>0.27712999999999999</length>
+            <radius>0.031</radius>
+          </cylinder>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <collision name='link1_24_fixed_joint_lump__right_lower_arm_collision_1'>
+        <pose>0.17999999999999999 0.17999999999999999 0.17999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.040000000000000001</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <visual name='link1_24_fixed_joint_lump__right_lower_arm_1_visual'>
+        <pose>0.17999999999999999 0.17999999999999999 0.17999999999999999 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.040000000000000001</radius>
+          </sphere>
+        </geometry>
+              <material>
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+        </material>
+      </visual>
+    </link>
+
+</model>
+</sdf>

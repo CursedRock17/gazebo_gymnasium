@@ -1,0 +1,60 @@
+[workspace]
+name = "gazebo_gymnasium"
+version = "0.1.0"
+channels = ["robostack-jazzy", "conda-forge"]
+platforms = ["linux-64"]
+
+# One conda Python (3.12) for the ENTIRE stack — ROS 2 Jazzy, Gazebo Harmonic
+# (with the gz.sim Python ECM bindings the in-sim harness needs), and the RL
+# libraries. This collapses the old dual-Python split (source-built gz 3.13 vs
+# venv 3.12), so there are no more PYTHONPATH / LD_LIBRARY_PATH lines to paste.
+[dependencies]
+ros-jazzy-ros-base = "*"
+ros-jazzy-ros-gz = "*"            # ros_gz_sim / ros_gz_bridge
+gz-sim8-python = "*"             # gz.sim8 Python bindings (Joint ECM API, TestFixture)
+colcon-common-extensions = "*"
+pytest = "*"
+
+# RL libraries from PyPI, resolved into the same env via pixi's uv integration.
+[pypi-dependencies]
+stable-baselines3 = "*"
+gymnasium = "*"
+autopep8 = ">=2.3.2, <3"
+
+[tasks]
+# Build the ROS workspace (run once, and after editing ament_cmake pkgs).
+build = "colcon build --symlink-install"
+
+# Train any environment — one command, no launch needed (the default backend
+# hosts the sim in-process). Every training_scripts/train.py flag passes
+# straight through, so:
+#   pixi run train                                  # cartpole, 4 agents
+#   pixi run train --agent hopper --n_agents 16     # any registered spec
+#   pixi run train --agent walker2d --timesteps 400000
+train  = "bash -c 'source install/setup.sh && exec python training_scripts/train.py \"$@\"' --"
+
+# Evaluate a trained policy (same pass-through). E.g.
+#   pixi run deploy --agent hopper --n_agents 4
+deploy = "bash -c 'source install/setup.sh && exec python training_scripts/deploy.py \"$@\"' --"
+
+# Hyperparameter sweep (headless, CSV + optional W&B). E.g.
+#   pixi run sweep --agent cartpole --timesteps 250000
+sweep  = "bash -c 'source install/setup.sh && exec python training_scripts/sweep.py \"$@\"' --"
+
+# Throughput benchmark — steps/s per environment, and scaling across agent
+# counts. E.g. pixi run benchmark --agent hopper --scale 1,4,16,32
+benchmark = "bash -c 'source install/setup.sh && exec python training_scripts/benchmark.py \"$@\"' --"
+
+# OPTIONAL — watch a trained agent live in the Gazebo GUI. Only cartpole ships
+# a launch file today; every other agent trains headless via `pixi run train`.
+#   pixi run sim  (then, in another terminal) pixi run deploy --backend harness
+sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=4 headless:=false'"
+
+# Full suite — functional + stress + lint (flake8/pep257/copyright). No
+# simulator needed: transport is mocked and the harness/stress tests use the
+# in-process gz TestFixture (importorskip-guarded). PYTEST_DISABLE_PLUGIN_
+# AUTOLOAD stops the conda ROS launch_testing pytest plugins (old hook
+# signatures) from breaking collection; our tests only use pytest core.
+test = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/ -q'"
+# Lint only (the three ament linters), e.g. for a pre-commit check.
+lint = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/test_flake8.py gazebo_gymnasium_bridge/test/test_pep257.py gazebo_gymnasium_bridge/test/test_copyright.py -q'"

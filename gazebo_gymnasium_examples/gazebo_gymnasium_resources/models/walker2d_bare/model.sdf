@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="walker2d_bare">
+    <!-- Planar biped per the porting recipe (see hopper_bare): planar root as
+         joints, damping + armature-emulated inertias, MuJoCo joint ranges,
+         no effort limits. Forward = +Y. Coplanar legs rely on self_collide
+         defaulting to false (they may pass through each other, as in MuJoCo's
+         planar walker); both feet contact the ground (a separate model). -->
+    <link name="anchor">
+      <inertial><mass>0.5</mass>
+        <inertia><ixx>0.001</ixx><iyy>0.001</iyy><izz>0.001</izz></inertia></inertial>
+    </link>
+    <joint name="root_fwd" type="prismatic">
+      <pose relative_to="anchor">0 0 0 0 0 0</pose>
+      <parent>anchor</parent><child>d1</child>
+      <axis><xyz>0 1 0</xyz><dynamics><damping>0.9</damping></dynamics></axis>
+    </joint>
+    <link name="d1"><pose relative_to="root_fwd">0 0 0 0 0 0</pose>
+      <inertial><mass>1.0</mass>
+        <inertia><ixx>1e-4</ixx><iyy>1e-4</iyy><izz>1e-4</izz></inertia></inertial>
+    </link>
+    <joint name="root_up" type="prismatic">
+      <pose relative_to="d1">0 0 0 0 0 0</pose>
+      <parent>d1</parent><child>d2</child>
+      <axis><xyz>0 0 1</xyz><dynamics><damping>0.9</damping></dynamics></axis>
+    </joint>
+    <link name="d2"><pose relative_to="root_up">0 0 0 0 0 0</pose>
+      <inertial><mass>1.0</mass>
+        <inertia><ixx>1e-4</ixx><iyy>1e-4</iyy><izz>1e-4</izz></inertia></inertial>
+    </link>
+    <joint name="root_pitch" type="revolute">
+      <pose relative_to="d2">0 0 0 0 0 0</pose>
+      <parent>d2</parent><child>torso</child>
+      <axis><xyz>1 0 0</xyz><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="torso">
+      <pose relative_to="root_pitch">0 0 0 0 0 0</pose>
+      <inertial><mass>3.53</mass>
+        <inertia><ixx>1.05</ixx><iyy>1.05</iyy><izz>0.0045</izz></inertia></inertial>
+      <collision name="torso_collision">
+        <geometry><box><size>0.09 0.09 0.4</size></box></geometry></collision>
+      <visual name="torso_visual">
+        <geometry><box><size>0.09 0.09 0.4</size></box></geometry>
+        <material><ambient>0.375 0.625 0.875 1</ambient><diffuse>0.375 0.625 0.875 1</diffuse></material></visual>
+    </link>
+    <joint name="thigh_joint" type="revolute">
+      <pose relative_to="torso">-0.05 0 -0.2 0 0 0</pose>
+      <parent>torso</parent><child>thigh</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-2.618</lower><upper>0.0</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="thigh">
+      <pose relative_to="thigh_joint">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.225 0 0 0</pose><mass>3.93</mass>
+        <inertia><ixx>1.07</ixx><iyy>1.07</iyy><izz>0.005</izz></inertia></inertial>
+      <collision name="thigh_collision"><pose>0 0 -0.225 0 0 0</pose>
+        <geometry><box><size>0.08 0.08 0.45</size></box></geometry></collision>
+      <visual name="thigh_visual"><pose>0 0 -0.225 0 0 0</pose>
+        <geometry><box><size>0.08 0.08 0.45</size></box></geometry>
+        <material><ambient>0.625 0.5 0.25 1</ambient><diffuse>0.625 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="leg_joint" type="revolute">
+      <pose relative_to="thigh">0 0 -0.45 0 0 0</pose>
+      <parent>thigh</parent><child>leg</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-2.618</lower><upper>0.0</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="leg">
+      <pose relative_to="leg_joint">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.25 0 0 0</pose><mass>2.71</mass>
+        <inertia><ixx>1.06</ixx><iyy>1.06</iyy><izz>0.0022</izz></inertia></inertial>
+      <collision name="leg_collision"><pose>0 0 -0.25 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.5</size></box></geometry></collision>
+      <visual name="leg_visual"><pose>0 0 -0.25 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.5</size></box></geometry>
+        <material><ambient>0.625 0.5 0.25 1</ambient><diffuse>0.625 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="foot_joint" type="revolute">
+      <pose relative_to="leg">0 0 -0.5 0 0 0</pose>
+      <parent>leg</parent><child>foot</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="foot">
+      <pose relative_to="foot_joint">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0.065 -0.05 0 0 0</pose><mass>2.5</mass>
+        <inertia><ixx>1.03</ixx><iyy>1.0</iyy><izz>1.03</izz></inertia></inertial>
+      <collision name="foot_collision"><pose>0 0.065 -0.05 0 0 0</pose>
+        <geometry><box><size>0.05 0.2 0.06</size></box></geometry></collision>
+      <visual name="foot_visual"><pose>0 0.065 -0.05 0 0 0</pose>
+        <geometry><box><size>0.05 0.2 0.06</size></box></geometry>
+        <material><ambient>0.625 0.5 0.25 1</ambient><diffuse>0.625 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="thigh_left_joint" type="revolute">
+      <pose relative_to="torso">0.05 0 -0.2 0 0 0</pose>
+      <parent>torso</parent><child>thigh_left</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-2.618</lower><upper>0.0</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="thigh_left">
+      <pose relative_to="thigh_left_joint">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.225 0 0 0</pose><mass>3.93</mass>
+        <inertia><ixx>1.07</ixx><iyy>1.07</iyy><izz>0.005</izz></inertia></inertial>
+      <collision name="thigh_left_collision"><pose>0 0 -0.225 0 0 0</pose>
+        <geometry><box><size>0.08 0.08 0.45</size></box></geometry></collision>
+      <visual name="thigh_left_visual"><pose>0 0 -0.225 0 0 0</pose>
+        <geometry><box><size>0.08 0.08 0.45</size></box></geometry>
+        <material><ambient>0.25 0.5 0.25 1</ambient><diffuse>0.25 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="leg_left_joint" type="revolute">
+      <pose relative_to="thigh_left">0 0 -0.45 0 0 0</pose>
+      <parent>thigh_left</parent><child>leg_left</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-2.618</lower><upper>0.0</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="leg_left">
+      <pose relative_to="leg_left_joint">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.25 0 0 0</pose><mass>2.71</mass>
+        <inertia><ixx>1.06</ixx><iyy>1.06</iyy><izz>0.0022</izz></inertia></inertial>
+      <collision name="leg_left_collision"><pose>0 0 -0.25 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.5</size></box></geometry></collision>
+      <visual name="leg_left_visual"><pose>0 0 -0.25 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.5</size></box></geometry>
+        <material><ambient>0.25 0.5 0.25 1</ambient><diffuse>0.25 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="foot_left_joint" type="revolute">
+      <pose relative_to="leg_left">0 0 -0.5 0 0 0</pose>
+      <parent>leg_left</parent><child>foot_left</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="foot_left">
+      <pose relative_to="foot_left_joint">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0.065 -0.05 0 0 0</pose><mass>2.5</mass>
+        <inertia><ixx>1.03</ixx><iyy>1.0</iyy><izz>1.03</izz></inertia></inertial>
+      <collision name="foot_left_collision"><pose>0 0.065 -0.05 0 0 0</pose>
+        <geometry><box><size>0.05 0.2 0.06</size></box></geometry></collision>
+      <visual name="foot_left_visual"><pose>0 0.065 -0.05 0 0 0</pose>
+        <geometry><box><size>0.05 0.2 0.06</size></box></geometry>
+        <material><ambient>0.25 0.5 0.25 1</ambient><diffuse>0.25 0.5 0.25 1</diffuse></material></visual>
+    </link>
+  </model>
+</sdf>

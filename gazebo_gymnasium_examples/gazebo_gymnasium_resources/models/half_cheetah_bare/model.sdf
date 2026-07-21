@@ -1,0 +1,135 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="half_cheetah_bare">
+    <!-- Planar half-cheetah per the porting recipe: planar root as joints
+         (forward +Y), horizontal torso, MuJoCo joint ranges + per-joint
+         damping, armature-emulated inertias, NO effort limits. -->
+    <link name="anchor">
+      <inertial><mass>0.5</mass>
+        <inertia><ixx>0.001</ixx><iyy>0.001</iyy><izz>0.001</izz></inertia></inertial>
+    </link>
+    <joint name="root_fwd" type="prismatic">
+      <pose relative_to="anchor">0 0 0 0 0 0</pose>
+      <parent>anchor</parent><child>d1</child>
+      <axis><xyz>0 1 0</xyz><dynamics><damping>0.5</damping></dynamics></axis>
+    </joint>
+    <link name="d1"><pose relative_to="root_fwd">0 0 0 0 0 0</pose>
+      <inertial><mass>1.0</mass>
+        <inertia><ixx>1e-4</ixx><iyy>1e-4</iyy><izz>1e-4</izz></inertia></inertial>
+    </link>
+    <joint name="root_up" type="prismatic">
+      <pose relative_to="d1">0 0 0 0 0 0</pose>
+      <parent>d1</parent><child>d2</child>
+      <axis><xyz>0 0 1</xyz><dynamics><damping>0.5</damping></dynamics></axis>
+    </joint>
+    <link name="d2"><pose relative_to="root_up">0 0 0 0 0 0</pose>
+      <inertial><mass>1.0</mass>
+        <inertia><ixx>1e-4</ixx><iyy>1e-4</iyy><izz>1e-4</izz></inertia></inertial>
+    </link>
+    <joint name="root_pitch" type="revolute">
+      <pose relative_to="d2">0 0 0 0 0 0</pose>
+      <parent>d2</parent><child>torso</child>
+      <axis><xyz>1 0 0</xyz><dynamics><damping>1.0</damping></dynamics></axis>
+    </joint>
+    <link name="torso">
+      <pose relative_to="root_pitch">0 0 0 0 0 0</pose>
+      <inertial><mass>6.25</mass>
+        <inertia><ixx>1.6</ixx><iyy>0.06</iyy><izz>1.6</izz></inertia></inertial>
+      <collision name="torso_collision">
+        <geometry><box><size>0.1 1.0 0.1</size></box></geometry></collision>
+      <visual name="torso_visual">
+        <geometry><box><size>0.1 1.0 0.1</size></box></geometry>
+        <material><ambient>0.375 0.625 0.875 1</ambient><diffuse>0.375 0.625 0.875 1</diffuse></material></visual>
+    </link>
+    <joint name="bthigh" type="revolute">
+      <pose relative_to="torso">0 -0.5 -0.05 0 0 0</pose>
+      <parent>torso</parent><child>bthigh_l</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-0.52</lower><upper>1.05</upper></limit><dynamics><damping>6.0</damping></dynamics></axis>
+    </joint>
+    <link name="bthigh_l">
+      <pose relative_to="bthigh">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.145 0 0 0</pose><mass>1.5</mass>
+        <inertia><ixx>0.31</ixx><iyy>0.31</iyy><izz>0.002</izz></inertia></inertial>
+      <collision name="bthigh_collision"><pose>0 0 -0.145 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.29</size></box></geometry></collision>
+      <visual name="bthigh_visual"><pose>0 0 -0.145 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.29</size></box></geometry>
+        <material><ambient>0.625 0.5 0.25 1</ambient><diffuse>0.625 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="bshin" type="revolute">
+      <pose relative_to="bthigh_l">0 0 -0.29 0 0 0</pose>
+      <parent>bthigh_l</parent><child>bshin_l</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper></limit><dynamics><damping>4.5</damping></dynamics></axis>
+    </joint>
+    <link name="bshin_l">
+      <pose relative_to="bshin">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.15 0 0 0</pose><mass>1.6</mass>
+        <inertia><ixx>0.31</ixx><iyy>0.31</iyy><izz>0.002</izz></inertia></inertial>
+      <collision name="bshin_collision"><pose>0 0 -0.15 0 0 0</pose>
+        <geometry><box><size>0.05 0.05 0.3</size></box></geometry></collision>
+      <visual name="bshin_visual"><pose>0 0 -0.15 0 0 0</pose>
+        <geometry><box><size>0.05 0.05 0.3</size></box></geometry>
+        <material><ambient>0.625 0.5 0.25 1</ambient><diffuse>0.625 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="bfoot" type="revolute">
+      <pose relative_to="bshin_l">0 0 -0.3 0 0 0</pose>
+      <parent>bshin_l</parent><child>bfoot_l</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-0.4</lower><upper>0.785</upper></limit><dynamics><damping>3.0</damping></dynamics></axis>
+    </joint>
+    <link name="bfoot_l">
+      <pose relative_to="bfoot">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0.02 -0.06 0 0 0</pose><mass>1.0</mass>
+        <inertia><ixx>0.3</ixx><iyy>0.3</iyy><izz>0.002</izz></inertia></inertial>
+      <collision name="bfoot_collision"><pose>0 0.02 -0.06 0 0 0</pose>
+        <geometry><box><size>0.05 0.12 0.12</size></box></geometry></collision>
+      <visual name="bfoot_visual"><pose>0 0.02 -0.06 0 0 0</pose>
+        <geometry><box><size>0.05 0.12 0.12</size></box></geometry>
+        <material><ambient>0.625 0.5 0.25 1</ambient><diffuse>0.625 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="fthigh" type="revolute">
+      <pose relative_to="torso">0 0.5 -0.05 0 0 0</pose>
+      <parent>torso</parent><child>fthigh_l</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-1.0</lower><upper>0.7</upper></limit><dynamics><damping>4.5</damping></dynamics></axis>
+    </joint>
+    <link name="fthigh_l">
+      <pose relative_to="fthigh">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.145 0 0 0</pose><mass>1.5</mass>
+        <inertia><ixx>0.31</ixx><iyy>0.31</iyy><izz>0.002</izz></inertia></inertial>
+      <collision name="fthigh_collision"><pose>0 0 -0.145 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.29</size></box></geometry></collision>
+      <visual name="fthigh_visual"><pose>0 0 -0.145 0 0 0</pose>
+        <geometry><box><size>0.06 0.06 0.29</size></box></geometry>
+        <material><ambient>0.25 0.5 0.25 1</ambient><diffuse>0.25 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="fshin" type="revolute">
+      <pose relative_to="fthigh_l">0 0 -0.29 0 0 0</pose>
+      <parent>fthigh_l</parent><child>fshin_l</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-1.2</lower><upper>0.87</upper></limit><dynamics><damping>3.0</damping></dynamics></axis>
+    </joint>
+    <link name="fshin_l">
+      <pose relative_to="fshin">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0 -0.15 0 0 0</pose><mass>1.6</mass>
+        <inertia><ixx>0.31</ixx><iyy>0.31</iyy><izz>0.002</izz></inertia></inertial>
+      <collision name="fshin_collision"><pose>0 0 -0.15 0 0 0</pose>
+        <geometry><box><size>0.05 0.05 0.3</size></box></geometry></collision>
+      <visual name="fshin_visual"><pose>0 0 -0.15 0 0 0</pose>
+        <geometry><box><size>0.05 0.05 0.3</size></box></geometry>
+        <material><ambient>0.25 0.5 0.25 1</ambient><diffuse>0.25 0.5 0.25 1</diffuse></material></visual>
+    </link>
+    <joint name="ffoot" type="revolute">
+      <pose relative_to="fshin_l">0 0 -0.3 0 0 0</pose>
+      <parent>fshin_l</parent><child>ffoot_l</child>
+      <axis><xyz>1 0 0</xyz><limit><lower>-0.5</lower><upper>0.5</upper></limit><dynamics><damping>1.5</damping></dynamics></axis>
+    </joint>
+    <link name="ffoot_l">
+      <pose relative_to="ffoot">0 0 0 0 0 0</pose>
+      <inertial><pose>0 0.02 -0.06 0 0 0</pose><mass>1.0</mass>
+        <inertia><ixx>0.3</ixx><iyy>0.3</iyy><izz>0.002</izz></inertia></inertial>
+      <collision name="ffoot_collision"><pose>0 0.02 -0.06 0 0 0</pose>
+        <geometry><box><size>0.05 0.12 0.12</size></box></geometry></collision>
+      <visual name="ffoot_visual"><pose>0 0.02 -0.06 0 0 0</pose>
+        <geometry><box><size>0.05 0.12 0.12</size></box></geometry>
+        <material><ambient>0.25 0.5 0.25 1</ambient><diffuse>0.25 0.5 0.25 1</diffuse></material></visual>
+    </link>
+  </model>
+</sdf>

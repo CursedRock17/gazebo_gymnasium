@@ -1,0 +1,54 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="cartpole_multi">
+    <!-- Empty world for multi-agent cartpole. Cartpoles are spawned
+         dynamically by `gazebo_gymnasium_bringup/scripts/spawn_multi_cartpoles.py`
+         after this world is up. Sequential spawning sidesteps the
+         world-load race that capped static `<include>`-based worlds
+         at 4 cartpoles. -->
+    <physics name="10ms" type="ignored">
+      <max_step_size>0.01</max_step_size>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+    <plugin filename="gz-sim-physics-system"           name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-contact-system"           name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"     name="gz::sim::systems::UserCommands"/>
+
+    <!-- World-level controller for all cartpoles. Loaded once at world
+         startup so it sidesteps gz-sim's limitation that model-level
+         <plugin> tags don't activate for models spawned dynamically
+         via the EntityFactory service. Subscribes to /env/action_<i>
+         for i in 0..63 and applies velocity commands to each
+         cartpole_<i>::slider_to_cart joint as those models appear. -->
+    <plugin filename="gz-sim-python-system-loader-system"
+            name="gz::sim::systems::PythonSystemLoader">
+      <module_name>cartpole_world_controller</module_name>
+    </plugin>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>
