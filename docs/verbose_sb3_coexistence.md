@@ -60,7 +60,7 @@ Added `GAZEBO_GYM_VERBOSE_EVERY=N` (default 1). Set it to a larger N to skip per
 
 ```bash
 # Use case A: maximum detail (custom PPO debugging) — same as before
-ros2 launch gazebo_gymnasium_bringup cartpole.launch.py verbose:=true
+ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py verbose:=true
 
 # Use case B: SB3 run, keep SB3's table readable, sample env state every 50 steps
 GAZEBO_GYM_VERBOSE_EVERY=50 ros2 launch gazebo_gymnasium_bringup cartpole_sb3.launch.py verbose:=true

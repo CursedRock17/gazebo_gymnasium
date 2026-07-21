@@ -16,7 +16,7 @@ Stack ROS 2 nodes into one process via `ComposableNodeContainer`. Wins:
 
 ## What our launches actually contain
 
-Per launch (typical: `cartpole.launch.py`):
+Per launch (typical: `cartpole_harness.launch.py`):
 - `ros_gz_bridge::parameter_bridge` — 1 node
 - `foxglove_bridge::FoxgloveBridge` — 1 node (conditional)
 - `tf2_ros::static_transform_publisher` — 1 node (conditional)
@@ -30,7 +30,7 @@ So 3–4 ROS nodes max per launch. Modest.
 
 ## Where composable is already used
 
-`line_follower_train.launch.py` runs the bridges in a
+the (since-removed) single-env training launches ran the bridges in a
 `ComposableNodeContainer`. We kept the standalone `parameter_bridge`
 alongside it as a fallback because the composable `ros_gz_bridge` has a
 different (less complete) config-file code path — see the file's
@@ -38,8 +38,8 @@ comments.
 
 ## Where it's NOT used and why
 
-The single-env sim-only launches (`cartpole.launch.py`,
-`inverted_pendulum.launch.py`, etc.) leave the bridges as standalone
+The surviving launches (`cartpole_harness.launch.py`,
+`cartpole_multi.launch.py`) leave the bridges as standalone
 `Node()` instances. Two reasons:
 
 1. **Bottleneck math.** Our RL training spends ≥99% of wall time inside
@@ -62,6 +62,6 @@ Composable nodes are the right call when:
 - Startup latency matters (real-time / restart-heavy workloads).
 
 For our RL launches, none of those apply strongly. The
-`line_follower_train.launch.py` keeps the composable bridge code as a
+The removed training launches kept the composable bridge code as a
 reference; the other launches deliberately stay standalone for
 readability. **Status: nothing to change.**
