@@ -54,12 +54,52 @@ CI, or robot.
 # 1. Install pixi
 curl -fsSL https://pixi.sh/install.sh | bash
 
+# ---> Open a NEW terminal now (or run `exec $SHELL`) so the `pixi`
+#      command is on your PATH. The installer adds it to your shell
+#      profile, but your current shell won't see it until it reloads.
+
 # 2. Clone, resolve the environment (ROS 2 + Gazebo + RL libs in one solve), build
 git clone https://github.com/CursedRock17/gazebo_gymnasium.git gazebo_gymnasium
 cd gazebo_gymnasium
 pixi install
 pixi run build
 ```
+
+> **First `pixi install` is a big, one-time download.** It fetches the entire
+> ROS 2 + Gazebo + PyTorch stack (several GB) and commonly takes **15–30
+> minutes** on a fresh machine — after that it's cached and near-instant. If a
+> single package download stalls on a slow mirror (LLVM is a common culprit),
+> press `Ctrl+C` and re-run `pixi install`: completed packages are cached, so
+> it resumes rather than starting over.
+
+### See it run: CartPole in the Gazebo GUI
+
+The quickest way to *see* what the library does — train the reference CartPole,
+then watch your trained policy balance the poles live in Gazebo. Three short
+steps:
+
+```bash
+# 1. Train CartPole (headless, ~1–2 min — it solves quickly)
+pixi run train
+
+# 2. Open the Gazebo GUI with 4 cartpoles
+pixi run sim
+
+# 3. In a SECOND terminal, run your trained policy in that GUI
+pixi run deploy --backend harness
+```
+
+You should see four carts nudging themselves left and right to keep their poles
+upright — the same policy you just trained, now driving the live simulator.
+
+<!-- Screenshot placeholder. Once you capture docs/images/cartpole_gui.png
+     (see docs/images/README.md), uncomment the next line to show it here.
+     It is commented out so the public README doesn't render a broken image.
+![CartPole balancing in the Gazebo GUI](docs/images/cartpole_gui.png)
+-->
+
+> The GUI needs a display and a working graphics driver. On a headless server,
+> skip this and train/evaluate with the headless commands below.
 
 **Train — one command, no launch needed.** The default backend hosts the
 simulator inside the training process, so a single command trains any of the
@@ -82,16 +122,8 @@ pixi run test                                  # the full test suite (no simulat
 ```
 
 See the available agents any time with `pixi run train --help`. Task
-definitions live in `pixi.toml`.
-
-**Watch it live (optional).** Training is headless by default. To see an agent
-in the Gazebo GUI, launch the simulator in one terminal and drive it from
-another (CartPole ships a launch file today; other agents train headless):
-
-```bash
-pixi run sim                                   # terminal 1: Gazebo GUI
-pixi run deploy --backend harness              # terminal 2: run the policy in it
-```
+definitions live in `pixi.toml`. (Only CartPole ships a GUI launch file today;
+every other environment trains and evaluates headless.)
 
 ### Next steps
 
