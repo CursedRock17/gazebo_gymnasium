@@ -11,6 +11,28 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Near term
 
+- **Hugging Face Hub integration.** Publish and load trained policies via the
+  Hub so models are shareable, versioned, and discoverable instead of living as
+  local `.zip` files. SB3 has an official path (`huggingface_sb3`:
+  `package_to_hub` / `load_from_hub`), and our scripts already have the hooks:
+  - `train.py --push-to-hub <repo_id>`: after training, upload the model and
+    auto-generate a **model card** documenting the algorithm, the exact
+    hyperparameters, the environment id, and the evaluated mean episode reward
+    against the [solved bar](docs/examples/README.md).
+  - `deploy.py --from-hub <repo_id>`: download and run a Hub model directly.
+  - `sweep.py`: push the **best** config with its learning curve, so the
+    hosted model carries the precise hyperparameters that produced it — closing
+    the loop between the sweep and a shareable artifact.
+  - Deps: add `huggingface_sb3` + `huggingface_hub` to the pixi env (a
+    `pixi.lock` re-solve); auth via a Hub token.
+  - Honest scope: the Hub *stores the SB3 `.zip`* — that is the model format —
+    so this hosts/versions/documents the zip rather than eliminating it;
+    downloading still yields a `.zip`. `package_to_hub`'s replay video needs
+    rendering (the camera/GUI path, subject to the one-camera-env-per-process
+    limit), so the first slice should push model + card + eval metrics and make
+    the video opt-in.
+
+
 - **Finish RL-tool integration.** Remaining: extend per-agent reset to the
   harness/multi (launched-sim) backends — needs a per-agent reset-mask in the
   plugin's `/rl/reset` protocol (the in-process + gymnasium paths already do
