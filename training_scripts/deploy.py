@@ -53,6 +53,9 @@ def main():
     p.add_argument("--algo", default="ppo", choices=sorted(_ALGOS))
     p.add_argument("--model", default=None, help="path to .zip (default: "
                    "models/<agent>_multi/final_<algo>_n<N>.zip)")
+    p.add_argument("--from-hub", metavar="REPO_ID", default=None,
+                   help="download the model from this Hugging Face Hub repo "
+                        "(user/name) instead of a local path")
     p.add_argument("--episodes", type=int, default=3)
     p.add_argument("--world", default=None)
     p.add_argument("--backend", default="inprocess",
@@ -61,11 +64,16 @@ def main():
                    help="must match training (image observations only)")
     args = p.parse_args()
 
-    model_path = (Path(args.model) if args.model else
-                  MODELS_ROOT / f"{args.agent}_multi" /
-                  f"final_{args.algo}_n{args.n_agents}.zip")
-    if not model_path.exists():
-        raise SystemExit(f"model not found: {model_path}")
+    if args.from_hub:
+        from hub import pull_from_hub
+        model_path = Path(pull_from_hub(args.from_hub))
+        print(f"[deploy] downloaded {args.from_hub} -> {model_path}")
+    else:
+        model_path = (Path(args.model) if args.model else
+                      MODELS_ROOT / f"{args.agent}_multi" /
+                      f"final_{args.algo}_n{args.n_agents}.zip")
+        if not model_path.exists():
+            raise SystemExit(f"model not found: {model_path}")
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
     _factories = {"inprocess": make_inprocess, "harness": make_harness,

@@ -6,7 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Hugging Face Hub integration.** `train.py --push-to-hub <repo_id>` uploads
+  the trained model and an auto-generated model card (algorithm,
+  hyperparameters, environment, result, usage); `deploy.py --from-hub <repo_id>`
+  downloads and runs a Hub model. Uses `huggingface_hub` directly; auth via
+  `HF_TOKEN` or `hf auth login`. Verified end to end with a real round-trip.
 
 ## [0.1.0] — 2026-07-20
 

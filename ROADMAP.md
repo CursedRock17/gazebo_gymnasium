@@ -11,33 +11,16 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Near term
 
-- **Hugging Face Hub integration.** _Status: NOT STARTED — no Hub code exists
-  in the repo today._ Uploading a trained policy currently means reaching for
-  the `huggingface-cli` by hand, outside the repo; nothing in `train.py` /
-  `deploy.py` / `sweep.py` pushes or pulls from the Hub. The goal is to make
-  that a first-class, in-repo capability so *anyone* running this project can
-  share and fetch models without hand-rolling it.
-
-  Planned work (all to be built):
-  - Add `--push-to-hub <repo_id>` to `train.py`: after training, upload the
-    model and auto-generate a **model card** documenting the algorithm, the
-    exact hyperparameters, the environment id, and the evaluated mean episode
-    reward against the [solved bar](docs/examples/README.md).
-  - Add `--from-hub <repo_id>` to `deploy.py`: download and run a Hub model.
-  - Extend `sweep.py` to push the **best** config with its learning curve, so
-    the hosted model carries the precise hyperparameters that produced it.
-  - Add `huggingface_sb3` + `huggingface_hub` to the pixi env (a `pixi.lock`
-    re-solve); auth via a Hub token. SB3's official path is
-    `huggingface_sb3.package_to_hub` / `load_from_hub`.
-  - Insertion points already identified (but not yet wired): models are saved
-    at `train.py` `final_path` and loaded at `deploy.py`; the sweep's
-    hyperparameters live in its `CONFIGS` + result CSV.
-  - Honest scope: the Hub *stores the SB3 `.zip`* — that is the model format —
-    so this hosts/versions/documents the zip rather than eliminating it;
-    downloading still yields a `.zip`. `package_to_hub`'s replay video needs
-    rendering (the camera/GUI path, subject to the one-camera-env-per-process
-    limit), so the first slice should push model + card + eval metrics and make
-    the video opt-in.
+- **Hugging Face Hub integration — remaining polish.** The core is DONE (see
+  the Done section): `train.py --push-to-hub` and `deploy.py --from-hub` work,
+  verified with a real round-trip. Still open:
+  - `sweep.py --push-to-hub`: push the **best** config with its learning curve,
+    so the hosted model carries the precise hyperparameters that produced it.
+  - Opt-in replay **video** in the model card (needs rendering — the camera/GUI
+    path, subject to the one-camera-env-per-process limit).
+  - Evaluate-on-push: run a short deterministic eval and put the real mean
+    episode reward (vs the [solved bar](docs/examples/README.md)) in the card,
+    rather than just the training summary.
 
 
 - **Finish RL-tool integration.** Remaining: extend per-agent reset to the
@@ -106,6 +89,13 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Done
 
+- **Hugging Face Hub push/pull.** `train.py --push-to-hub <repo_id>` uploads
+  the trained `.zip` plus an auto-generated model card (algorithm,
+  hyperparameters, environment, result, copy-paste usage);
+  `deploy.py --from-hub <repo_id>` downloads and runs it. Talks to
+  `huggingface_hub` directly (in the pixi env), auth via `HF_TOKEN` /
+  `hf auth login`. Verified with a real push→pull→`load` round-trip against a
+  live account; mocked offline test in `test_hub.py`.
 - Single-Python environment via Pixi + RoboStack (killed the dual-Python split).
 - Generalized, parameterized `MultiAgentGazeboVecEnv` + `make_multi`.
 - Batched in-sim harness: `HarnessCore` (ECM), `MultiAgentHarness` plugin

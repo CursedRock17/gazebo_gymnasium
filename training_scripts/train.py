@@ -76,6 +76,12 @@ def main():
                         "needed (fastest, default); harness: batched O(1) "
                         "transport to a launched gz sim; peragent: per-agent "
                         "topics + respawn reset")
+    p.add_argument("--push-to-hub", metavar="REPO_ID", default=None,
+                   help="after training, upload the model + an auto-generated "
+                        "model card to this Hugging Face Hub repo (user/name). "
+                        "Requires a token (HF_TOKEN or `hf auth login`).")
+    p.add_argument("--hub-private", action="store_true",
+                   help="create the Hub repo as private (with --push-to-hub)")
     args = p.parse_args()
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
@@ -123,6 +129,19 @@ def main():
         model.save(final_path)
         print(f"[train] saved {final_path}")
         vec_env.close()
+
+    if args.push_to_hub:
+        from hub import push_to_hub
+        hp = {"timesteps": args.timesteps, "backend": args.backend,
+              "device": _device()}
+        hp.update({k: v for k, v in algo_kwargs.items() if k != "verbose"})
+        url = push_to_hub(
+            final_path, args.push_to_hub, agent=args.agent, algo=args.algo,
+            n_agents=args.n_agents, hyperparams=hp,
+            eval_result=f"Trained for {args.timesteps} timesteps "
+                        f"({args.n_agents} agents in one Gazebo world).",
+            private=args.hub_private)
+        print(f"[train] pushed to Hugging Face Hub: {url}")
 
 
 if __name__ == "__main__":
