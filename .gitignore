@@ -230,4 +230,8 @@ tb_logs/*
 
 # RL training outputs (trained policies / checkpoints)
 models/**/*.zip
+models/**/*.mp4
+models/**/*.gif
+models/sweep_*.csv
+models/*_replay.*
 rosbags/

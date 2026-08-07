@@ -28,6 +28,7 @@ runs in minutes on a laptop CPU.
 import argparse
 import csv
 from pathlib import Path
+import sys
 import time
 
 import numpy as np
@@ -103,7 +104,7 @@ def run_trial(idx, cfg, args, writer):
         wb.finish()
     print(f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
           f"({args.timesteps} steps in {dt:.0f}s)")
-    return final, model
+    return final, model, cb.curve
 
 
 def main():
@@ -116,6 +117,11 @@ def main():
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--project", default="gazebo-cartpole")
     p.add_argument("--out", default=None, help="CSV path (default: models/)")
+    p.add_argument("--push-to-hub", metavar="REPO_ID", default=None,
+                   help="upload the BEST model + its config and learning curve "
+                        "to this Hugging Face Hub repo (user/name)")
+    p.add_argument("--hub-private", action="store_true",
+                   help="create the Hub repo as private (with --push-to-hub)")
     args = p.parse_args()
 
     models = Path(__file__).resolve().parent.parent / "models"
@@ -126,15 +132,17 @@ def main():
     print(f"Sweep: {len(CONFIGS)} configs x {args.timesteps} steps, "
           f"n_agents={args.n_agents}. Logging to {out}")
     best, best_model, best_idx = -1.0, None, -1
+    best_cfg, best_curve = None, None
     with open(out, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=["trial", "step",
                                                 "mean_ep_reward"])
         writer.writeheader()
         for idx, cfg in enumerate(CONFIGS):
-            final, model = run_trial(idx, cfg, args, writer)
+            final, model, curve = run_trial(idx, cfg, args, writer)
             fh.flush()
             if final > best:
                 best, best_model, best_idx = final, model, idx
+                best_cfg, best_curve = cfg, curve
 
     if best_model is not None:
         best_path = models / f"{args.agent}_sweep_best.zip"
@@ -143,6 +151,20 @@ def main():
         print(f"\nBest: trial {best_idx} mean_ep_reward={best:.1f} [{status} "
               f"@ {args.solved}] -> saved {best_path}")
         print(f"Curves in {out}")
+
+        if args.push_to_hub:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from hub import push_to_hub
+            hp = dict(best_cfg)
+            hp["timesteps"] = args.timesteps
+            url = push_to_hub(
+                best_path, args.push_to_hub, agent=args.agent, algo="ppo",
+                n_agents=args.n_agents, hyperparams=hp, curve=best_curve,
+                eval_result=f"**Best of {len(CONFIGS)} swept configs** "
+                            f"(trial {best_idx}): mean episode reward "
+                            f"{best:.1f} [{status} @ {args.solved}].",
+                private=args.hub_private)
+            print(f"Pushed best model to Hugging Face Hub: {url}")
 
 
 if __name__ == "__main__":

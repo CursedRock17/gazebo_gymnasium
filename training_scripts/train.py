@@ -34,6 +34,7 @@ from pathlib import Path
 import stable_baselines3 as sb3
 from stable_baselines3.common.callbacks import CheckpointCallback
 
+from gazebo_gymnasium_bridge.envs import get_spec
 from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_inprocess
 from gazebo_gymnasium_bridge.envs import make_multi
@@ -82,6 +83,9 @@ def main():
                         "Requires a token (HF_TOKEN or `hf auth login`).")
     p.add_argument("--hub-private", action="store_true",
                    help="create the Hub repo as private (with --push-to-hub)")
+    p.add_argument("--push-video", action="store_true",
+                   help="also record a replay video for the model card "
+                        "(camera/image-observation envs only)")
     args = p.parse_args()
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
@@ -122,9 +126,30 @@ def main():
 
     print(f"[train] agent={args.agent} n_agents={args.n_agents} "
           f"algo={args.algo} timesteps={args.timesteps} -> {model_dir}")
+    # Hub extras (eval + replay video) need the env still open, so gather them
+    # on the success path before the finally closes it.
+    eval_result, eval_metrics, video_path = None, {}, None
     try:
         model.learn(total_timesteps=args.timesteps, callback=ckpt,
                     reset_num_timesteps=not resumed)
+        if args.push_to_hub:
+            from hub import evaluate_model, record_replay
+            try:
+                eval_result, eval_metrics = evaluate_model(model, vec_env)
+                print(f"[train] eval: {eval_result}")
+            except Exception as exc:              # noqa: B902
+                print(f"[train] eval skipped ({type(exc).__name__}: {exc})")
+            if args.push_video:
+                try:
+                    vp = str(model_dir / f"{args.agent}_replay.mp4")
+                    video_path = record_replay(
+                        model, vec_env, get_spec(args.agent), vp)
+                    print(f"[train] replay video: {video_path}" if video_path
+                          else "[train] --push-video: no headless video for "
+                               "this env (camera envs only); skipping.")
+                except Exception as exc:          # noqa: B902
+                    print(f"[train] video skipped ({type(exc).__name__}: "
+                          f"{exc})")
     finally:
         model.save(final_path)
         print(f"[train] saved {final_path}")
@@ -135,12 +160,11 @@ def main():
         hp = {"timesteps": args.timesteps, "backend": args.backend,
               "device": _device()}
         hp.update({k: v for k, v in algo_kwargs.items() if k != "verbose"})
+        hp.update(eval_metrics)
         url = push_to_hub(
             final_path, args.push_to_hub, agent=args.agent, algo=args.algo,
-            n_agents=args.n_agents, hyperparams=hp,
-            eval_result=f"Trained for {args.timesteps} timesteps "
-                        f"({args.n_agents} agents in one Gazebo world).",
-            private=args.hub_private)
+            n_agents=args.n_agents, hyperparams=hp, eval_result=eval_result,
+            video_path=video_path, private=args.hub_private)
         print(f"[train] pushed to Hugging Face Hub: {url}")
 
 

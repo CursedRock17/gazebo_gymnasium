@@ -89,3 +89,79 @@ def test_pull_downloads_named_file():
     assert got == "/cache/model.zip"
     assert dl.call_args.kwargs["repo_id"] == "alice/ppo-cartpole"
     assert dl.call_args.kwargs["filename"] == hub.MODEL_FILENAME
+
+
+# ---- polish: eval-on-push, learning curve, replay video ------------------- #
+
+def test_card_embeds_video_and_curve():
+    card = hub._card(
+        "u/r", "cartpole", "ppo", None, 4, {"lr": 0.001}, "reward 500",
+        video_filename="replay.mp4",
+        curve=[(0, 20.0), (10000, 120.0), (20000, 480.0)])
+    assert "## Replay" in card and "![replay" in card and "replay.mp4" in card
+    assert "## Learning curve" in card
+    assert "| 20000 | 480.0 |" in card
+
+
+def test_card_curve_is_subsampled_when_long():
+    curve = [(i * 1000, float(i)) for i in range(120)]
+    card = hub._card("u/r", "cartpole", "ppo", None, 1, None, None,
+                     curve=curve)
+    rows = [ln for ln in card.splitlines()
+            if ln.startswith("| ") and " | " in ln and "---" not in ln]
+    # header + config rows + at most ~12 curve rows — nowhere near 120
+    assert sum(1 for r in rows if r.split("|")[1].strip().isdigit()) < 20
+
+
+def test_evaluate_model_formats_result_and_metrics():
+    fake_model, fake_env = object(), object()
+    with mock.patch(
+            "stable_baselines3.common.evaluation.evaluate_policy",
+            return_value=(272.0, 15.0)) as ev:
+        result, metrics = hub.evaluate_model(fake_model, fake_env,
+                                             n_eval_episodes=20)
+    ev.assert_called_once()
+    assert "272.0" in result and "15.0" in result and "20" in result
+    assert metrics["eval_mean_reward"] == 272.0
+    assert metrics["eval_episodes"] == 20
+
+
+def test_record_replay_skips_state_envs():
+    # a spec with no image_obs has no headless RGB — must return None, not crash
+    spec = type("Spec", (), {"image_obs": None})()
+    assert hub.record_replay(object(), object(), spec, "/tmp/x.mp4") is None
+
+
+def test_record_replay_writes_video_for_image_env(tmp_path):
+    import numpy as np
+
+    # minimal fakes: a base env exposing _latest_obs, a wrapper delegating to it
+    class Base:
+        def __init__(self):
+            self._latest_obs = np.zeros((1, 8, 8, 3), dtype=np.uint8)
+
+    class Wrapped:
+        def __init__(self, base):
+            self.venv = base
+            self._t = 0
+
+        def reset(self):
+            return np.zeros((1, 3, 8, 8), dtype=np.uint8)
+
+        def step(self, _a):
+            self._t += 1
+            self.venv._latest_obs[0, :] = self._t   # frame changes
+            done = np.array([self._t >= 5])
+            return np.zeros((1, 3, 8, 8), dtype=np.uint8), np.zeros(1), \
+                done, [{}]
+
+    base = Base()
+    wrapped = Wrapped(base)
+    model = mock.MagicMock()
+    model.predict.return_value = (np.zeros((1, 2)), None)
+    spec = type("Spec", (), {"image_obs": (8, 8, 3)})()
+
+    out = tmp_path / "replay.gif"     # gif needs no ffmpeg
+    got = hub.record_replay(model, wrapped, spec, str(out), max_steps=20)
+    assert got == str(out)
+    assert out.exists() and out.stat().st_size > 0

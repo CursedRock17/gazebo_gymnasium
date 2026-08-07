@@ -31,7 +31,8 @@ from pathlib import Path
 MODEL_FILENAME = "model.zip"
 
 
-def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result):
+def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result,
+          video_filename=None, curve=None):
     """Build the model-card markdown (with a YAML metadata header)."""
     tags = ["reinforcement-learning", "stable-baselines3", "gazebo",
             "gymnasium", "robotics", agent]
@@ -52,6 +53,19 @@ def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result):
         "",
         eval_result or "_Not evaluated at upload time._",
         "",
+        "See the per-environment "
+        "[solved bars](https://github.com/CursedRock17/gazebo_gymnasium/blob/"
+        'main/docs/examples/README.md) for what "solved" means for this task.',
+        "",
+    ]
+    if video_filename:
+        lines += [
+            "## Replay",
+            "",
+            f"![replay of the trained policy]({video_filename})",
+            "",
+        ]
+    lines += [
         "## Training configuration",
         "",
         "| Setting | Value |",
@@ -63,6 +77,18 @@ def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result):
     ]
     for k, v in (hyperparams or {}).items():
         lines.append(f"| {k} | {v} |")
+    if curve:
+        lines += [
+            "",
+            "## Learning curve",
+            "",
+            "| Timesteps | Mean episode reward |",
+            "| --- | --- |",
+        ]
+        # sample up to ~12 evenly spaced points so long sweeps stay readable
+        step = max(1, len(curve) // 12)
+        for t, r in curve[::step]:
+            lines.append(f"| {t} | {round(float(r), 2)} |")
     lines += [
         "",
         "## Usage",
@@ -84,9 +110,61 @@ def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result):
     return "\n".join(lines)
 
 
+def evaluate_model(model, env, n_eval_episodes=20):
+    """Deterministically evaluate a model; return (result_string, metrics).
+
+    The string goes in the model card's Result section; the metrics dict is
+    merged into the card's hyperparameter table so the number is machine-
+    readable too.
+    """
+    from stable_baselines3.common.evaluation import evaluate_policy
+    mean, std = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes,
+                                deterministic=True, warn=False)
+    result = (f"**Mean episode reward: {mean:.1f} ± {std:.1f}** over "
+              f"{n_eval_episodes} deterministic episodes.")
+    metrics = {"eval_mean_reward": round(float(mean), 2),
+               "eval_std_reward": round(float(std), 2),
+               "eval_episodes": n_eval_episodes}
+    return result, metrics
+
+
+def record_replay(model, wrapped_env, spec, out_path, max_steps=400, fps=20):
+    """Write a replay video of the policy; return the path, or None if N/A.
+
+    Only camera (image-observation) environments have headless RGB frames to
+    record — for those we read the raw (H, W, C) camera frames from the base
+    in-process env while the *wrapped* env drives the policy (so we reuse the
+    already-open env and don't trip the one-camera-per-process limit). State
+    environments have no headless spectator view, so this returns None and the
+    caller skips the video.
+    """
+    if spec.image_obs is None:
+        return None
+    base = wrapped_env
+    while hasattr(base, "venv"):          # unwrap VecTranspose/VecFrameStack
+        base = base.venv
+    if not hasattr(base, "_latest_obs"):
+        return None
+
+    import numpy as np
+    frames = []
+    obs = wrapped_env.reset()
+    for _ in range(max_steps):
+        action, _ = model.predict(obs, deterministic=True)
+        obs, _r, dones, _i = wrapped_env.step(action)
+        frames.append(np.asarray(base._latest_obs[0]).copy())
+        if bool(dones[0]):
+            break
+    if not frames:
+        return None
+    import imageio
+    imageio.mimsave(out_path, frames, fps=fps)
+    return out_path
+
+
 def push_to_hub(model_path, repo_id, *, agent, algo, env_id=None,
                 n_agents=1, hyperparams=None, eval_result=None,
-                private=False):
+                video_path=None, curve=None, private=False):
     """Upload a trained model ``.zip`` and a generated model card.
 
     Parameters
@@ -98,6 +176,10 @@ def push_to_hub(model_path, repo_id, *, agent, algo, env_id=None,
     agent, algo, env_id, n_agents, hyperparams, eval_result :
         Metadata for the model card. ``hyperparams`` is any dict; the whole
         thing is rendered into a table.
+    video_path : str | Path | None
+        Optional replay video to upload and embed in the card.
+    curve : list[tuple[int, float]] | None
+        Optional (timesteps, mean_reward) learning curve to tabulate.
 
     Returns the repo URL.
     """
@@ -112,8 +194,15 @@ def push_to_hub(model_path, repo_id, *, agent, algo, env_id=None,
                     exist_ok=True)
     api.upload_file(path_or_fileobj=str(model_path),
                     path_in_repo=MODEL_FILENAME, repo_id=repo_id)
+
+    video_filename = None
+    if video_path is not None and Path(video_path).exists():
+        video_filename = Path(video_path).name
+        api.upload_file(path_or_fileobj=str(video_path),
+                        path_in_repo=video_filename, repo_id=repo_id)
+
     card = _card(repo_id, agent, algo, env_id, n_agents, hyperparams,
-                 eval_result)
+                 eval_result, video_filename=video_filename, curve=curve)
     api.upload_file(path_or_fileobj=card.encode("utf-8"),
                     path_in_repo="README.md", repo_id=repo_id)
     return f"https://huggingface.co/{repo_id}"
