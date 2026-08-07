@@ -11,20 +11,27 @@ from a ~210-step random baseline to the 500-step cap). See
 
 ## Near term
 
-- **Hugging Face Hub integration.** Publish and load trained policies via the
-  Hub so models are shareable, versioned, and discoverable instead of living as
-  local `.zip` files. SB3 has an official path (`huggingface_sb3`:
-  `package_to_hub` / `load_from_hub`), and our scripts already have the hooks:
-  - `train.py --push-to-hub <repo_id>`: after training, upload the model and
-    auto-generate a **model card** documenting the algorithm, the exact
-    hyperparameters, the environment id, and the evaluated mean episode reward
-    against the [solved bar](docs/examples/README.md).
-  - `deploy.py --from-hub <repo_id>`: download and run a Hub model directly.
-  - `sweep.py`: push the **best** config with its learning curve, so the
-    hosted model carries the precise hyperparameters that produced it — closing
-    the loop between the sweep and a shareable artifact.
-  - Deps: add `huggingface_sb3` + `huggingface_hub` to the pixi env (a
-    `pixi.lock` re-solve); auth via a Hub token.
+- **Hugging Face Hub integration.** _Status: NOT STARTED — no Hub code exists
+  in the repo today._ Uploading a trained policy currently means reaching for
+  the `huggingface-cli` by hand, outside the repo; nothing in `train.py` /
+  `deploy.py` / `sweep.py` pushes or pulls from the Hub. The goal is to make
+  that a first-class, in-repo capability so *anyone* running this project can
+  share and fetch models without hand-rolling it.
+
+  Planned work (all to be built):
+  - Add `--push-to-hub <repo_id>` to `train.py`: after training, upload the
+    model and auto-generate a **model card** documenting the algorithm, the
+    exact hyperparameters, the environment id, and the evaluated mean episode
+    reward against the [solved bar](docs/examples/README.md).
+  - Add `--from-hub <repo_id>` to `deploy.py`: download and run a Hub model.
+  - Extend `sweep.py` to push the **best** config with its learning curve, so
+    the hosted model carries the precise hyperparameters that produced it.
+  - Add `huggingface_sb3` + `huggingface_hub` to the pixi env (a `pixi.lock`
+    re-solve); auth via a Hub token. SB3's official path is
+    `huggingface_sb3.package_to_hub` / `load_from_hub`.
+  - Insertion points already identified (but not yet wired): models are saved
+    at `train.py` `final_path` and loaded at `deploy.py`; the sweep's
+    hyperparameters live in its `CONFIGS` + result CSV.
   - Honest scope: the Hub *stores the SB3 `.zip`* — that is the model format —
     so this hosts/versions/documents the zip rather than eliminating it;
     downloading still yields a `.zip`. `package_to_hub`'s replay video needs
