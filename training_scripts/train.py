@@ -141,7 +141,7 @@ def main():
                 print(f"[train] eval skipped ({type(exc).__name__}: {exc})")
             if args.push_video:
                 try:
-                    vp = str(model_dir / f"{args.agent}_replay.mp4")
+                    vp = str(model_dir / f"{args.agent}_replay.gif")
                     video_path = record_replay(
                         model, vec_env, get_spec(args.agent), vp)
                     print(f"[train] replay video: {video_path}" if video_path

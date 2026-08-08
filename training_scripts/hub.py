@@ -128,7 +128,8 @@ def evaluate_model(model, env, n_eval_episodes=20):
     return result, metrics
 
 
-def record_replay(model, wrapped_env, spec, out_path, max_steps=400, fps=20):
+def record_replay(model, wrapped_env, spec, out_path, max_steps=400,
+                  fps=20):
     """Write a replay video of the policy; return the path, or None if N/A.
 
     Only camera (image-observation) environments have headless RGB frames to
@@ -157,8 +158,13 @@ def record_replay(model, wrapped_env, spec, out_path, max_steps=400, fps=20):
             break
     if not frames:
         return None
-    import imageio
-    imageio.mimsave(out_path, frames, fps=fps)
+    # Write an animated GIF with Pillow — a guaranteed dependency in the env, so
+    # no extra video package (imageio/ffmpeg) is needed. GIF embeds directly in
+    # a Hugging Face model card.
+    from PIL import Image
+    imgs = [Image.fromarray(np.asarray(f, dtype=np.uint8)) for f in frames]
+    imgs[0].save(out_path, save_all=True, append_images=imgs[1:],
+                 duration=max(1, int(1000 / fps)), loop=0)
     return out_path
 
 
