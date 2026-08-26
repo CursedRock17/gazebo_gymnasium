@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 r"""Evaluate a trained policy deterministically against its Gazebo world.
 
 The single eval entry point, mirroring train.py. Loads an SB3 model and runs
@@ -23,6 +22,11 @@ Prereq: the matching world is running, e.g.
 
 Then:
     python training_scripts/deploy.py --agent cartpole --n_agents 4
+
+Hugging Face Hub: ``--from-hub <repo_id>`` downloads and runs a model
+published there directly instead of a local path (needs
+``huggingface_hub`` installed -- soft dependency, matches ``train.py
+--push-to-hub``'s treatment). Overrides ``--model``.
 """
 
 import argparse
@@ -36,10 +40,8 @@ from gazebo_gymnasium_bridge.envs import make_inprocess
 from gazebo_gymnasium_bridge.envs import make_multi
 from gazebo_gymnasium_bridge.envs import wrap_for_observations
 
-
 MODELS_ROOT = Path(__file__).resolve().parent.parent / "models"
-_ALGOS = {"ppo": sb3.PPO, "a2c": sb3.A2C, "sac": sb3.SAC,
-          "td3": sb3.TD3, "ddpg": sb3.DDPG}
+_ALGOS = {"ppo": sb3.PPO, "a2c": sb3.A2C, "sac": sb3.SAC, "td3": sb3.TD3, "ddpg": sb3.DDPG}
 
 
 def _scaled_timeouts(n_agents: int):
@@ -51,32 +53,62 @@ def main():
     p.add_argument("--agent", default="cartpole")
     p.add_argument("--n_agents", type=int, default=4)
     p.add_argument("--algo", default="ppo", choices=sorted(_ALGOS))
-    p.add_argument("--model", default=None, help="path to .zip (default: "
-                   "models/<agent>_multi/final_<algo>_n<N>.zip)")
+    p.add_argument(
+        "--model",
+        default=None,
+        help="path to .zip (default: models/<agent>_multi/final_<algo>_n<N>.zip)",
+    )
+    p.add_argument(
+        "--from-hub",
+        default=None,
+        metavar="REPO_ID",
+        help="download and run a model from this Hugging Face Hub repo instead "
+        "of a local path (overrides --model)",
+    )
+    p.add_argument(
+        "--hub-filename",
+        default="model.zip",
+        help="filename within the Hub repo (only used with --from-hub)",
+    )
     p.add_argument("--episodes", type=int, default=3)
     p.add_argument("--world", default=None)
-    p.add_argument("--backend", default="inprocess",
-                   choices=("inprocess", "harness", "peragent"))
-    p.add_argument("--frame-stack", type=int, default=4,
-                   help="must match training (image observations only)")
+    p.add_argument("--backend", default="inprocess", choices=("inprocess", "harness", "peragent"))
+    p.add_argument(
+        "--frame-stack", type=int, default=4, help="must match training (image observations only)"
+    )
     args = p.parse_args()
 
-    model_path = (Path(args.model) if args.model else
-                  MODELS_ROOT / f"{args.agent}_multi" /
-                  f"final_{args.algo}_n{args.n_agents}.zip")
+    if args.from_hub:
+        try:
+            from huggingface_hub import hf_hub_download
+        except ImportError as exc:
+            raise SystemExit(
+                f"--from-hub needs huggingface_hub installed ({exc}); pip install huggingface_hub"
+            ) from exc
+        print(f"[deploy] downloading {args.hub_filename} from {args.from_hub}...")
+        model_path = Path(hf_hub_download(repo_id=args.from_hub, filename=args.hub_filename))
+        print(f"[deploy] downloaded to {model_path}")
+    else:
+        model_path = (
+            Path(args.model)
+            if args.model
+            else MODELS_ROOT / f"{args.agent}_multi" / f"final_{args.algo}_n{args.n_agents}.zip"
+        )
     if not model_path.exists():
         raise SystemExit(f"model not found: {model_path}")
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
-    _factories = {"inprocess": make_inprocess, "harness": make_harness,
-                  "peragent": make_multi}
+    _factories = {"inprocess": make_inprocess, "harness": make_harness, "peragent": make_multi}
     env = _factories[args.backend](
-        args.agent, n_agents=args.n_agents, world_name=args.world,
-        reset_timeout=reset_to, step_timeout=step_to)
+        args.agent,
+        n_agents=args.n_agents,
+        world_name=args.world,
+        reset_timeout=reset_to,
+        step_timeout=step_to,
+    )
     env, _policy = wrap_for_observations(env, args.frame_stack)
     model = _ALGOS[args.algo].load(str(model_path))
-    print(f"[deploy] {model_path} -> deterministic eval, "
-          f"{args.episodes} episode(s)")
+    print(f"[deploy] {model_path} -> deterministic eval, {args.episodes} episode(s)")
 
     for ep in range(args.episodes):
         obs = env.reset()
@@ -88,8 +120,10 @@ def main():
             cur += (~dones).astype(int)
             if dones.all():
                 break
-        print(f"[deploy] episode {ep}: per-agent steps={cur.tolist()} "
-              f"mean={float(cur.mean()):.0f}/{env.max_episode_steps}")
+        print(
+            f"[deploy] episode {ep}: per-agent steps={cur.tolist()} "
+            f"mean={float(cur.mean()):.0f}/{env.max_episode_steps}"
+        )
     env.close()
 
 

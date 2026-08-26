@@ -1,0 +1,59 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="line_follower_harness">
+    <!-- Batched-harness world for the vision env. The MultiAgentHarness
+         plugin (loaded once here) owns actuation for every agent via the
+         ECM, same as cartpole_harness.sdf -- but line_follower's
+         observation is camera frames, not joint state, so the plugin's
+         /rl/observations channel publishes harmless zero-floats for this
+         agent (HarnessCore.read_obs tolerates an empty joint_obs list
+         without error) and the real observation flows over per-agent
+         /rl/camera_i topics instead, subscribed to directly by
+         HarnessVecEnv -- mirrors how the in-process backend already
+         bypasses the ECM obs channel for image specs.
+         Bare rovers (geometry + camera, no cosmetic parts) and each
+         agent's line_track scenery are spawned by
+         bringup/scripts/spawn_multi_line_followers.py after this world is
+         up; the harness resolves the rovers lazily by name.
+         n_agents / agent come from GAZEBO_GYM_N_AGENTS / GAZEBO_GYM_AGENT
+         (set by the launch), so this single world SDF works for any N. -->
+    <physics name="10ms" type="ignored">
+      <max_step_size>0.01</max_step_size>
+      <real_time_update_rate>0</real_time_update_rate>
+    </physics>
+    <plugin filename="gz-sim-physics-system"           name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"     name="gz::sim::systems::UserCommands"/>
+    <!-- Required for the per-agent cameras to actually render; the
+         state-only cartpole_harness.sdf doesn't need this. -->
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <plugin filename="gz-sim-python-system-loader-system"
+            name="gz::sim::systems::PythonSystemLoader">
+      <module_name>multi_agent_harness</module_name>
+    </plugin>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.3 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry>
+          <material><ambient>0.85 0.85 0.85 1</ambient><diffuse>0.85 0.85 0.85 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Unit tests for the AgentSpec layer.
 
 Pure-Python: no gz bindings, no running simulator. Observation extraction is
@@ -29,16 +28,14 @@ import pytest
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))  # gazebo_gymnasium_bridge/
 
-from gazebo_gymnasium_bridge.envs.agent_spec import (  # noqa: E402
-    AgentSpec,
-    get_spec,
-    JointObs,
-    register_spec,
-    registered_specs,
-)
-
+from gazebo_gymnasium_bridge.envs.agent_spec import AgentSpec  # noqa: E402
+from gazebo_gymnasium_bridge.envs.agent_spec import get_spec  # noqa: E402
+from gazebo_gymnasium_bridge.envs.agent_spec import JointObs  # noqa: E402
+from gazebo_gymnasium_bridge.envs.agent_spec import register_spec  # noqa: E402
+from gazebo_gymnasium_bridge.envs.agent_spec import registered_specs  # noqa: E402
 
 # --- fake gz Model joint_state message ------------------------------------- #
+
 
 class _FakeAxis:
     def __init__(self, position, velocity):
@@ -60,18 +57,21 @@ class _FakeModelMsg:
 
 def _make_spec(**overrides):
     from gymnasium import spaces
+
     base = {
         "name": "t",
         "model_uri": "package://x/models/t",
-        "observation_space": spaces.Box(low=-1, high=1, shape=(4,),
-                                        dtype=np.float32),
+        "observation_space": spaces.Box(low=-1, high=1, shape=(4,), dtype=np.float32),
         "action_space": spaces.Discrete(2),
         "joint_obs": (JointObs("a"), JointObs("b")),
         "reward_fn": lambda obs, action: 1.0,
         "terminated_fn": lambda obs: False,
     }
     base.update(overrides)
-    return AgentSpec(**base)
+    # base is a runtime-built dict (defaults + overrides), so ty can't verify
+    # individual kwargs against AgentSpec's dataclass fields -- same known
+    # **kwargs-spreading limitation as train.py's AlgoCls(**algo_kwargs).
+    return AgentSpec(**base)  # ty: ignore[invalid-argument-type]
 
 
 class TestObsExtraction:
@@ -97,11 +97,13 @@ class TestObsExtraction:
 
     def test_position_only_and_velocity_only(self):
         from gymnasium import spaces
+
         spec = _make_spec(
-            observation_space=spaces.Box(low=-1, high=1, shape=(2,),
-                                         dtype=np.float32),
-            joint_obs=(JointObs("a", position=True, velocity=False),
-                       JointObs("b", position=False, velocity=True)),
+            observation_space=spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32),
+            joint_obs=(
+                JointObs("a", position=True, velocity=False),
+                JointObs("b", position=False, velocity=True),
+            ),
         )
         msg = _FakeModelMsg([("a", 1.0, 9.0), ("b", 9.0, 4.0)])
         obs = spec.obs_from_joint_state(msg)
@@ -111,11 +113,10 @@ class TestObsExtraction:
 class TestValidation:
     def test_mismatched_obs_dim_raises(self):
         from gymnasium import spaces
+
         with pytest.raises(ValueError, match="joint_obs widths"):
-            _make_spec(
-                observation_space=spaces.Box(low=-1, high=1, shape=(3,),
-                                             dtype=np.float32),
-            )  # joint_obs sums to 4, space says 3
+            # joint_obs sums to 4, space says 3.
+            _make_spec(observation_space=spaces.Box(low=-1, high=1, shape=(3,), dtype=np.float32))
 
     def test_zero_spawn_z_raises(self):
         with pytest.raises(ValueError, match="spawn_z"):
@@ -147,10 +148,12 @@ class TestRegistry:
 
     def test_cartpole_obs_extraction_canonical_order(self):
         spec = get_spec("cartpole")
-        msg = _FakeModelMsg([
-            ("slider_to_cart", 0.5, -0.3),   # cart_pos, cart_vel
-            ("cart_to_pole", 0.1, 0.2),       # pole_angle, pole_ang_vel
-        ])
+        msg = _FakeModelMsg(
+            [
+                ("slider_to_cart", 0.5, -0.3),  # cart_pos, cart_vel
+                ("cart_to_pole", 0.1, 0.2),  # pole_angle, pole_ang_vel
+            ]
+        )
         obs = spec.obs_from_joint_state(msg)
         np.testing.assert_allclose(obs, [0.5, -0.3, 0.1, 0.2])
 
@@ -195,7 +198,7 @@ class TestHarnessActuation:
         # Every actuated joint should be one we also observe (sanity).
         spec = get_spec("cartpole")
         obs_joints = {j.joint for j in spec.joint_obs}
-        for (joint, _mode, _v) in spec.action_to_commands(1):
+        for joint, _mode, _v in spec.action_to_commands(1):
             assert joint in obs_joints
 
 
@@ -204,6 +207,7 @@ class TestContinuousCartpole:
 
     def test_spec_shapes(self):
         import gymnasium as gym
+
         spec = get_spec("cartpole_continuous")
         assert isinstance(spec.action_space, gym.spaces.Box)
         assert spec.action_space.shape == (1,)

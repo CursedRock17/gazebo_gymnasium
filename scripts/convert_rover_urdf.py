@@ -171,23 +171,23 @@ DRIVETRAIN_PLUGIN_BLOCK = """
 # Forward-facing camera link. The Onshape-exported rover uses -Y as its
 # forward direction (the front caster is at y ≈ -0.098 in base_link's
 # frame). The camera sits a bit ahead of the front caster, raised above
-# the chassis, pitched 0.5 rad (~28°) down so it sees the line track on
+# the chassis, pitched π/4 rad (45°) down so it sees the line track on
 # the ground a short distance ahead.
 #
 # Pose rotation derivation (RPY = roll, pitch, yaw, applied extrinsically):
 #   yaw=-π/2 rotates the camera's optical axis (+X) from rover-frame +X
 #     to rover-frame -Y, which is the rover's forward direction.
-#   pitch=+0.5 rad tilts the camera down by ~28° from the horizontal so
-#     the ground a short distance ahead falls within the field of view.
+#   pitch=+0.7854 rad (π/4) tilts the camera down 45° from the horizontal
+#     so the ground a short distance ahead falls within the field of view.
 #   roll=0 keeps the camera upright (no banking).
 CAMERA_LINK_BLOCK = """
     <!-- Forward-facing camera for vision-based control. Mounted ahead of
          the front caster (rover forward = -Y in base_link frame). The
          pose rotates the camera's +X optical axis to point along rover
-         -Y, then pitches it ~28° down so it sees the ground a short
+         -Y, then pitches it 45° down so it sees the ground a short
          distance ahead — where the line track lives. -->
     <link name="camera_link">
-      <pose relative_to="base_link">0 -0.15 0.05 0 0.5 -1.5708</pose>
+      <pose relative_to="base_link">0 -0.15 0.05 0 0.7854 -1.5708</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>

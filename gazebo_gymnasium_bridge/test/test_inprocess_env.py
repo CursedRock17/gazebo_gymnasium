@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Smoke tests for the in-process (TestFixture-hosted) VecEnv.
 
 Real physics, no launch: builds the sim inside the process, checks the SB3
@@ -33,6 +32,7 @@ pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 
 def _env(n=2):
     from gazebo_gymnasium_bridge.envs import make_inprocess
+
     return make_inprocess("cartpole", n_agents=n)
 
 
@@ -89,29 +89,29 @@ def test_deterministic_given_seed():
         finally:
             env.close()
 
-    assert np.array_equal(rollout(3), rollout(3)), \
-        "same seed + actions must reproduce exactly"
+    assert np.array_equal(rollout(3), rollout(3)), "same seed + actions must reproduce exactly"
 
 
 def test_mass_randomization_scales_sdf():
     # Population-based dynamics randomization: each agent's mass+inertia is
     # scaled by a per-agent, seed-reproducible factor. Off by default.
-    import re
     from dataclasses import replace
+    import re
+
     from gazebo_gymnasium_bridge.envs import inprocess_vec_env as ip
     from gazebo_gymnasium_bridge.envs.agent_spec import get_spec
 
     base = get_spec("cartpole")
     w0, _ = ip._build_world(base, 4, 3.0, np.random.default_rng(0))
-    assert set(re.findall(r"<mass>([-\d.eE+]+)</mass>", w0)) == {"1"}, \
+    assert set(re.findall(r"<mass>([-\d.eE+]+)</mass>", w0)) == {"1"}, (
         "mass randomization off by default -> unscaled masses"
+    )
 
     spec = replace(base, mass_randomization=0.4)
     w1, _ = ip._build_world(spec, 4, 3.0, np.random.default_rng(0))
     w2, _ = ip._build_world(spec, 4, 3.0, np.random.default_rng(0))
     assert w1 == w2, "same seed must reproduce the randomized world"
-    masses = {round(float(m), 4)
-              for m in re.findall(r"<mass>([-\d.eE+]+)</mass>", w1)}
+    masses = {round(float(m), 4) for m in re.findall(r"<mass>([-\d.eE+]+)</mass>", w1)}
     assert len(masses) >= 4, "each of the 4 agents should get a distinct mass"
 
 
@@ -119,10 +119,12 @@ def test_action_gain_randomization_sets_varied_gains():
     # Control-authority DR: each agent gets a distinct, in-band, seed-
     # reproducible actuator gain on the ECM core.
     from dataclasses import replace
+
     from gazebo_gymnasium_bridge.envs import make_inprocess
-    from gazebo_gymnasium_bridge.envs.agent_spec import get_spec, register_spec
-    spec = replace(get_spec("cartpole"), name="cp_gaintest",
-                   action_gain_randomization=0.4)
+    from gazebo_gymnasium_bridge.envs.agent_spec import get_spec
+    from gazebo_gymnasium_bridge.envs.agent_spec import register_spec
+
+    spec = replace(get_spec("cartpole"), name="cp_gaintest", action_gain_randomization=0.4)
     register_spec("cp_gaintest", lambda: spec)
     env = make_inprocess("cp_gaintest", n_agents=4, seed=0)
     try:
@@ -137,6 +139,7 @@ def test_vecmonitor_wraps_inprocess():
     # regression: the AgentSpec must not occupy the gym `.spec` slot, or
     # VecMonitor(venv).spec.id blows up.
     from stable_baselines3.common.vec_env import VecMonitor
+
     env = VecMonitor(_env(2))
     try:
         env.reset()
@@ -150,8 +153,7 @@ def test_ppo_learns_step_runs():
     sb3 = pytest.importorskip("stable_baselines3")
     env = _env(4)
     try:
-        model = sb3.PPO("MlpPolicy", env, n_steps=16, batch_size=16,
-                        n_epochs=1, verbose=0)
+        model = sb3.PPO("MlpPolicy", env, n_steps=16, batch_size=16, n_epochs=1, verbose=0)
         model.learn(total_timesteps=128)
     finally:
         env.close()

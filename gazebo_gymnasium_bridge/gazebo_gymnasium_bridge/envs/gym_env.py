@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Standard single-agent ``gymnasium.Env`` + registration.
 
 This is the universal-interop surface. It wraps the in-process engine
@@ -33,7 +32,6 @@ import gymnasium as gym
 import numpy as np
 
 from .agent_spec import get_spec
-
 
 # env id -> registered agent spec name
 _REGISTERED = {
@@ -57,13 +55,13 @@ class GazeboEnv(gym.Env):
         # Imported here (not at module top) so registration + this module stay
         # importable without the native gz bindings; only construction needs them.
         from .inprocess_vec_env import InProcessHarnessVecEnv
+
         spec = get_spec(agent)
         self.observation_space = spec.observation_space
         self.action_space = spec.action_space
         self.render_mode = render_mode
         kwargs.pop("n_agents", None)
-        self._vec = InProcessHarnessVecEnv(
-            spec, n_agents=1, autoreset=False, **kwargs)
+        self._vec = InProcessHarnessVecEnv(spec, n_agents=1, autoreset=False, **kwargs)
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
@@ -90,13 +88,13 @@ class GazeboEnv(gym.Env):
 def register_envs():
     """Register the built-in Gazebo Gymnasium ids (idempotent)."""
     from gymnasium.envs.registration import registry
+
     for env_id, agent in _REGISTERED.items():
         if env_id in registry:
             continue
         gym.register(
             id=env_id,
             entry_point="gazebo_gymnasium_bridge.envs.gym_env:GazeboEnv",
-            vector_entry_point=(
-                "gazebo_gymnasium_bridge.envs.gym_vector_env:make_gym_vector"),
+            vector_entry_point=("gazebo_gymnasium_bridge.envs.gym_vector_env:make_gym_vector"),
             kwargs={"agent": agent},
         )

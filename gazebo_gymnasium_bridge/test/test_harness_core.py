@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """In-process test of the harness ECM core via gz.sim8.TestFixture.
 
 Loads a world with two bare cartpoles (geometry only — no JointController /
@@ -28,6 +27,7 @@ Run with: pixi run -- python -m pytest \
 from pathlib import Path
 import sys
 
+from gymnasium import spaces
 import numpy as np
 import pytest
 
@@ -36,14 +36,12 @@ sys.path.insert(0, str(HERE.parent))
 
 gz_sim = pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 
+from gazebo_gymnasium_bridge.envs.agent_spec import AgentSpec  # noqa: E402,I100
 from gazebo_gymnasium_bridge.envs.agent_spec import get_spec  # noqa: E402
 from gazebo_gymnasium_bridge.harness.harness_core import HarnessCore  # noqa: E402
 
-
-_I_CART = ("<inertia><ixx>0.00854</ixx><iyy>0.00667</iyy>"
-           "<izz>0.00854</izz></inertia>")
-_I_POLE = ("<inertia><ixx>0.08363</ixx><iyy>0.08347</iyy>"
-           "<izz>0.000433</izz></inertia>")
+_I_CART = "<inertia><ixx>0.00854</ixx><iyy>0.00667</iyy><izz>0.00854</izz></inertia>"
+_I_POLE = "<inertia><ixx>0.08363</ixx><iyy>0.08347</iyy><izz>0.000433</izz></inertia>"
 
 
 def _box(size):
@@ -185,3 +183,135 @@ def test_reset_sets_random_pole_angle_in_place(world_path):
     assert abs(after[0, 0]) < 0.05 and abs(after[1, 0]) < 0.05
     assert abs(after[0, 2]) <= 0.06 and abs(after[1, 2]) <= 0.06
     assert after[0, 2] != after[1, 2]
+
+
+# ---- base_obs (free-floating 3D base, e.g. ant/humanoid) ------------------ #
+#
+# A minimal synthetic world -- one unconstrained "torso" link (no parent
+# joint, no <static>), so gz-sim treats it as a free 6-DOF body -- rather
+# than the real ant model, to keep this a fast, isolated HarnessCore test
+# per this file's own established pattern (see _bare_cartpole above).
+
+
+def _free_body_spec():
+    return AgentSpec(
+        name="free_body",
+        model_uri="unused://synthetic-test-only",
+        observation_space=spaces.Box(low=-np.inf, high=np.inf, shape=(11,), dtype=np.float32),
+        action_space=spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32),
+        joint_obs=(),
+        base_obs=True,
+        reward_fn=lambda obs, action: 0.0,
+        terminated_fn=lambda obs: False,
+        spawn_z=2.0,
+    )
+
+
+def _free_body_model(index, x):
+    return f"""
+    <model name="free_body_{index}">
+      <pose>{x} 0 2.0 0 0 0</pose>
+      <link name="torso">
+        <inertial><mass>1</mass>
+          <inertia><ixx>0.1</ixx><iyy>0.1</iyy><izz>0.1</izz></inertia>
+        </inertial>
+        <collision name="c">{_box("0.2 0.2 0.2")}</collision></link>
+    </model>"""
+
+
+def _free_body_world_sdf():
+    return f"""<?xml version="1.0" ?>
+    <sdf version="1.8">
+      <world name="free_body_test">
+        <physics name="10ms" type="ignored">
+          <max_step_size>0.01</max_step_size>
+          <real_time_update_rate>0</real_time_update_rate></physics>
+        <plugin filename="gz-sim-physics-system"
+                name="gz::sim::systems::Physics"/>
+        <plugin filename="gz-sim-scene-broadcaster-system"
+                name="gz::sim::systems::SceneBroadcaster"/>
+        <model name="ground"><static>true</static>
+          <link name="l"><collision name="c"><geometry><plane>
+            <normal>0 0 1</normal><size>50 50</size></plane>
+          </geometry></collision></link></model>
+        {_free_body_model(0, 0)}
+        {_free_body_model(1, 3)}
+      </world>
+    </sdf>"""
+
+
+@pytest.fixture
+def free_body_world_path(tmp_path):
+    p = tmp_path / "free_body_world.sdf"
+    p.write_text(_free_body_world_sdf())
+    return str(p)
+
+
+def test_base_obs_free_fall_matches_physics(free_body_world_path):
+    # No <static>, no parent joint on "torso" -> gz-sim treats it as an
+    # unconstrained free body; nothing actuates it, so it just falls.
+    core = HarnessCore(_free_body_spec(), n_agents=2)
+    frames = []
+
+    def on_pre(info, ecm):
+        core.resolve(ecm)
+
+    def on_post(info, ecm):
+        if all(core._resolved):
+            frames.append(core.read_obs(ecm).copy())
+
+    _run(free_body_world_path, on_pre, on_post, 40)
+    assert frames, "no obs read -- resolve() never bound the free link"
+    first, last = frames[0], frames[-1]
+    assert first.shape == (2, 11)
+    # z (index 0) drops under gravity; quaternion (1:5) starts near-identity
+    # (upright, no rotation imparted).
+    assert last[0, 0] < first[0, 0] - 0.01, (
+        f"z should fall under gravity, got {first[0, 0]} -> {last[0, 0]}"
+    )
+    np.testing.assert_allclose(first[0, 1:5], [1, 0, 0, 0], atol=0.05)
+    # lin_vel z (index 7 = 5 pos + 2 lin_vel-xy) is negative and growing in
+    # magnitude (accelerating downward): index layout is
+    # [z, qw,qx,qy,qz | vx,vy,vz, wx,wy,wz] -> vz is index 7.
+    assert last[0, 7] < first[0, 7] < 0, (
+        f"downward speed should grow, got vz {first[0, 7]} -> {last[0, 7]}"
+    )
+    # two agents are independent -- different x doesn't matter, but neither
+    # is a stale zero (both actually fell).
+    assert last[1, 0] < first[1, 0] - 0.01
+
+
+def test_base_obs_reset_zeroes_velocity(free_body_world_path):
+    core = HarnessCore(_free_body_spec(), n_agents=1)
+    rng = np.random.default_rng(0)
+    captured = {}
+
+    def on_pre(info, ecm):
+        core.resolve(ecm)
+        if (
+            all(core._resolved)
+            and "reset_at" not in captured
+            and len(captured.get("pre_reset_vz", [])) >= 20
+        ):
+            core.reset(ecm, rng)
+            captured["reset_at"] = True
+
+    def on_post(info, ecm):
+        if not all(core._resolved):
+            return
+        obs = core.read_obs(ecm)
+        if "reset_at" not in captured:
+            captured.setdefault("pre_reset_vz", []).append(float(obs[0, 7]))
+        else:
+            captured["post_reset_obs"] = obs.copy()
+
+    _run(free_body_world_path, on_pre, on_post, 60)
+    assert captured["pre_reset_vz"][-1] < -0.05, (
+        "should have picked up real downward speed before reset"
+    )
+    post = captured["post_reset_obs"]
+    # reset() runs in on_pre, obs is read in the SAME tick's on_post (after
+    # physics), so one tick's worth of gravity (g*dt = 9.8*0.01 = 0.098)
+    # always accumulates before the reset is visible -- same reasoning as
+    # test_reset_sets_random_pole_angle_in_place's non-zero tolerance above.
+    assert abs(post[0, 7]) < 0.15, f"velocity should be ~zeroed by reset, got vz={post[0, 7]}"

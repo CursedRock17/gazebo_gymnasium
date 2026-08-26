@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Spawn N cartpoles into the running `cartpole_multi` gz sim world.
 
 Called by `cartpole_multi.launch.py` after gz sim is up. Sequential
@@ -29,7 +28,6 @@ import math
 import subprocess
 import sys
 import time
-
 
 X_SPACING = 3.0
 # Cartpole's slider rail is 8 m along Y; this clears it with a small
@@ -87,61 +85,89 @@ def render_cartpole_sdf(index: int, model_uri: str = _DEFAULT_URI) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--n-agents", type=int, required=True,
-                        help="Number of cartpoles to spawn.")
-    parser.add_argument("--model-uri", default=_DEFAULT_URI,
-                        help="model to spawn (use .../cartpole_bare for the "
-                             "harness backend)")
-    parser.add_argument("--world", default=WORLD_NAME,
-                        help="name of the running gz world to spawn into "
-                             "(must match the launched world SDF's <world "
-                             "name=...>)")
-    parser.add_argument("--spawn-z", type=float, default=0.1,
-                        help="spawn height. Force-actuated models (the "
-                             "harness/ECM backends) must spawn CLEAR of the "
-                             "ground plane (e.g. 0.6) or contact friction "
-                             "pins the cart; match AgentSpec.spawn_z.")
-    parser.add_argument("--wait", type=float, default=WAIT_FOR_WORLD_DEFAULT,
-                        help="Seconds to wait for gz sim before first spawn.")
-    parser.add_argument("--gap", type=float, default=GAP_BETWEEN_SPAWNS,
-                        help="Seconds between successive spawns.")
+    parser.add_argument(
+        "--n-agents", type=int, required=True, help="Number of cartpoles to spawn."
+    )
+    parser.add_argument(
+        "--model-uri",
+        default=_DEFAULT_URI,
+        help="model to spawn (use .../cartpole_bare for the harness backend)",
+    )
+    parser.add_argument(
+        "--world",
+        default=WORLD_NAME,
+        help="name of the running gz world to spawn into "
+        "(must match the launched world SDF's <world "
+        "name=...>)",
+    )
+    parser.add_argument(
+        "--spawn-z",
+        type=float,
+        default=0.1,
+        help="spawn height. Force-actuated models (the "
+        "harness/ECM backends) must spawn CLEAR of the "
+        "ground plane (e.g. 0.6) or contact friction "
+        "pins the cart; match AgentSpec.spawn_z.",
+    )
+    parser.add_argument(
+        "--wait",
+        type=float,
+        default=WAIT_FOR_WORLD_DEFAULT,
+        help="Seconds to wait for gz sim before first spawn.",
+    )
+    parser.add_argument(
+        "--gap", type=float, default=GAP_BETWEEN_SPAWNS, help="Seconds between successive spawns."
+    )
     args = parser.parse_args()
 
     if args.n_agents < 1:
-        print(f"ERROR: --n-agents must be >= 1, got {args.n_agents}",
-              file=sys.stderr)
+        print(f"ERROR: --n-agents must be >= 1, got {args.n_agents}", file=sys.stderr)
         return 2
 
-    print(f"[spawn_multi_cartpoles] Waiting {args.wait}s for gz sim world "
-          f"'{args.world}' to come up...")
+    print(
+        f"[spawn_multi_cartpoles] Waiting {args.wait}s for gz sim world "
+        f"'{args.world}' to come up..."
+    )
     time.sleep(args.wait)
 
     n = args.n_agents
     cols = math.ceil(math.sqrt(n))
     rows = math.ceil(n / cols)
-    print(f"[spawn_multi_cartpoles] Spawning {n} cartpoles in a "
-          f"{rows}x{cols} grid (X spacing {X_SPACING} m, "
-          f"Y spacing {Y_SPACING} m, gap {args.gap}s between spawns)...")
+    print(
+        f"[spawn_multi_cartpoles] Spawning {n} cartpoles in a "
+        f"{rows}x{cols} grid (X spacing {X_SPACING} m, "
+        f"Y spacing {Y_SPACING} m, gap {args.gap}s between spawns)..."
+    )
     for i in range(n):
         x, y = grid_position(i, n)
         sdf = render_cartpole_sdf(i, args.model_uri)
         cmd = [
-            "ros2", "run", "ros_gz_sim", "create",
-            "-world", args.world,
-            "-string", sdf,
-            "-name", f"cartpole_{i}",
-            "-x", f"{x:.3f}",
-            "-y", f"{y:.3f}",
-            "-z", f"{args.spawn_z:.3f}",
+            "ros2",
+            "run",
+            "ros_gz_sim",
+            "create",
+            "-world",
+            args.world,
+            "-string",
+            sdf,
+            "-name",
+            f"cartpole_{i}",
+            "-x",
+            f"{x:.3f}",
+            "-y",
+            f"{y:.3f}",
+            "-z",
+            f"{args.spawn_z:.3f}",
         ]
-        print(f"[spawn_multi_cartpoles] {i + 1}/{n}: "
-              f"cartpole_{i} at ({x:+.2f}, {y:+.2f})")
+        print(f"[spawn_multi_cartpoles] {i + 1}/{n}: cartpole_{i} at ({x:+.2f}, {y:+.2f})")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"[spawn_multi_cartpoles] ERROR spawning cartpole_{i}: "
-                  f"rc={result.returncode}\n"
-                  f"stdout={result.stdout}\nstderr={result.stderr}",
-                  file=sys.stderr)
+            print(
+                f"[spawn_multi_cartpoles] ERROR spawning cartpole_{i}: "
+                f"rc={result.returncode}\n"
+                f"stdout={result.stdout}\nstderr={result.stderr}",
+                file=sys.stderr,
+            )
             return 1
         time.sleep(args.gap)
 

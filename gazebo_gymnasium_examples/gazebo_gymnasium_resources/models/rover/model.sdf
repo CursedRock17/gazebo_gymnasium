@@ -421,10 +421,10 @@
     <!-- Forward-facing camera for vision-based control. Mounted ahead of
          the front caster (rover forward = -Y in base_link frame). The
          pose rotates the camera's +X optical axis to point along rover
-         -Y, then pitches it ~28° down so it sees the ground a short
+         -Y, then pitches it 45° down so it sees the ground a short
          distance ahead — where the line track lives. -->
     <link name="camera_link">
-      <pose relative_to="base_link">0 -0.15 0.05 0 0.5 -1.5708</pose>
+      <pose relative_to="base_link">0 -0.15 0.05 0 0.7854 -1.5708</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>

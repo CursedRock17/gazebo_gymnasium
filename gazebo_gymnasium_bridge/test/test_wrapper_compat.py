@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Ecosystem wrapper compatibility (regression guard).
 
 The cartpole observation has unbounded velocity components, so users will
@@ -37,16 +36,18 @@ def test_sb3_vecnormalize_and_ppo():
     pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
     sb3 = pytest.importorskip("stable_baselines3")
     from stable_baselines3.common.vec_env import VecNormalize
+
     from gazebo_gymnasium_bridge.envs import make_inprocess
-    venv = VecNormalize(make_inprocess("cartpole", n_agents=4),
-                        norm_obs=True, norm_reward=True)
+
+    venv = VecNormalize(make_inprocess("cartpole", n_agents=4), norm_obs=True, norm_reward=True)
     try:
         obs = venv.reset()
         for _ in range(30):
             obs, _r, _d, _i = venv.step(np.random.randint(0, 2, size=4))
         assert np.isfinite(obs).all()
-        sb3.PPO("MlpPolicy", venv, n_steps=16, batch_size=16, n_epochs=1,
-                verbose=0).learn(total_timesteps=64)
+        sb3.PPO("MlpPolicy", venv, n_steps=16, batch_size=16, n_epochs=1, verbose=0).learn(
+            total_timesteps=64
+        )
     finally:
         venv.close()
 
@@ -54,9 +55,10 @@ def test_sb3_vecnormalize_and_ppo():
 def test_gym_vector_record_episode_statistics():
     pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
     from gymnasium.wrappers.vector import RecordEpisodeStatistics
-    venv = RecordEpisodeStatistics(gym.make_vec(
-        "GazeboCartPole-v0", num_envs=4,
-        vectorization_mode="vector_entry_point"))
+
+    venv = RecordEpisodeStatistics(
+        gym.make_vec("GazeboCartPole-v0", num_envs=4, vectorization_mode="vector_entry_point")
+    )
     try:
         venv.reset(seed=0)
         seen = False

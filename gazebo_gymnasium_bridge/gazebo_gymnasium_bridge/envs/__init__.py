@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Generalized multi-agent Gymnasium VecEnv for Gazebo.
 
 There is a single env path: ``MultiAgentGazeboVecEnv``, parameterized by an

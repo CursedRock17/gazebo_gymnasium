@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Headless integration test of the batched harness plugin.
 
 TestFixture hosts an in-process server (two bare cartpoles); the plugin's
@@ -35,18 +34,19 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))  # test_harness_core (for the world SDF)
 # Make the plugin importable (it lives with the resources plugins).
-_PLUGINS = (HERE.parent.parent / "gazebo_gymnasium_examples"
-            / "gazebo_gymnasium_resources" / "plugins")
+_PLUGINS = (
+    HERE.parent.parent / "gazebo_gymnasium_examples" / "gazebo_gymnasium_resources" / "plugins"
+)
 sys.path.insert(0, str(_PLUGINS))
 
 gz_sim = pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 pytest.importorskip("gz.transport13", reason="gz-transport not available")
 
-from gz.msgs10.float_v_pb2 import Float_V           # noqa: E402,I100
+from gz.msgs10.float_v_pb2 import Float_V  # noqa: E402,I100
 from gz.transport13 import AdvertiseMessageOptions  # noqa: E402
-from gz.transport13 import Node                     # noqa: E402
-import multi_agent_harness as mah                   # noqa: E402
-import test_harness_core as thc                     # noqa: E402
+from gz.transport13 import Node  # noqa: E402
+import multi_agent_harness as mah  # noqa: E402
+import test_harness_core as thc  # noqa: E402
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ def test_batched_action_obs_roundtrip(world_path):
     time.sleep(0.3)
 
     assert frames, "client received no /rl/observations"
-    last = np.array(frames[-1]).reshape(2, 4)   # (n_agents, obs_dim)
+    last = np.array(frames[-1]).reshape(2, 4)  # (n_agents, obs_dim)
     # cart positions (col 0): agent0 driven +, agent1 driven -
     assert last[0, 0] > 0.3, f"agent0 cart should be +, got {last[0, 0]}"
     assert last[1, 0] < -0.3, f"agent1 cart should be -, got {last[1, 0]}"
@@ -110,7 +110,7 @@ def test_reset_command_recenters_and_randomizes(world_path):
     fx.on_post_update(h.post_update)
     fx.finalize()
     server = fx.server()
-    server.run(True, 80, False)          # carts move away
+    server.run(True, 80, False)  # carts move away
     moved = np.array(frames[-1]).reshape(2, 4)
     assert abs(moved[0, 0]) > 0.1
 
@@ -123,11 +123,14 @@ def test_reset_command_recenters_and_randomizes(world_path):
     server.run(True, 5, False)
     time.sleep(0.3)
     after = np.array(frames[-1]).reshape(2, 4)
-    # Recentered from ~2 m back toward 0; the small residual is the held drive
-    # action re-accelerating the cart over the few post-reset ticks (magnitude
-    # scales with _CART_SPEED), so allow a modest band rather than ~0.
-    assert abs(after[0, 0]) < 0.2 and abs(after[1, 0]) < 0.2, \
+    # Recentered from ~2 m back toward 0. _on_reset zeroes the held action
+    # (previously it didn't -- the stale drive command kept re-accelerating
+    # the cart for a few post-reset ticks; a mobile-base agent could drift
+    # meters before ever getting a real new action). Tight band now, not the
+    # old "modest" one.
+    assert abs(after[0, 0]) < 0.05 and abs(after[1, 0]) < 0.05, (
         f"carts should recenter, got {after[:, 0]}"
+    )
     assert abs(after[0, 2]) <= 0.06 and after[0, 2] != after[1, 2]
 
 

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Client VecEnv for the batched in-sim harness.
 
 Talks to the ``MultiAgentHarness`` world plugin over exactly three gz-transport
@@ -43,7 +42,6 @@ from stable_baselines3.common.vec_env import VecEnv
 from .agent_spec import AgentSpec
 from .agent_spec import get_spec
 
-
 ACTION_TOPIC = "/rl/actions"
 RESET_TOPIC = "/rl/reset"
 OBS_TOPIC = "/rl/observations"
@@ -54,19 +52,24 @@ class HarnessVecEnv(VecEnv):
 
     metadata = {"render_modes": [], "render_fps": 30}
 
-    def __init__(self, spec: AgentSpec, n_agents: int = 4,
-                 world_name: Optional[str] = None,
-                 max_episode_steps: Optional[int] = None,
-                 frame_skip: Optional[int] = None,
-                 reset_timeout: float = 3.0,
-                 step_timeout: float = 2.0):
+    def __init__(
+        self,
+        spec: AgentSpec,
+        n_agents: int = 4,
+        world_name: Optional[str] = None,
+        max_episode_steps: Optional[int] = None,
+        frame_skip: Optional[int] = None,
+        reset_timeout: float = 3.0,
+        step_timeout: float = 2.0,
+    ):
         if n_agents < 1:
             raise ValueError("n_agents must be >= 1")
         self._spec = spec
         self.n_agents = n_agents
         self.world_name = world_name or f"{spec.name}_multi"
-        self.max_episode_steps = (max_episode_steps if max_episode_steps
-                                  is not None else spec.max_episode_steps)
+        self.max_episode_steps = (
+            max_episode_steps if max_episode_steps is not None else spec.max_episode_steps
+        )
         self.frame_skip = frame_skip if frame_skip is not None else spec.frame_skip
         self.reset_timeout = reset_timeout
         self.step_timeout = step_timeout
@@ -78,16 +81,33 @@ class HarnessVecEnv(VecEnv):
         self._discrete = isinstance(spec.action_space, Discrete)
         self._act_dim = 1 if self._discrete else int(spec.action_space.shape[0])
 
+        # Image specs (no joint_obs) have nothing meaningful on the ECM-based
+        # /rl/observations channel -- the plugin still publishes it every
+        # tick regardless of spec type (harmless zero-floats), which is
+        # reused below purely as the pacing clock; the real observation
+        # comes from per-agent camera topics instead, same idea as the
+        # in-process backend bypassing its ECM obs path for image mode.
+        self._image_mode = spec.image_obs is not None
+
         # obs cache: the plugin publishes one obs frame per sim tick; we release
         # a step after frame_skip frames (the decision interval).
-        self._latest_obs = np.zeros((n_agents, self._obs_dim), dtype=np.float32)
+        if self._image_mode:
+            h, w, c = spec.image_obs
+            self._latest_obs = np.zeros((n_agents, h, w, c), dtype=np.uint8)
+            # reset() must not hand out this zeros() init value as a real
+            # observation -- a solid-black frame is out-of-distribution for
+            # a policy that only ever saw rendered pixels in training (see
+            # _camera_ready_event below).
+            self._camera_primed = np.zeros(n_agents, dtype=bool)
+            self._camera_ready_event = threading.Event()
+        else:
+            self._latest_obs = np.zeros((n_agents, self._obs_dim), dtype=np.float32)
         self._obs_lock = threading.Lock()
         self._obs_event = threading.Event()
         self._obs_count = 0
 
         self._dones = np.zeros(n_agents, dtype=bool)
-        self._last_actions = np.zeros((n_agents, self._act_dim),
-                                      dtype=np.float32)
+        self._last_actions = np.zeros((n_agents, self._act_dim), dtype=np.float32)
         self._steps_since_reset = 0
         self._current_episode = 0
         self._episode_rewards = np.zeros(n_agents, dtype=np.float32)
@@ -95,23 +115,68 @@ class HarnessVecEnv(VecEnv):
         # Honesty guards: distinguish "sim not connected" from a real rollout.
         self._got_obs = False
         self._last_bad_size = None
-        self._debug = os.environ.get(
-            "GAZEBO_GYM_VERBOSE", "false").lower() in ("1", "true", "yes", "on")
+        self._debug = os.environ.get("GAZEBO_GYM_VERBOSE", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
         self._node = Node()
-        self._act_pub = self._node.advertise(
-            ACTION_TOPIC, Float_V, AdvertiseMessageOptions())
-        self._reset_pub = self._node.advertise(
-            RESET_TOPIC, Float_V, AdvertiseMessageOptions())
+        self._act_pub = self._node.advertise(ACTION_TOPIC, Float_V, AdvertiseMessageOptions())
+        self._reset_pub = self._node.advertise(RESET_TOPIC, Float_V, AdvertiseMessageOptions())
         self._node.subscribe(Float_V, OBS_TOPIC, self._on_obs)
 
-        print(f"[HarnessVecEnv] ready (agent={spec.name!r}, "
-              f"world={self.world_name!r}, n_agents={n_agents}, "
-              f"frame_skip={self.frame_skip})")
+        if self._image_mode:
+            from gz.msgs10.image_pb2 import Image
+
+            h, w, c = spec.image_obs
+
+            def _make_cam_cb(idx):
+
+                def _cb(msg):
+                    try:
+                        data = bytes(msg.data)
+                        if msg.width * msg.height * c != len(data):
+                            return
+                        frame = np.frombuffer(data, dtype=np.uint8).reshape(
+                            msg.height, msg.width, c
+                        )
+                        with self._obs_lock:
+                            self._latest_obs[idx] = frame
+                            if not self._camera_primed[idx]:
+                                self._camera_primed[idx] = True
+                                if self._camera_primed.all():
+                                    self._camera_ready_event.set()
+                    except Exception as exc:  # noqa: B902
+                        self._img_cb_error = exc
+
+                return _cb
+
+            self._img_cb_error = None
+            for i in range(n_agents):
+                self._node.subscribe(Image, f"/rl/camera_{i}", _make_cam_cb(i))
+
+        print(
+            f"[HarnessVecEnv] ready (agent={spec.name!r}, "
+            f"world={self.world_name!r}, n_agents={n_agents}, "
+            f"frame_skip={self.frame_skip})"
+        )
 
     # ------------------------------------------------------------------ #
 
     def _on_obs(self, msg):
+        if self._image_mode:
+            # Meaningless payload for image specs (no joint_obs) -- used only
+            # as the pacing clock (the plugin publishes it every physics tick
+            # regardless of spec type). Must NOT overwrite self._latest_obs,
+            # which the camera callbacks above are filling in separately.
+            with self._obs_lock:
+                self._got_obs = True
+                self._obs_count += 1
+                if self._obs_count >= self.frame_skip:
+                    self._obs_event.set()
+            return
         data = np.asarray(msg.data, dtype=np.float32)
         if data.size != self.n_agents * self._obs_dim:
             self._last_bad_size = data.size  # e.g. N mismatch with the launch
@@ -137,7 +202,8 @@ class HarnessVecEnv(VecEnv):
                 f"{self._last_bad_size} but expected {expected} "
                 f"({self.n_agents} agents x {self._obs_dim}) on {OBS_TOPIC}. "
                 f"--n_agents almost certainly does not match the launched "
-                f"world's agent count.")
+                f"world's agent count."
+            )
         return (
             f"HarnessVecEnv received no observations on {OBS_TOPIC} within "
             f"{self.reset_timeout}s. The sim isn't publishing — check that the "
@@ -145,7 +211,8 @@ class HarnessVecEnv(VecEnv):
             f"(named {self._spec.name}_0..{self.n_agents - 1}), and loaded the "
             f"MultiAgentHarness plugin. (A silent all-zeros stream used to look "
             f"like a solved episode; the plugin now stays quiet until every "
-            f"agent is bound, so this fails loudly instead.)")
+            f"agent is bound, so this fails loudly instead.)"
+        )
 
     # ------------------------------------------------------------------ #
     # VecEnv API
@@ -162,11 +229,29 @@ class HarnessVecEnv(VecEnv):
                 raise RuntimeError(self._no_obs_message())
             print("[HarnessVecEnv] WARN: reset obs wait timed out")
 
+        # The pacing-clock wait above says nothing about whether every
+        # per-agent camera topic has actually delivered a frame yet -- on a
+        # freshly-constructed env those are two independent subscriptions,
+        # and without this, the very first reset() can hand out the
+        # zeros()-initialized _latest_obs (a solid-black frame the policy
+        # never saw in training) before the real first frame lands.
+        if self._image_mode and not self._camera_ready_event.is_set():
+            if not self._camera_ready_event.wait(timeout=self.reset_timeout):
+                raise RuntimeError(
+                    "HarnessVecEnv received no camera frames on "
+                    f"/rl/camera_0.._{self.n_agents - 1} within "
+                    f"{self.reset_timeout}s -- the world is publishing "
+                    "/rl/observations but not images; check the camera "
+                    "sensor/rendering plugin is loaded."
+                )
+
         if self._steps_since_reset > 0:
-            print(f"[EpisodeSummary] ep={self._current_episode} "
-                  f"steps={self._steps_since_reset} "
-                  f"agents_done={int(self._dones.sum())}/{self.n_agents} "
-                  f"mean_reward={float(self._episode_rewards.mean()):.1f}")
+            print(
+                f"[EpisodeSummary] ep={self._current_episode} "
+                f"steps={self._steps_since_reset} "
+                f"agents_done={int(self._dones.sum())}/{self.n_agents} "
+                f"mean_reward={float(self._episode_rewards.mean()):.1f}"
+            )
 
         self._dones[:] = False
         self._steps_since_reset = 0
@@ -200,8 +285,7 @@ class HarnessVecEnv(VecEnv):
             if self._spec.terminated_fn(obs[i]):
                 self._dones[i] = True
             else:
-                rewards[i] = float(
-                    self._spec.reward_fn(obs[i], self._last_actions[i]))
+                rewards[i] = float(self._spec.reward_fn(obs[i], self._last_actions[i]))
 
         self._steps_since_reset += 1
         self._episode_rewards += rewards
@@ -213,9 +297,11 @@ class HarnessVecEnv(VecEnv):
 
         if self._debug:
             step_ms = (time.perf_counter() - self._pending_step_start) * 1000.0
-            print(f"[Harness step {self._steps_since_reset}] "
-                  f"alive={int((~self._dones).sum())}/{self.n_agents} "
-                  f"mean_reward={float(rewards.mean()):.2f} step_ms={step_ms:.1f}")
+            print(
+                f"[Harness step {self._steps_since_reset}] "
+                f"alive={int((~self._dones).sum())}/{self.n_agents} "
+                f"mean_reward={float(rewards.mean()):.2f} step_ms={step_ms:.1f}"
+            )
 
         if group_reset:
             terminal_obs = obs.copy()
@@ -230,7 +316,7 @@ class HarnessVecEnv(VecEnv):
         return obs, rewards, dones, infos
 
     def close(self) -> None:
-        pass
+        pass  # this client doesn't own the launched sim; nothing to tear down
 
     def get_attr(self, attr_name: str, indices=None):
         idx = range(self.n_agents) if indices is None else indices
@@ -253,8 +339,6 @@ class HarnessVecEnv(VecEnv):
         return [seed for _ in range(self.n_agents)]
 
 
-def make_harness(name: str, n_agents: int = 4,
-                 world_name: Optional[str] = None, **kwargs):
+def make_harness(name: str, n_agents: int = 4, world_name: Optional[str] = None, **kwargs):
     """Build a HarnessVecEnv for a registered agent (batched-harness backend)."""
-    return HarnessVecEnv(get_spec(name), n_agents=n_agents,
-                         world_name=world_name, **kwargs)
+    return HarnessVecEnv(get_spec(name), n_agents=n_agents, world_name=world_name, **kwargs)

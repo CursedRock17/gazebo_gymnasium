@@ -11,45 +11,489 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Hyperparameter sweep over the in-process backend (headless, no launch).
 
-Trains PPO on the cartpole spec across a grid of hyperparameters, records each
-trial's learning curve, and reports the best config + whether it reached the
-500-step survival cap. Every trial logs to a CSV (always) and to Weights &
-Biases (optionally, if ``--wandb`` is passed and ``wandb`` is installed +
-authenticated). Because the sim is in-process and unthrottled, a full sweep
-runs in minutes on a laptop CPU.
+Trains one algorithm (``--algo``: ppo/a2c/ddpg/sac) on the given spec across a
+grid of hyperparameters, records each trial's learning curve, and reports the
+best config + whether it reached ``--solved``. Every trial logs to a CSV
+(always) and to Weights & Biases (optionally, if ``--wandb`` is passed and
+``wandb`` is installed + authenticated). Because the sim is in-process and
+unthrottled, a full sweep runs in minutes on a laptop CPU.
 
     python training_scripts/sweep.py --timesteps 250000 --n-agents 16
     python training_scripts/sweep.py --wandb --project gazebo-cartpole
+    python training_scripts/sweep.py --agent line_follower --algo ddpg
+    python training_scripts/sweep.py --agent hopper --algo sac
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import csv
 from pathlib import Path
+import subprocess
+import sys
 import time
 
 import numpy as np
 import stable_baselines3 as sb3
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor
 
 from gazebo_gymnasium_bridge.envs import make_inprocess
 from gazebo_gymnasium_bridge.envs import wrap_for_observations
+from gazebo_gymnasium_bridge.envs.agent_spec import register_track_randomized
+from gazebo_gymnasium_bridge.envs.agent_spec import TRACK_SHAPE_MODES
+
+_ALGOS = {"ppo": sb3.PPO, "a2c": sb3.A2C, "ddpg": sb3.DDPG, "sac": sb3.SAC}
 
 
-# Search space — small and hand-picked to reliably solve the cartpole spec.
-CONFIGS = [
-    {"learning_rate": 3e-4, "ent_coef": 0.01, "n_steps": 64,
-     "n_epochs": 6, "batch_size": 256, "gamma": 0.99},
-    {"learning_rate": 1e-3, "ent_coef": 0.0, "n_steps": 128,
-     "n_epochs": 10, "batch_size": 256, "gamma": 0.99},
-    {"learning_rate": 5e-4, "ent_coef": 0.005, "n_steps": 128,
-     "n_epochs": 10, "batch_size": 512, "gamma": 0.98},
-    {"learning_rate": 3e-4, "ent_coef": 0.0, "n_steps": 256,
-     "n_epochs": 10, "batch_size": 512, "gamma": 0.99},
-]
+def _sweep_agent_name(args):
+    """Spec name this sweep actually trains (derived when randomizing tracks)."""
+    return register_track_randomized(args.agent, args.track_shapes)
+
+
+# Search spaces — small and hand-picked, one grid per algo since their
+# hyperparameters don't overlap (PPO/A2C are on-policy with different knobs;
+# DDPG is off-policy with a replay buffer). Not agent-tuned -- a reasonable
+# generic starting grid, not guaranteed optimal for every --agent.
+CONFIGS = {
+    "ppo": [
+        {
+            "learning_rate": 3e-4,
+            "ent_coef": 0.01,
+            "n_steps": 64,
+            "n_epochs": 6,
+            "batch_size": 256,
+            "gamma": 0.99,
+        },
+        {
+            "learning_rate": 1e-3,
+            "ent_coef": 0.0,
+            "n_steps": 128,
+            "n_epochs": 10,
+            "batch_size": 256,
+            "gamma": 0.99,
+        },
+        {
+            "learning_rate": 5e-4,
+            "ent_coef": 0.005,
+            "n_steps": 128,
+            "n_epochs": 10,
+            "batch_size": 512,
+            "gamma": 0.98,
+        },
+        {
+            "learning_rate": 3e-4,
+            "ent_coef": 0.0,
+            "n_steps": 256,
+            "n_epochs": 10,
+            "batch_size": 512,
+            "gamma": 0.99,
+        },
+    ],
+    "a2c": [
+        {
+            "learning_rate": 7e-4,
+            "n_steps": 5,
+            "ent_coef": 0.01,
+            "gamma": 0.99,
+            "gae_lambda": 1.0,
+            "vf_coef": 0.5,
+        },
+        {
+            "learning_rate": 3e-4,
+            "n_steps": 16,
+            "ent_coef": 0.0,
+            "gamma": 0.99,
+            "gae_lambda": 0.95,
+            "vf_coef": 0.5,
+        },
+        {
+            "learning_rate": 1e-3,
+            "n_steps": 8,
+            "ent_coef": 0.005,
+            "gamma": 0.98,
+            "gae_lambda": 0.9,
+            "vf_coef": 0.25,
+        },
+        {
+            "learning_rate": 5e-4,
+            "n_steps": 32,
+            "ent_coef": 0.0,
+            "gamma": 0.99,
+            "gae_lambda": 1.0,
+            "vf_coef": 0.5,
+        },
+    ],
+    # buffer_size kept modest (not SB3's 1M default): image observations
+    # (n_stack, 64, 64) uint8 make a large replay buffer expensive in RAM,
+    # and a short sweep budget doesn't benefit from a buffer far bigger than
+    # the total step budget anyway.
+    "ddpg": [
+        {
+            "learning_rate": 1e-3,
+            "buffer_size": 50_000,
+            "learning_starts": 1000,
+            "batch_size": 256,
+            "tau": 0.005,
+            "gamma": 0.99,
+            "train_freq": 1,
+        },
+        {
+            "learning_rate": 3e-4,
+            "buffer_size": 50_000,
+            "learning_starts": 2000,
+            "batch_size": 128,
+            "tau": 0.01,
+            "gamma": 0.98,
+            "train_freq": 4,
+        },
+        {
+            "learning_rate": 1e-4,
+            "buffer_size": 50_000,
+            "learning_starts": 1000,
+            "batch_size": 256,
+            "tau": 0.02,
+            "gamma": 0.99,
+            "train_freq": 1,
+        },
+        {
+            "learning_rate": 5e-4,
+            "buffer_size": 50_000,
+            "learning_starts": 5000,
+            "batch_size": 64,
+            "tau": 0.005,
+            "gamma": 0.995,
+            "train_freq": 8,
+        },
+    ],
+    # Anchored on real published numbers, not guessed: rl-baselines3-zoo's
+    # own tuned configs barely touch SAC's defaults for real (non-PyBullet)
+    # MuJoCo envs -- HalfCheetah-v4/Walker2d-v4/Hopper-v4/Ant-v4 all just use
+    # SB3's SAC() class defaults (lr=3e-4, buffer=1e6, batch=256, tau=0.005,
+    # gamma=0.99, train_freq/gradient_steps=1, ent_coef='auto') plus a delayed
+    # learning_starts=10000. Config 0 below IS that finding, buffer_size cut
+    # down from 1e6 since a short sweep budget doesn't benefit from a replay
+    # buffer far bigger than the total step count anyway. Configs 1-3 vary
+    # around it (the zoo's own PyBullet-flavor defaults for the faster-update
+    # variant in particular) since a short sweep can't afford 1e6-step trials
+    # the way the zoo's own runs do, and faster updates matter more at a
+    # smaller budget.
+    "sac": [
+        {
+            "learning_rate": 3e-4,
+            "buffer_size": 200_000,
+            "learning_starts": 10_000,
+            "batch_size": 256,
+            "tau": 0.005,
+            "gamma": 0.99,
+            "train_freq": 1,
+            "gradient_steps": 1,
+        },
+        {
+            "learning_rate": 7.3e-4,
+            "buffer_size": 300_000,
+            "learning_starts": 10_000,
+            "batch_size": 256,
+            "tau": 0.02,
+            "gamma": 0.98,
+            "train_freq": 8,
+            "gradient_steps": 8,
+        },
+        {
+            "learning_rate": 3e-4,
+            "buffer_size": 100_000,
+            "learning_starts": 2_000,
+            "batch_size": 128,
+            "tau": 0.01,
+            "gamma": 0.99,
+            "train_freq": 4,
+            "gradient_steps": 4,
+        },
+        {
+            "learning_rate": 1e-4,
+            "buffer_size": 300_000,
+            "learning_starts": 10_000,
+            "batch_size": 512,
+            "tau": 0.005,
+            "gamma": 0.995,
+            "train_freq": 1,
+            "gradient_steps": 1,
+        },
+    ],
+}
+
+# Per-agent overrides for CONFIGS, for the agents this project's own MuJoCo
+# ports are analogous to -- trial 0 in each list is a real published config
+# (rl-baselines3-zoo's own tuned hyperparameters for the closest standard
+# Gymnasium/MuJoCo task, https://github.com/DLR-RM/rl-baselines3-zoo), not a
+# guess; trials 1-3 are hand-picked variations around it. The generic CONFIGS
+# grids above were never agent-tuned (see this file's own long-standing
+# docstring note) -- these are, for the six agents that had a real published
+# reference to anchor on. Ant has no PPO entry in the zoo at all (a known,
+# documented difficulty, not an oversight -- see docs/examples/README.md);
+# its SAC grid leans on real, sourced advice instead: SAC's entropy bonus
+# specifically counters the "stand still and collect the alive bonus" local
+# optimum PPO falls into on this task (Regularization Matters in Policy
+# Optimization, https://arxiv.org/pdf/1910.09191).
+AGENT_CONFIGS = {
+    "hopper": {
+        "ppo": [
+            {
+                "learning_rate": 9.80828e-05,
+                "n_steps": 512,
+                "n_epochs": 5,
+                "batch_size": 32,
+                "gamma": 0.999,
+                "gae_lambda": 0.99,
+                "ent_coef": 0.00229519,
+                "clip_range": 0.2,
+                "max_grad_norm": 0.7,
+                "vf_coef": 0.835671,
+                "policy_kwargs": dict(
+                    log_std_init=-2, ortho_init=False, net_arch=dict(pi=[256, 256], vf=[256, 256])
+                ),
+            },
+            {
+                "learning_rate": 3e-4,
+                "n_steps": 512,
+                "n_epochs": 10,
+                "batch_size": 64,
+                "gamma": 0.999,
+                "gae_lambda": 0.99,
+                "ent_coef": 0.001,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 1e-4,
+                "n_steps": 1024,
+                "n_epochs": 5,
+                "batch_size": 64,
+                "gamma": 0.995,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.005,
+                "clip_range": 0.3,
+            },
+            {
+                "learning_rate": 2e-4,
+                "n_steps": 256,
+                "n_epochs": 5,
+                "batch_size": 32,
+                "gamma": 0.999,
+                "gae_lambda": 0.99,
+                "ent_coef": 0.002,
+                "clip_range": 0.2,
+            },
+        ],
+        "sac": CONFIGS["sac"],
+    },
+    "walker2d": {
+        "ppo": [
+            {
+                "learning_rate": 5.05041e-05,
+                "n_steps": 512,
+                "n_epochs": 20,
+                "batch_size": 32,
+                "gamma": 0.99,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.000585045,
+                "clip_range": 0.1,
+                "max_grad_norm": 1.0,
+                "vf_coef": 0.871923,
+            },
+            {
+                "learning_rate": 1e-4,
+                "n_steps": 512,
+                "n_epochs": 10,
+                "batch_size": 64,
+                "gamma": 0.99,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.0005,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 3e-4,
+                "n_steps": 256,
+                "n_epochs": 10,
+                "batch_size": 64,
+                "gamma": 0.995,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.0,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 5e-5,
+                "n_steps": 1024,
+                "n_epochs": 20,
+                "batch_size": 32,
+                "gamma": 0.99,
+                "gae_lambda": 0.9,
+                "ent_coef": 0.001,
+                "clip_range": 0.1,
+            },
+        ],
+        "sac": CONFIGS["sac"],
+    },
+    "half_cheetah": {
+        "ppo": [
+            {
+                "learning_rate": 2.0633e-05,
+                "n_steps": 512,
+                "n_epochs": 20,
+                "batch_size": 64,
+                "gamma": 0.98,
+                "gae_lambda": 0.92,
+                "ent_coef": 0.000401762,
+                "clip_range": 0.1,
+                "max_grad_norm": 0.8,
+                "vf_coef": 0.58096,
+                "policy_kwargs": dict(
+                    log_std_init=-2, ortho_init=False, net_arch=dict(pi=[256, 256], vf=[256, 256])
+                ),
+            },
+            {
+                "learning_rate": 5e-5,
+                "n_steps": 512,
+                "n_epochs": 10,
+                "batch_size": 64,
+                "gamma": 0.98,
+                "gae_lambda": 0.92,
+                "ent_coef": 0.0005,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 3e-4,
+                "n_steps": 256,
+                "n_epochs": 10,
+                "batch_size": 128,
+                "gamma": 0.99,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.0,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 1e-4,
+                "n_steps": 1024,
+                "n_epochs": 20,
+                "batch_size": 64,
+                "gamma": 0.98,
+                "gae_lambda": 0.9,
+                "ent_coef": 0.001,
+                "clip_range": 0.1,
+            },
+        ],
+        "sac": CONFIGS["sac"],
+    },
+    "reacher": {
+        "ppo": [
+            {
+                "learning_rate": 0.000104019,
+                "n_steps": 512,
+                "n_epochs": 5,
+                "batch_size": 32,
+                "gamma": 0.9,
+                "gae_lambda": 1.0,
+                "ent_coef": 7.52585e-08,
+                "clip_range": 0.3,
+                "max_grad_norm": 0.9,
+                "vf_coef": 0.950368,
+            },
+            {
+                "learning_rate": 3e-4,
+                "n_steps": 256,
+                "n_epochs": 10,
+                "batch_size": 64,
+                "gamma": 0.9,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.0,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 5e-5,
+                "n_steps": 1024,
+                "n_epochs": 5,
+                "batch_size": 32,
+                "gamma": 0.95,
+                "gae_lambda": 1.0,
+                "ent_coef": 0.0,
+                "clip_range": 0.3,
+            },
+            {
+                "learning_rate": 2e-4,
+                "n_steps": 512,
+                "n_epochs": 10,
+                "batch_size": 64,
+                "gamma": 0.9,
+                "gae_lambda": 0.9,
+                "ent_coef": 0.001,
+                "clip_range": 0.2,
+            },
+        ],
+        # Not in the zoo's tuned SAC list at all (Reacher-v4 absent there
+        # too), but gazebo_gymnasium's own probe already found SAC's
+        # defaults beating PPO here (-8.48 vs -13 @100k) -- reuse the
+        # generic SAC grid as the real starting point.
+        "sac": CONFIGS["sac"],
+    },
+    "inverted_double_pendulum": {
+        "ppo": [
+            {
+                "learning_rate": 0.000155454,
+                "n_steps": 128,
+                "n_epochs": 10,
+                "batch_size": 512,
+                "gamma": 0.98,
+                "gae_lambda": 0.8,
+                "ent_coef": 1.05057e-06,
+                "clip_range": 0.4,
+                "max_grad_norm": 0.5,
+                "vf_coef": 0.695929,
+            },
+            {
+                "learning_rate": 3e-4,
+                "n_steps": 256,
+                "n_epochs": 10,
+                "batch_size": 256,
+                "gamma": 0.99,
+                "gae_lambda": 0.95,
+                "ent_coef": 0.0,
+                "clip_range": 0.2,
+            },
+            {
+                "learning_rate": 1e-4,
+                "n_steps": 128,
+                "n_epochs": 5,
+                "batch_size": 512,
+                "gamma": 0.98,
+                "gae_lambda": 0.8,
+                "ent_coef": 0.0,
+                "clip_range": 0.3,
+            },
+            {
+                "learning_rate": 5e-4,
+                "n_steps": 64,
+                "n_epochs": 10,
+                "batch_size": 256,
+                "gamma": 0.99,
+                "gae_lambda": 0.9,
+                "ent_coef": 0.001,
+                "clip_range": 0.2,
+            },
+        ],
+        "sac": CONFIGS["sac"],
+    },
+    "ant": {
+        # No PPO entry -- see this dict's own docstring note above; the
+        # generic CONFIGS["ppo"] grid is the fallback and is not expected to
+        # do much better than the 0.0 m/s local optimum already found.
+        "sac": CONFIGS["sac"],
+    },
+}
+
+
+def _configs_for(agent, algo):
+    return AGENT_CONFIGS.get(agent, {}).get(algo, CONFIGS[algo])
 
 
 class CurveLogger(BaseCallback):
@@ -68,81 +512,326 @@ class CurveLogger(BaseCallback):
         if self.num_timesteps >= self._next and self.model.ep_info_buffer:
             r = float(np.mean([e["r"] for e in self.model.ep_info_buffer]))
             self.curve.append((self.num_timesteps, r))
-            self.writer.writerow({"trial": self.trial, "step": self.num_timesteps,
-                                  "mean_ep_reward": round(r, 2)})
+            self.writer.writerow(
+                {"trial": self.trial, "step": self.num_timesteps, "mean_ep_reward": round(r, 2)}
+            )
             if self.wb is not None:
                 self.wb.log({"mean_ep_reward": r}, step=self.num_timesteps)
             self._next += self.every
         return True
 
 
+def _trial_model_path(out, idx):
+    # Namespaced by --out's own filename stem, not just its parent dir --
+    # every sweep writes into the same models/ directory, so a bare
+    # ".sweep_trial_{idx}.zip" collides across concurrently-running sweeps
+    # (found running six sweeps in parallel: one sweep's real trial-0 winner
+    # got silently overwritten/deleted by another sweep's own trial-0, mid-run
+    # -- "No trial produced a usable model" despite a real 533.0 reward
+    # sitting in the log two lines above). --out already differs per sweep
+    # (explicit --out, or the timestamp-based default), so its stem is a
+    # cheap, already-unique namespace.
+    return Path(out).parent / f".{Path(out).stem}_trial_{idx}.zip"
+
+
 def run_trial(idx, cfg, args, writer):
+    """Train one config; save its model to a temp per-trial path.
+
+    Returns the final score, not the model object -- this always runs as its
+    own subprocess (see main()), so the model has to cross that boundary via
+    disk, not memory.
+    """
     wb = None
     if args.wandb:
         try:
             import wandb
+
             wb = wandb
-            wb.init(project=args.project, name=f"trial{idx}", config=cfg,
-                    reinit=True)
-        except Exception as exc:            # not installed / not authed
+            wb.init(project=args.project, name=f"trial{idx}", config=cfg, reinit=True)
+        except Exception as exc:  # not installed / not authed
             print(f"  [wandb disabled: {exc}]")
             wb = None
 
-    env = VecMonitor(make_inprocess(args.agent, n_agents=args.n_agents))
+    # Same seed across every trial in a sweep (fixed by --seed, not per-trial)
+    # so differences between configs reflect the hyperparameters, not which
+    # trial happened to get luckier env-reset/weight-init randomness -- this
+    # was previously fully unseeded (a real confound: rerunning the same
+    # config, or comparing two configs, gave different results purely from
+    # randomness). Still one sample per config, not averaged over seeds, but
+    # deterministic and fairly-compared beats random.
+    agent_name = register_track_randomized(args.agent, args.track_shapes)
+    env = VecMonitor(make_inprocess(agent_name, n_agents=args.n_agents, seed=args.seed))
     env, policy = wrap_for_observations(env)
-    model = sb3.PPO(policy, env, verbose=0, **cfg)
+    if args.lr is not None:
+        cfg = dict(cfg, learning_rate=args.lr)
+    model = _ALGOS[args.algo](policy, env, verbose=0, seed=args.seed, **cfg)
+    if args.init_from:
+        # Fine-tune from a real checkpoint rather than fresh weights: a short
+        # from-scratch screen on a hard task measures nothing, because every
+        # trial fails for the same reason (not enough budget to solve the BASE
+        # task) and the grid then ranks noise.
+        #
+        # Copy the WEIGHTS into a freshly-constructed model rather than calling
+        # .load(**cfg). load() applies unknown kwargs with __dict__.update, so
+        # a swept learning_rate never reaches the lr_schedule that training
+        # actually reads, and a swept n_steps never rebuilds the rollout
+        # buffer -- the sweep would silently compare identical runs. This also
+        # starts each trial with fresh optimizer state, which is deliberate:
+        # continuing an already-many-times-continued checkpoint is this
+        # project's leading suspect for accumulated training fragility.
+        donor = _ALGOS[args.algo].load(args.init_from, device="auto")
+        model.policy.load_state_dict(donor.policy.state_dict())
+        del donor
     cb = CurveLogger(max(2000, args.timesteps // 25), idx, writer, wb)
+    if args.checkpoint_every:
+        # Fine-tuning an already-good policy can peak and then destroy it --
+        # measured on this task, where four independent seeds all regressed
+        # from 83.3% to 60/27/0/0 over 500k steps. Saving only the FINAL model
+        # then throws the good policy away. Keep periodic snapshots so the
+        # best point can be recovered by eval instead of hoped for.
+        ckpt_dir = Path(args.out).parent / f".{Path(args.out).stem}_trial_{idx}_ckpts"
+        cb = [cb, CheckpointCallback(args.checkpoint_every, str(ckpt_dir), name_prefix="ck")]
     t0 = time.perf_counter()
     model.learn(total_timesteps=args.timesteps, callback=cb)
     dt = time.perf_counter() - t0
 
-    final = np.mean([e["r"] for e in model.ep_info_buffer]) if \
-        model.ep_info_buffer else 0.0
+    final = np.mean([e["r"] for e in model.ep_info_buffer]) if model.ep_info_buffer else 0.0
+    model.save(_trial_model_path(args.out, idx))
     env.close()
     if wb is not None:
         wb.finish()
-    print(f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
-          f"({args.timesteps} steps in {dt:.0f}s)")
-    return final, model
+    print(
+        f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
+        f"({args.timesteps} steps in {dt:.0f}s)"
+    )
+    return final
 
 
-def main():
+def _build_parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--agent", default="cartpole")
+    p.add_argument("--algo", default="ppo", choices=sorted(_ALGOS))
     p.add_argument("--n-agents", type=int, default=16)
+    p.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="same seed used for every trial -- fair comparison, not variance-over-seeds",
+    )
     p.add_argument("--timesteps", type=int, default=250000)
-    p.add_argument("--solved", type=float, default=475.0,
-                   help="mean-reward bar counted as solved")
+    p.add_argument("--solved", type=float, default=475.0, help="mean-reward bar counted as solved")
+    p.add_argument(
+        "--track-shapes",
+        default="off",
+        choices=TRACK_SHAPE_MODES,
+        help="track-shape/spawn randomization for image agents (see train.py)",
+    )
+    p.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="trials to run concurrently. Each trial is already its own "
+        "process, so this is bounded by cores (~3 per env) and, for image "
+        "agents, by how many worlds can render at once before frames start "
+        "arriving late",
+    )
+    p.add_argument(
+        "--lr",
+        type=float,
+        default=None,
+        help="override every config's learning_rate (e.g. to fine-tune an "
+        "already-good policy without destroying it)",
+    )
+    p.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=0,
+        help="save a snapshot every N steps so a peak-then-regress run can be "
+        "recovered (0 = final model only)",
+    )
+    p.add_argument(
+        "--best-out",
+        default=None,
+        metavar="PATH",
+        help="where to save the winning model (default: "
+        "models/<agent>_<algo>_sweep_best.zip). Concurrent sweeps of the same "
+        "agent MUST pass this, or they overwrite each other's winner",
+    )
+    p.add_argument(
+        "--only-trial",
+        type=int,
+        default=None,
+        metavar="IDX",
+        help="run just this config index from the grid (e.g. to give a sweep "
+        "winner a longer budget, or to run it again under other seeds) "
+        "instead of the whole grid",
+    )
+    p.add_argument(
+        "--init-from",
+        default=None,
+        metavar="CHECKPOINT",
+        help="fine-tune every trial from this .zip instead of fresh weights",
+    )
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--project", default="gazebo-cartpole")
     p.add_argument("--out", default=None, help="CSV path (default: models/)")
-    args = p.parse_args()
+    # Internal re-entry point: main() re-execs this script as a subprocess
+    # per trial (below) and passes this to select single-trial mode. Not a
+    # user-facing flag.
+    p.add_argument("--_trial", type=int, default=None, help=argparse.SUPPRESS)
+    return p
+
+
+def main():
+    args = _build_parser().parse_args()
 
     models = Path(__file__).resolve().parent.parent / "models"
     models.mkdir(exist_ok=True)
-    out = Path(args.out) if args.out else models / \
-        f"sweep_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+    args.out = (
+        Path(args.out) if args.out else models / f"sweep_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+    )
 
-    print(f"Sweep: {len(CONFIGS)} configs x {args.timesteps} steps, "
-          f"n_agents={args.n_agents}. Logging to {out}")
-    best, best_model, best_idx = -1.0, None, -1
-    with open(out, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["trial", "step",
-                                                "mean_ep_reward"])
-        writer.writeheader()
-        for idx, cfg in enumerate(CONFIGS):
-            final, model = run_trial(idx, cfg, args, writer)
-            fh.flush()
-            if final > best:
-                best, best_model, best_idx = final, model, idx
+    if args._trial is not None:
+        # Single-trial worker: writes its own rows to a per-trial CSV (the
+        # parent below merges it) and prints a machine-parseable result line.
+        idx = args._trial
+        trial_csv = args.out.parent / f".{args.out.stem}_trial_{idx}.csv"
+        with open(trial_csv, "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=["trial", "step", "mean_ep_reward"])
+            writer.writeheader()
+            final = run_trial(idx, _configs_for(args.agent, args.algo)[idx], args, writer)
+        print(f"SWEEP_TRIAL_RESULT {idx} {final}")
+        return
 
-    if best_model is not None:
-        best_path = models / f"{args.agent}_sweep_best.zip"
-        best_model.save(best_path)
+    # Orchestrator: each trial runs in its OWN subprocess. Required for
+    # image-obs agents (gz-sim's render scene is a process-wide singleton --
+    # a second camera env in the same process segfaults) and used
+    # unconditionally for every agent, for one code path and free crash
+    # isolation (one bad trial doesn't take the whole sweep down).
+    configs = _configs_for(args.agent, args.algo)
+    # Keep the original grid indices: trial N must mean the same config here
+    # as it did in the sweep this winner came from, or the CSVs and model
+    # filenames stop lining up across runs.
+    trial_indices = [args.only_trial] if args.only_trial is not None else list(range(len(configs)))
+    if args.only_trial is not None and not 0 <= args.only_trial < len(configs):
+        raise SystemExit(f"--only-trial must be in [0, {len(configs)}), got {args.only_trial}")
+    print(
+        f"Sweep: {len(trial_indices)} {args.algo} config(s) x {args.timesteps} "
+        f"steps, n_agents={args.n_agents}, track_shapes={args.track_shapes} "
+        f"({args.jobs} trial(s) at a time, each its own subprocess). "
+        f"Logging to {args.out}"
+    )
+    with open(args.out, "w", newline="") as fh:
+        csv.DictWriter(fh, fieldnames=["trial", "step", "mean_ep_reward"]).writeheader()
+
+    script = str(Path(__file__).resolve())
+    # -inf, not -1.0: some agents (Reacher's distance-penalty reward, e.g.)
+    # score negative even when winning -- a -1.0 sentinel silently picks NO
+    # winner and the orchestrator then deletes every trial's model as a
+    # "loser" (found running the real Reacher sweep: every trial scored
+    # below -1.0, "no trial produced a usable model", all 4 real trained
+    # models deleted for nothing).
+    best, best_idx = float("-inf"), -1
+
+    def _trial_cmd(idx):
+        cmd = [
+            sys.executable,
+            script,
+            "--agent",
+            args.agent,
+            "--algo",
+            args.algo,
+            "--n-agents",
+            str(args.n_agents),
+            "--seed",
+            str(args.seed),
+            "--timesteps",
+            str(args.timesteps),
+            "--track-shapes",
+            args.track_shapes,
+            *(["--init-from", args.init_from] if args.init_from else []),
+            *(["--lr", str(args.lr)] if args.lr is not None else []),
+            *(["--checkpoint-every", str(args.checkpoint_every)] if args.checkpoint_every else []),
+            "--out",
+            str(args.out),
+            "--_trial",
+            str(idx),
+        ]
+        if args.wandb:
+            cmd += ["--wandb", "--project", args.project]
+        return cmd
+
+    def _run_trial_proc(idx):
+        # Wall-clock timeout: concurrent trials each run slower than a lone
+        # one, so the budget scales with --jobs or a long sweep would start
+        # killing trials that were merely sharing the machine.
+        budget = max(600, args.timesteps // 5) * max(1, args.jobs)
+        return idx, subprocess.run(cmd_for[idx], capture_output=True, text=True, timeout=budget)
+
+    cmd_for = {idx: _trial_cmd(idx) for idx in trial_indices}
+    if args.jobs > 1:
+        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+            results = sorted(pool.map(_run_trial_proc, trial_indices))
+    else:
+        results = [_run_trial_proc(idx) for idx in trial_indices]
+
+    for idx, proc in results:
+        for line in proc.stdout.splitlines():
+            if line.startswith("[trial") or "final mean_ep_reward" in line:
+                print(line)
+        if proc.returncode != 0:
+            print(
+                f"[trial {idx}] SUBPROCESS FAILED (rc={proc.returncode}): "
+                f"{proc.stderr.strip()[-500:]}"
+            )
+            continue
+
+        trial_csv = args.out.parent / f".{args.out.stem}_trial_{idx}.csv"
+        if trial_csv.exists():
+            with open(trial_csv) as tf, open(args.out, "a", newline="") as ofh:
+                next(tf, None)  # skip header
+                ofh.writelines(tf)
+            trial_csv.unlink()
+
+        final = next(
+            (
+                float(line.split()[2])
+                for line in proc.stdout.splitlines()
+                if line.startswith("SWEEP_TRIAL_RESULT")
+            ),
+            None,
+        )
+        if final is not None and final > best:
+            best, best_idx = final, idx
+
+    best_path = None
+    if best_idx >= 0:
+        winner = _trial_model_path(args.out, best_idx)
+        if winner.exists():
+            # Derived name, not args.agent: a track-randomized sweep trains a
+            # DIFFERENT task, and sharing the filename silently overwrites the
+            # single-track sweep's winner (these are gitignored, so an
+            # overwrite is unrecoverable).
+            best_path = (
+                Path(args.best_out)
+                if args.best_out
+                else models / f"{_sweep_agent_name(args)}_{args.algo}_sweep_best.zip"
+            )
+            winner.replace(best_path)
+    for idx in trial_indices:  # drop the losing trials' models
+        leftover = _trial_model_path(args.out, idx)
+        if leftover.exists():
+            leftover.unlink()
+
+    if best_path is not None:
         status = "SOLVED" if best >= args.solved else "did not reach bar"
-        print(f"\nBest: trial {best_idx} mean_ep_reward={best:.1f} [{status} "
-              f"@ {args.solved}] -> saved {best_path}")
-        print(f"Curves in {out}")
+        print(
+            f"\nBest: trial {best_idx} mean_ep_reward={best:.1f} [{status} "
+            f"@ {args.solved}] -> saved {best_path}"
+        )
+        print(f"Curves in {args.out}")
+    else:
+        print("\nNo trial produced a usable model.")
 
 
 if __name__ == "__main__":

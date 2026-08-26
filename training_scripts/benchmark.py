@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Throughput benchmark — simulation steps per second, per env and per scale.
 
 Measures the *simulator* rate with a random policy (no learner in the loop), so
@@ -44,7 +43,7 @@ from gazebo_gymnasium_bridge.envs import registered_specs
 def _random_actions(env, rng):
     """Sample a batch of valid actions for the vectorized env."""
     space = env.action_space
-    if hasattr(space, "n"):                       # Discrete
+    if hasattr(space, "n"):  # Discrete
         return rng.integers(0, space.n, size=env.num_envs)
     low = np.broadcast_to(space.low, (env.num_envs,) + space.shape)
     high = np.broadcast_to(space.high, (env.num_envs,) + space.shape)
@@ -57,7 +56,7 @@ def measure(agent, n_agents, steps, warmup, seed=0):
     try:
         rng = np.random.default_rng(seed)
         env.reset()
-        for _ in range(warmup):                   # exclude first-touch costs
+        for _ in range(warmup):  # exclude first-touch costs
             env.step(_random_actions(env, rng))
         t0 = time.perf_counter()
         for _ in range(steps):
@@ -80,22 +79,25 @@ def _print_table(rows):
     print(head)
     print("-" * len(head))
     for r in rows:
-        print(f"{r['agent']:<26}{r['n_agents']:>4}"
-              f"{r['env_steps_per_s']:>14,.1f}{r['agent_steps_per_s']:>16,.1f}")
+        print(
+            f"{r['agent']:<26}{r['n_agents']:>4}"
+            f"{r['env_steps_per_s']:>14,.1f}{r['agent_steps_per_s']:>16,.1f}"
+        )
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--agent", default=None,
-                   help=f"one spec (default: all). Registered: "
-                        f"{registered_specs()}")
+    p.add_argument(
+        "--agent", default=None, help=f"one spec (default: all). Registered: {registered_specs()}"
+    )
     p.add_argument("--n-agents", type=int, default=8)
-    p.add_argument("--steps", type=int, default=300,
-                   help="timed vectorized steps per measurement")
+    p.add_argument("--steps", type=int, default=300, help="timed vectorized steps per measurement")
     p.add_argument("--warmup", type=int, default=20)
-    p.add_argument("--scale", default=None,
-                   help="comma-separated agent counts, e.g. 1,4,8,16,32 "
-                        "(requires --agent)")
+    p.add_argument(
+        "--scale",
+        default=None,
+        help="comma-separated agent counts, e.g. 1,4,8,16,32 (requires --agent)",
+    )
     p.add_argument("--csv", default=None, help="also write results to this CSV")
     args = p.parse_args()
 
@@ -112,17 +114,21 @@ def main():
     for agent, n in jobs:
         try:
             row = measure(agent, n, args.steps, args.warmup)
-        except Exception as exc:                  # noqa: B902
+        except Exception as exc:  # noqa: B902
             print(f"  [{agent} N={n} skipped: {type(exc).__name__}: {exc}]")
             continue
         rows.append(row)
-        print(f"  measured {agent:<24} N={n:<3} "
-              f"{row['env_steps_per_s']:>10,.1f} env steps/s", flush=True)
+        print(
+            f"  measured {agent:<24} N={n:<3} {row['env_steps_per_s']:>10,.1f} env steps/s",
+            flush=True,
+        )
 
     print()
     _print_table(rows)
-    print("\nRandom policy, no learner in the loop; in-process backend, "
-          "headless. Vision environments are far slower — they render.")
+    print(
+        "\nRandom policy, no learner in the loop; in-process backend, "
+        "headless. Vision environments are far slower — they render."
+    )
 
     if args.csv and rows:
         out = Path(args.csv)

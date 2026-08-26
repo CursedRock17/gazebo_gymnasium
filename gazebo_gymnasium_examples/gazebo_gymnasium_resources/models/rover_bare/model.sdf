@@ -393,10 +393,10 @@
     <!-- Forward-facing camera for vision-based control. Mounted ahead of
          the front caster (rover forward = -Y in base_link frame). The
          pose rotates the camera's +X optical axis to point along rover
-         -Y, then pitches it ~28° down so it sees the ground a short
+         -Y, then pitches it 45° down so it sees the ground a short
          distance ahead — where the line track lives. -->
     <link name="camera_link">
-      <pose relative_to="base_link">0 -0.15 0.05 0 0.5 -1.5708</pose>
+      <pose relative_to="base_link">0 -0.15 0.05 0 0.7854 -1.5708</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>
@@ -428,6 +428,17 @@
              speed (that's ~7 cm of travel per frame). Lower than 30 Hz
              halves the rendering cost, which is the dominant per-step
              expense once a camera enters the world. -->
+        <!-- 30 Hz. A 12.5 Hz camera is a real 2.3x faster (the env advances
+             80 ms of sim per step, so 30 Hz renders about 2.4 frames per step
+             and the policy reads only the newest; those wasted renders are 25
+             of the 28 ms server step, and GPU rasterization does not help
+             because the cost is per-frame overhead, not pixels). It was tried
+             and reverted 2026-08-26: _post_reset_settle demands TWO new frames
+             but advances only 8 ticks (80 ms), which is exactly ONE frame at
+             12.5 Hz, so every reset burns the full frame-wait timeout. To land
+             the speedup, make that settle step advance 16 ticks first, then
+             re-validate. Solve rate itself was unaffected (95.8 percent, same
+             as this baseline). -->
         <update_rate>30</update_rate>
         <always_on>1</always_on>
         <visualize>true</visualize>

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """World-level controller for all dynamically-spawned cartpoles.
 
 Loaded once at world load — see `worlds/cartpole_multi.sdf`. Sidesteps
@@ -48,7 +47,6 @@ from gz.msgs10.float_v_pb2 import Float_V
 from gz.transport13 import AdvertiseMessageOptions
 from gz.transport13 import Node
 
-
 # Max number of cartpole agents we listen for. Subscribing to a topic
 # nobody publishes to is cheap (no traffic), so being generous here
 # costs nothing.
@@ -59,7 +57,6 @@ CART_SPEED = 1.0
 
 
 class CartpoleWorldController:
-
     def __init__(self):
         self.world_name = None
         # Per-agent latest action (None = not yet received; 0 or 1 = a
@@ -81,23 +78,25 @@ class CartpoleWorldController:
     def configure(self, entity, element, ecm, eventManager):
         from gz.sim8 import World
         from gz.sim8 import world_entity
+
         self.world_name = World(world_entity(ecm)).name(ecm)
 
         self._cmd_node = Node()
         for i in range(MAX_AGENTS):
             node = Node()
-            node.subscribe(Float_V, f"/env/action_{i}",
-                           self._make_action_callback(i))
+            node.subscribe(Float_V, f"/env/action_{i}", self._make_action_callback(i))
             self._action_nodes.append(node)
 
-            cmd_topic = (f"/model/cartpole_{i}"
-                         "/joint/slider_to_cart/cmd_vel")
+            cmd_topic = f"/model/cartpole_{i}/joint/slider_to_cart/cmd_vel"
             self._cmd_pubs[i] = self._cmd_node.advertise(
-                cmd_topic, Double, AdvertiseMessageOptions())
+                cmd_topic, Double, AdvertiseMessageOptions()
+            )
 
-        print(f"[CartpoleWorldController] ready world={self.world_name!r} "
-              f"watching /env/action_0..{MAX_AGENTS - 1}, "
-              f"commanding /model/cartpole_*/joint/slider_to_cart/cmd_vel")
+        print(
+            f"[CartpoleWorldController] ready world={self.world_name!r} "
+            f"watching /env/action_0..{MAX_AGENTS - 1}, "
+            f"commanding /model/cartpole_*/joint/slider_to_cart/cmd_vel"
+        )
 
     def pre_update(self, info, ecm):
         if info.paused:
@@ -135,10 +134,12 @@ class CartpoleWorldController:
     # ------------------------------------------------------------------ #
 
     def _make_action_callback(self, idx):
+
         def cb(msg):
             if len(msg.data) > 0:
                 with self._lock:
                     self._actions[idx] = int(msg.data[0])
+
         return cb
 
 

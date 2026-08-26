@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Stress tests for the multi-agent environments.
 
 Three axes, all headless (no simulator launch):
@@ -39,24 +38,22 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))  # test_harness_core: the bare-cartpole SDF
 
-
 # --------------------------------------------------------------------------- #
 # Scale + endurance against real physics (needs the gz bindings)
 # --------------------------------------------------------------------------- #
 
 gz_sim = pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 
-import test_harness_core as thc                                    # noqa: E402
+import test_harness_core as thc  # noqa: E402
 
-from gazebo_gymnasium_bridge.envs.agent_spec import get_spec       # noqa: E402,I100
+from gazebo_gymnasium_bridge.envs.agent_spec import get_spec  # noqa: E402,I100
 from gazebo_gymnasium_bridge.harness.harness_core import HarnessCore  # noqa: E402
 
 
 def _world_n(n, spacing=3.0):
     """Build a world SDF with ``n`` bare cartpoles spread along X."""
     offset = (n - 1) * spacing / 2.0
-    models = "\n".join(thc._bare_cartpole(i, i * spacing - offset)
-                       for i in range(n))
+    models = "\n".join(thc._bare_cartpole(i, i * spacing - offset) for i in range(n))
     return f"""<?xml version="1.0" ?>
     <sdf version="1.8">
       <world name="stress">
@@ -118,7 +115,7 @@ def test_repeated_in_place_resets_stay_clean(tmp_path):
     core = HarnessCore(get_spec("cartpole"), n_agents=n)
     rng = np.random.default_rng(7)
     interval = 15
-    episodes = []           # captured pole-angle vectors, one per reset
+    episodes = []  # captured pole-angle vectors, one per reset
     state = {"tick": 0, "captured_for": -1}
 
     def on_pre(info, ecm):
@@ -149,20 +146,20 @@ def test_repeated_in_place_resets_stay_clean(tmp_path):
 # Endurance + robustness of the client VecEnv (mocked transport, fast)
 # --------------------------------------------------------------------------- #
 
-gz_transport13 = pytest.importorskip("gz.transport13",
-                                     reason="gz-transport not available")
+gz_transport13 = pytest.importorskip("gz.transport13", reason="gz-transport not available")
 pytest.importorskip("gz.msgs10", reason="gz-msgs not available")
 
 
 def _offline_harness(monkeypatch, n_agents, upright=True):
     monkeypatch.setattr(gz_transport13, "Node", MagicMock(name="Node"))
     from gazebo_gymnasium_bridge.envs import make_harness
-    env = make_harness("cartpole", n_agents=n_agents, world_name="stress",
-                       reset_timeout=0.01, step_timeout=0.01)
+
+    env = make_harness(
+        "cartpole", n_agents=n_agents, world_name="stress", reset_timeout=0.01, step_timeout=0.01
+    )
     monkeypatch.setattr(env, "_wait_frame", lambda timeout: True)
     monkeypatch.setattr(env._obs_event, "wait", lambda timeout=None: True)
-    env._latest_obs[:] = 0.0 if upright else np.array(
-        [0, 0, 0.5, 0], dtype=np.float32)
+    env._latest_obs[:] = 0.0 if upright else np.array([0, 0, 0.5, 0], dtype=np.float32)
     return env
 
 
@@ -217,8 +214,8 @@ def test_vecenv_ignores_malformed_obs_frames(monkeypatch):
         pass
 
     bad = _Msg()
-    bad.data = [1.0, 2.0, 3.0]            # not n*obs_dim
-    env._on_obs(bad)                      # must be ignored
+    bad.data = [1.0, 2.0, 3.0]  # not n*obs_dim
+    env._on_obs(bad)  # must be ignored
     np.testing.assert_array_equal(env._latest_obs, good.reshape(n, 4))
 
 

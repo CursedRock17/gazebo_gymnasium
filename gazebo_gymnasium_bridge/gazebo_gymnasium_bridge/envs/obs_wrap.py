@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Observation-aware SB3 wrapping shared by the training entry points.
 
 State observations pass through with ``MlpPolicy``. Image observations (uint8
@@ -25,8 +24,7 @@ import numpy as np
 
 def is_image_space(space) -> bool:
     """Return whether an observation space is an uint8 image (H, W, C)."""
-    return (len(getattr(space, "shape", ())) == 3
-            and getattr(space, "dtype", None) == np.uint8)
+    return len(getattr(space, "shape", ())) == 3 and getattr(space, "dtype", None) == np.uint8
 
 
 def wrap_for_observations(vec_env, frame_stack: int = 4):
@@ -38,6 +36,7 @@ def wrap_for_observations(vec_env, frame_stack: int = 4):
         return vec_env, "MlpPolicy"
     from stable_baselines3.common.vec_env import VecFrameStack
     from stable_baselines3.common.vec_env import VecTransposeImage
+
     if frame_stack > 1:
         vec_env = VecFrameStack(vec_env, n_stack=frame_stack)
     return VecTransposeImage(vec_env), "CnnPolicy"
