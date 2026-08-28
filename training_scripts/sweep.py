@@ -30,7 +30,6 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 import csv
 from pathlib import Path
-import subprocess
 import sys
 import time
 
@@ -682,11 +681,9 @@ def run_trial(idx, cfg, args, writer):
     env.close()
     if wb is not None:
         wb.finish()
-    print(
-        f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
-        f"({args.timesteps} steps in {dt:.0f}s)"
-    )
-    return final
+    print(f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
+          f"({args.timesteps} steps in {dt:.0f}s)")
+    return final, model, cb.curve
 
 
 def _build_parser():
@@ -797,174 +794,36 @@ def _build_parser():
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--project", default="gazebo-cartpole")
     p.add_argument("--out", default=None, help="CSV path (default: models/)")
-    # Internal re-entry point: main() re-execs this script as a subprocess
-    # per trial (below) and passes this to select single-trial mode. Not a
-    # user-facing flag.
-    p.add_argument("--_trial", type=int, default=None, help=argparse.SUPPRESS)
-    return p
-
-
-def main():
-    args = _build_parser().parse_args()
+    p.add_argument("--push-to-hub", metavar="REPO_ID", default=None,
+                   help="upload the BEST model + its config and learning curve "
+                        "to this Hugging Face Hub repo (user/name)")
+    p.add_argument("--hub-private", action="store_true",
+                   help="create the Hub repo as private (with --push-to-hub)")
+    args = p.parse_args()
 
     models = Path(__file__).resolve().parent.parent / "models"
     models.mkdir(exist_ok=True)
-    args.out = (
-        Path(args.out) if args.out else models / f"sweep_{time.strftime('%Y%m%d_%H%M%S')}.csv"
-    )
+    out = Path(args.out) if args.out else models / \
+        f"sweep_{time.strftime('%Y%m%d_%H%M%S')}.csv"
 
-    if args._trial is not None:
-        # Single-trial worker: writes its own rows to a per-trial CSV (the
-        # parent below merges it) and prints a machine-parseable result line.
-        idx = args._trial
-        trial_csv = args.out.parent / f".{args.out.stem}_trial_{idx}.csv"
-        with open(trial_csv, "w", newline="") as fh:
-            writer = csv.DictWriter(fh, fieldnames=["trial", "step", "mean_ep_reward"])
-            writer.writeheader()
-            final = run_trial(idx, _configs_for(args.agent, args.algo)[idx], args, writer)
-        print(f"SWEEP_TRIAL_RESULT {idx} {final}")
-        return
+    print(f"Sweep: {len(CONFIGS)} configs x {args.timesteps} steps, "
+          f"n_agents={args.n_agents}. Logging to {out}")
+    best, best_model, best_idx = -1.0, None, -1
+    best_cfg, best_curve = None, None
+    with open(out, "w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["trial", "step",
+                                                "mean_ep_reward"])
+        writer.writeheader()
+        for idx, cfg in enumerate(CONFIGS):
+            final, model, curve = run_trial(idx, cfg, args, writer)
+            fh.flush()
+            if final > best:
+                best, best_model, best_idx = final, model, idx
+                best_cfg, best_curve = cfg, curve
 
-    # Orchestrator: each trial runs in its OWN subprocess. Required for
-    # image-obs agents (gz-sim's render scene is a process-wide singleton --
-    # a second camera env in the same process segfaults) and used
-    # unconditionally for every agent, for one code path and free crash
-    # isolation (one bad trial doesn't take the whole sweep down).
-    configs = _configs_for(args.agent, args.algo)
-    # Keep the original grid indices: trial N must mean the same config here
-    # as it did in the sweep this winner came from, or the CSVs and model
-    # filenames stop lining up across runs.
-    trial_indices = [args.only_trial] if args.only_trial is not None else list(range(len(configs)))
-    if args.only_trial is not None and not 0 <= args.only_trial < len(configs):
-        raise SystemExit(f"--only-trial must be in [0, {len(configs)}), got {args.only_trial}")
-    print(
-        f"Sweep: {len(trial_indices)} {args.algo} config(s) x {args.timesteps} "
-        f"steps, n_agents={args.n_agents}, track_shapes={args.track_shapes} "
-        f"({args.jobs} trial(s) at a time, each its own subprocess). "
-        f"Logging to {args.out}"
-    )
-    with open(args.out, "w", newline="") as fh:
-        csv.DictWriter(fh, fieldnames=["trial", "step", "mean_ep_reward"]).writeheader()
-
-    script = str(Path(__file__).resolve())
-    # -inf, not -1.0: some agents (Reacher's distance-penalty reward, e.g.)
-    # score negative even when winning -- a -1.0 sentinel silently picks NO
-    # winner and the orchestrator then deletes every trial's model as a
-    # "loser" (found running the real Reacher sweep: every trial scored
-    # below -1.0, "no trial produced a usable model", all 4 real trained
-    # models deleted for nothing).
-    best, best_idx = float("-inf"), -1
-
-    def _trial_cmd(idx):
-        cmd = [
-            sys.executable,
-            script,
-            "--agent",
-            args.agent,
-            "--algo",
-            args.algo,
-            "--n-agents",
-            str(args.n_agents),
-            "--seed",
-            str(args.seed),
-            "--timesteps",
-            str(args.timesteps),
-            "--track-shapes",
-            args.track_shapes,
-            *(["--init-from", args.init_from] if args.init_from else []),
-            *(["--lr", str(args.lr)] if args.lr is not None else []),
-            *(["--epochs", str(args.epochs)] if args.epochs is not None else []),
-            *(["--gamma", str(args.gamma)] if args.gamma is not None else []),
-            *(["--anneal", "--clip-range", str(args.clip_range)] if args.anneal else []),
-            *(["--checkpoint-every", str(args.checkpoint_every)] if args.checkpoint_every else []),
-            "--out",
-            str(args.out),
-            "--_trial",
-            str(idx),
-        ]
-        if args.wandb:
-            cmd += ["--wandb", "--project", args.project]
-        return cmd
-
-    def _run_trial_proc(idx):
-        # Wall-clock timeout: concurrent trials each run slower than a lone
-        # one, so the budget scales with --jobs or a long sweep would start
-        # killing trials that were merely sharing the machine.
-        budget = max(600, args.timesteps // 5) * max(1, args.jobs)
-        return idx, subprocess.run(cmd_for[idx], capture_output=True, text=True, timeout=budget)
-
-    cmd_for = {idx: _trial_cmd(idx) for idx in trial_indices}
-    if args.jobs > 1:
-        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            results = sorted(pool.map(_run_trial_proc, trial_indices))
-    else:
-        results = [_run_trial_proc(idx) for idx in trial_indices]
-
-    validations = {}
-    for idx, proc in results:
-        for line in proc.stdout.splitlines():
-            if line.startswith("[trial") or "final mean_ep_reward" in line:
-                print(line)
-        if proc.returncode != 0:
-            print(
-                f"[trial {idx}] SUBPROCESS FAILED (rc={proc.returncode}): "
-                f"{proc.stderr.strip()[-500:]}"
-            )
-            continue
-
-        trial_csv = args.out.parent / f".{args.out.stem}_trial_{idx}.csv"
-        if trial_csv.exists():
-            with open(trial_csv) as tf, open(args.out, "a", newline="") as ofh:
-                next(tf, None)  # skip header
-                ofh.writelines(tf)
-            trial_csv.unlink()
-
-        final = next(
-            (
-                float(line.split()[2])
-                for line in proc.stdout.splitlines()
-                if line.startswith("SWEEP_TRIAL_RESULT")
-            ),
-            None,
-        )
-        if final is not None and final > best:
-            best, best_idx = final, idx
-
-        if args.validate:
-            validations[idx] = _validate_trial(idx, args)
-
-    if validations:
-        print("\nValidation (camera 45 deg / forward motion / realistic speed):")
-        for idx in sorted(validations):
-            print(f"  trial {idx}: {validations[idx]}")
-        failed = [i for i, v in validations.items() if not v.startswith("PASS")]
-        if failed:
-            print(
-                f"  A high mean_ep_reward from trial(s) {failed} does NOT mean the "
-                f"rover drove the track -- see docs/examples/line_follower.md, "
-                f"'Verifying The Rover Actually Drives'."
-            )
-
-    best_path = None
-    if best_idx >= 0:
-        winner = _trial_model_path(args.out, best_idx)
-        if winner.exists():
-            # Derived name, not args.agent: a track-randomized sweep trains a
-            # DIFFERENT task, and sharing the filename silently overwrites the
-            # single-track sweep's winner (these are gitignored, so an
-            # overwrite is unrecoverable).
-            best_path = (
-                Path(args.best_out)
-                if args.best_out
-                else models / f"{_sweep_agent_name(args)}_{args.algo}_sweep_best.zip"
-            )
-            winner.replace(best_path)
-    for idx in trial_indices:  # drop the losing trials' models
-        leftover = _trial_model_path(args.out, idx)
-        if leftover.exists():
-            leftover.unlink()
-
-    if best_path is not None:
+    if best_model is not None:
+        best_path = models / f"{args.agent}_sweep_best.zip"
+        best_model.save(best_path)
         status = "SOLVED" if best >= args.solved else "did not reach bar"
         print(
             f"\nBest: trial {best_idx} mean_ep_reward={best:.1f} [{status} "
@@ -973,6 +832,20 @@ def main():
         print(f"Curves in {args.out}")
     else:
         print("\nNo trial produced a usable model.")
+
+        if args.push_to_hub:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from hub import push_to_hub
+            hp = dict(best_cfg)
+            hp["timesteps"] = args.timesteps
+            url = push_to_hub(
+                best_path, args.push_to_hub, agent=args.agent, algo="ppo",
+                n_agents=args.n_agents, hyperparams=hp, curve=best_curve,
+                eval_result=f"**Best of {len(CONFIGS)} swept configs** "
+                            f"(trial {best_idx}): mean episode reward "
+                            f"{best:.1f} [{status} @ {args.solved}].",
+                private=args.hub_private)
+            print(f"Pushed best model to Hugging Face Hub: {url}")
 
 
 if __name__ == "__main__":

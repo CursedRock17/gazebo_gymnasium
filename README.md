@@ -155,11 +155,18 @@ pixi run benchmark --agent hopper --scale 1,4,16,32   # throughput / scaling
 pixi run test                                  # the full test suite (no simulator needed)
 ```
 
-`pixi run train --help` lists the available agents any time. Task
-definitions live in `pixi.toml`. Only CartPole ships a GUI launch file
-today; every other environment trains and evaluates headless.
+**Share models via the Hugging Face Hub.** Push a trained policy (with an
+auto-generated model card documenting its hyperparameters) and pull anyone's:
 
-### Next Steps
+```bash
+hf auth login                                            # once, for a token
+pixi run train  --agent hopper --push-to-hub <user>/ppo-hopper
+pixi run deploy --agent hopper --from-hub   <user>/ppo-hopper
+```
+
+See the available agents any time with `pixi run train --help`. Task
+definitions live in `pixi.toml`. (Only CartPole ships a GUI launch file today;
+every other environment trains and evaluates headless.)
 
 [**docs/examples/cartpole.md**](docs/examples/cartpole.md) is the
 reference environment: both backends, and every launch and training

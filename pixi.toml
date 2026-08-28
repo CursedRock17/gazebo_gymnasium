@@ -14,6 +14,7 @@ ros-jazzy-ros-gz = "*"            # ros_gz_sim / ros_gz_bridge
 gz-sim8-python = "*"             # gz.sim8 Python bindings (Joint ECM API, TestFixture)
 colcon-common-extensions = "*"
 pytest = "*"
+huggingface_hub = ">=0.24"
 
 # RL libraries from PyPI, resolved into the same env via pixi's uv integration.
 [pypi-dependencies]

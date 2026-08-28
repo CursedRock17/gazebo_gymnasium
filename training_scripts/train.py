@@ -50,6 +50,7 @@ import stable_baselines3 as sb3
 from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.vec_env import VecMonitor
 
+from gazebo_gymnasium_bridge.envs import get_spec
 from gazebo_gymnasium_bridge.envs import make_harness
 from gazebo_gymnasium_bridge.envs import make_inprocess
 from gazebo_gymnasium_bridge.envs import make_multi
@@ -196,56 +197,26 @@ def main():
     p.add_argument("--n_agents", type=int, default=4, help="agents-in-one-sim (1 = single-agent)")
     p.add_argument("--algo", default="ppo", choices=sorted(_ALGOS))
     p.add_argument("--timesteps", type=int, default=200_000)
-    p.add_argument("--world", default=None, help="gz world name (default: <agent>_multi)")
-    p.add_argument(
-        "--frame-stack",
-        type=int,
-        default=4,
-        help="frames stacked for IMAGE observations (1 disables; ignored for state observations)",
-    )
-    p.add_argument(
-        "--backend",
-        default="inprocess",
-        choices=("inprocess", "harness", "peragent"),
-        help="inprocess: sim hosted in this process, no launch "
-        "needed (fastest, default); harness: batched O(1) "
-        "transport to a launched gz sim; peragent: per-agent "
-        "topics + respawn reset",
-    )
-    p.add_argument(
-        "--track-shapes",
-        default="off",
-        choices=TRACK_SHAPE_MODES,
-        help="track-shape/spawn randomization for image agents: population "
-        "(one shape per agent, drawn at world build) or reset (a fresh shape "
-        "and spawn point every reset). Trains a DIFFERENT task than off, so it "
-        "writes to its own models/ directory rather than resuming a "
-        "single-track checkpoint",
-    )
-    p.add_argument("--tensorboard", action="store_true", help="log to models/<agent>_multi/tb/")
-    p.add_argument(
-        "--wandb",
-        action="store_true",
-        help="also mirror the run to Weights & Biases (implies "
-        "--tensorboard; needs wandb installed + authed)",
-    )
-    p.add_argument(
-        "--project", default="gazebo-gymnasium", help="W&B project name (only used with --wandb)"
-    )
-    p.add_argument(
-        "--push-to-hub",
-        default=None,
-        metavar="REPO_ID",
-        help="after training, upload the model + an auto-generated model card to this "
-        "Hugging Face Hub repo (needs huggingface_hub installed + authenticated)",
-    )
-    p.add_argument(
-        "--hub-eval-episodes",
-        type=int,
-        default=5,
-        help="deterministic eval episodes run to fill in the model card's real numbers "
-        "(only used with --push-to-hub)",
-    )
+    p.add_argument("--world", default=None,
+                   help="gz world name (default: <agent>_multi)")
+    p.add_argument("--frame-stack", type=int, default=4,
+                   help="frames stacked for IMAGE observations (1 disables; "
+                        "ignored for state observations)")
+    p.add_argument("--backend", default="inprocess",
+                   choices=("inprocess", "harness", "peragent"),
+                   help="inprocess: sim hosted in this process, no launch "
+                        "needed (fastest, default); harness: batched O(1) "
+                        "transport to a launched gz sim; peragent: per-agent "
+                        "topics + respawn reset")
+    p.add_argument("--push-to-hub", metavar="REPO_ID", default=None,
+                   help="after training, upload the model + an auto-generated "
+                        "model card to this Hugging Face Hub repo (user/name). "
+                        "Requires a token (HF_TOKEN or `hf auth login`).")
+    p.add_argument("--hub-private", action="store_true",
+                   help="create the Hub repo as private (with --push-to-hub)")
+    p.add_argument("--push-video", action="store_true",
+                   help="also record a replay video for the model card "
+                        "(camera/image-observation envs only)")
     args = p.parse_args()
 
     reset_to, step_to = _scaled_timeouts(args.n_agents)
@@ -331,25 +302,32 @@ def main():
         name_prefix=f"{args.algo}_{args.agent}_n{args.n_agents}",
     )
 
-    print(
-        f"[train] agent={args.agent} n_agents={args.n_agents} "
-        f"algo={args.algo} timesteps={args.timesteps} -> {model_dir}"
-    )
-    if tb_log:
-        print(
-            f"[train] tensorboard: {tb_log} "
-            f"(tensorboard --logdir {model_dir})"
-            + (f", W&B project={args.project}" if wb_run else "")
-        )
-    training_succeeded = False
+    print(f"[train] agent={args.agent} n_agents={args.n_agents} "
+          f"algo={args.algo} timesteps={args.timesteps} -> {model_dir}")
+    # Hub extras (eval + replay video) need the env still open, so gather them
+    # on the success path before the finally closes it.
+    eval_result, eval_metrics, video_path = None, {}, None
     try:
-        model.learn(
-            total_timesteps=args.timesteps,
-            callback=ckpt,
-            reset_num_timesteps=not resumed,
-            tb_log_name=f"{args.algo}_{args.agent}",
-        )
-        training_succeeded = True
+        model.learn(total_timesteps=args.timesteps, callback=ckpt,
+                    reset_num_timesteps=not resumed)
+        if args.push_to_hub:
+            from hub import evaluate_model, record_replay
+            try:
+                eval_result, eval_metrics = evaluate_model(model, vec_env)
+                print(f"[train] eval: {eval_result}")
+            except Exception as exc:              # noqa: B902
+                print(f"[train] eval skipped ({type(exc).__name__}: {exc})")
+            if args.push_video:
+                try:
+                    vp = str(model_dir / f"{args.agent}_replay.gif")
+                    video_path = record_replay(
+                        model, vec_env, get_spec(args.agent), vp)
+                    print(f"[train] replay video: {video_path}" if video_path
+                          else "[train] --push-video: no headless video for "
+                               "this env (camera envs only); skipping.")
+                except Exception as exc:          # noqa: B902
+                    print(f"[train] video skipped ({type(exc).__name__}: "
+                          f"{exc})")
     finally:
         model.save(final_path)
         print(f"[train] saved {final_path}")
@@ -374,6 +352,18 @@ def main():
         vec_env.close()
         if wb_run is not None:
             wb_run.finish()
+
+    if args.push_to_hub:
+        from hub import push_to_hub
+        hp = {"timesteps": args.timesteps, "backend": args.backend,
+              "device": _device()}
+        hp.update({k: v for k, v in algo_kwargs.items() if k != "verbose"})
+        hp.update(eval_metrics)
+        url = push_to_hub(
+            final_path, args.push_to_hub, agent=args.agent, algo=args.algo,
+            n_agents=args.n_agents, hyperparams=hp, eval_result=eval_result,
+            video_path=video_path, private=args.hub_private)
+        print(f"[train] pushed to Hugging Face Hub: {url}")
 
 
 if __name__ == "__main__":

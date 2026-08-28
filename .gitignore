@@ -230,6 +230,10 @@ tb_logs/*
 
 # RL training outputs (trained policies / checkpoints)
 models/**/*.zip
+models/**/*.mp4
+models/**/*.gif
+models/sweep_*.csv
+models/*_replay.*
 rosbags/
 
 # Training artifacts — checkpoints are large (8.5 GB / 1400+ zips as of

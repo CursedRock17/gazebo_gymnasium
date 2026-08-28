@@ -66,15 +66,15 @@ Level 3 ("development / introspection tools" — same tier as `rviz`,
       without waiting for a push.
 - [x] **Quality declaration linked from README** (see the Standards &
       policies list at the top of `README.md`).
-- [ ] **First green CI run on GitHub** — the workflow has never executed;
-      it runs on the first push to a GitHub remote. This is the one
-      remaining gate.
+- [x] **First green CI run on GitHub** — the workflow runs green on pushes to
+      `main` (a queued run occasionally fails to acquire a hosted runner and is
+      resolved by a re-run).
 - [ ] **Stable public API declaration** — the `AgentSpec` surface is settled
       in practice (eight environments built on it) but is not yet formally
       frozen with a deprecation policy.
 
-The CI infrastructure is written and green locally; it simply has not run
-on GitHub yet. Both remaining items are tracked in ROADMAP.md.
+The CI infrastructure runs green on GitHub; the one remaining Level 3 item is
+a formally frozen public API. Tracked in ROADMAP.md.
 
 ## Path to Level 2 / 1
 
