@@ -189,6 +189,70 @@ def _grid_cell_offset(k, n):
     return cx, cy
 
 
+# Per-agent ground-truth odometry, injected into each agent's model only when
+# GAZEBO_GYM_ODOM=1. gz-sim's OdometryPublisher derives pose + twist from the
+# model's canonical link, so it reports real motion regardless of how the
+# wheels are driven (this spec writes joint velocities straight to the ECM and
+# runs no DiffDrive plugin). Off by default: it's a diagnostic channel, not
+# something training needs, and it costs a serialize+publish per agent per
+# tick. training_scripts/verify_forward_motion.py is the consumer.
+_ODOM_PLUGIN = (
+    '<plugin filename="gz-sim-odometry-publisher-system" '
+    'name="gz::sim::systems::OdometryPublisher">'
+    "<odom_frame>world</odom_frame>"
+    "<robot_base_frame>base_link</robot_base_frame>"
+    "<odom_publish_frequency>60</odom_publish_frequency>"
+    "<odom_topic>{topic}</odom_topic>"
+    "<dimensions>2</dimensions>"
+    "</plugin>"
+)
+
+
+def world_name(spec: AgentSpec, topic_prefix: str) -> str:
+    """World name for this env, namespaced the same way its topics are.
+
+    ``/rl/<pid>_<uuid8>`` -> ``<spec>_<pid>_<uuid8>``. The default prefix
+    ``/rl`` (single env, no namespacing) keeps the original ``<spec>_inproc``.
+    """
+    tail = topic_prefix.strip("/").split("/")[-1]
+    return f"{spec.name}_{tail}" if tail and tail != "rl" else f"{spec.name}_inproc"
+
+
+def camera_pitch_degrees(world_sdf_path, model_prefix):
+    """Per-agent ``camera_link`` pitch, in degrees down, from a built world.
+
+    Read from the world SDF the server is actually handed (``_build_world``'s
+    output, which the env writes to a temp file and loads), not from the model
+    source tree -- this is the artifact describing the simulation that ran.
+
+    The obvious alternative, subscribing to ``/world/<name>/pose/info``, does
+    not work: that message names links unqualified (``camera_link``,
+    ``base_link``) with no model scoping, so N agents' links collapse onto each
+    other in any name-keyed read.
+    """
+    root = ET.parse(world_sdf_path).getroot()
+    out = {}
+    for model in root.iter("model"):
+        name = model.get("name", "")
+        if not name.startswith(model_prefix):
+            continue
+        for link in model.findall("link"):
+            if link.get("name") != "camera_link":
+                continue
+            pose = link.find("pose")
+            if pose is None or not pose.text:
+                continue
+            vals = [float(v) for v in pose.text.split()]
+            if len(vals) >= 5:
+                out[name] = float(np.degrees(vals[4]))  # x y z roll PITCH yaw
+    return out
+
+
+def odom_enabled():
+    """True when GAZEBO_GYM_ODOM=1 asks for per-agent odometry topics."""
+    return os.environ.get("GAZEBO_GYM_ODOM", "").strip() in ("1", "true", "True")
+
+
 def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_prefix="/rl"):
     """Build an N-agent world SDF by inlining the bare model N times.
 
@@ -199,12 +263,20 @@ def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_pref
     Image specs additionally get the render/sensors system, a per-agent camera
     topic, and per-agent static scenery. Returns (sdf, spawn_poses).
 
-    ``topic_prefix`` namespaces the per-agent camera topics. gz-transport
-    discovery is machine-global, so a bare ``/rl/camera_i`` makes two
-    concurrent camera envs in DIFFERENT processes publish and subscribe to
-    the SAME topic names -- each then reads the other world's frames, which
-    is silent (the frames are real images, just of the wrong rover) and
-    catastrophic (a known-good policy evaluates at 0% instead of ~96%).
+    ``topic_prefix`` namespaces the per-agent camera topics AND the world
+    name. gz-transport discovery is machine-global, so a bare ``/rl/camera_i``
+    makes two concurrent camera envs in DIFFERENT processes publish and
+    subscribe to the SAME topic names -- each then reads the other world's
+    frames, which is silent (the frames are real images, just of the wrong
+    rover) and catastrophic (a known-good policy evaluates at 0% instead of
+    ~96%).
+
+    The world name has the same problem for everything gz scopes under
+    ``/world/<name>/`` -- ``pose/info``, ``dynamic_pose/info``, ``stats`` --
+    and for ``gz sim -g``, which attaches to a world by name. Reproduced
+    2026-08-27: a single-agent env subscribed to ``pose/info`` and received
+    four agents, from a sweep running in other processes. So the world name
+    carries the same per-process suffix.
     """
     model_el = _load_model(_resolve_bare_model_sdf(spec))
     mr = spec.mass_randomization
@@ -293,15 +365,16 @@ def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_pref
                 )
         # The agent's own chassis, always spawned exactly once regardless of
         # which branch above ran -- x/agent_y/agent_yaw are set by all three.
+        odom = _ODOM_PLUGIN.format(topic=f"{topic_prefix}/odom_{i}") if odom_enabled() else ""
         models.append(
             f'<model name="{spec.name}_{i}">'
             f"<pose>{x} {agent_y} {spec.spawn_z} 0 0 {agent_yaw}"
-            f"</pose>{inner}{joints}</model>"
+            f"</pose>{inner}{joints}{odom}</model>"
         )
     extra = _SENSORS if spec.image_obs is not None else ""
     sdf = (
         f'<?xml version="1.0" ?><sdf version="1.8">'
-        f'<world name="{spec.name}_inproc">{_PHYSICS}{extra}{_GROUND}'
+        f'<world name="{world_name(spec, topic_prefix)}">{_PHYSICS}{extra}{_GROUND}'
         f"{''.join(models)}</world></sdf>"
     )
     return sdf, poses
@@ -337,7 +410,7 @@ class InProcessHarnessVecEnv(VecEnv):
             max_episode_steps if max_episode_steps is not None else spec.max_episode_steps
         )
         self.frame_skip = frame_skip if frame_skip is not None else spec.frame_skip
-        super().__init__(n_agents, spec.observation_space, spec.action_space)
+        super().__init__(n_agents, spec.policy_observation_space, spec.action_space)
         self.spec = None  # gym EnvSpec slot (kept clear so VecMonitor etc. work)
 
         self._obs_dim = spec.obs_dim
@@ -400,6 +473,7 @@ class InProcessHarnessVecEnv(VecEnv):
         # in one process would otherwise reuse the prefix, and gz-transport
         # keeps the retired publishers around long enough to matter.
         self._topic_prefix = f"/rl/{os.getpid()}_{uuid.uuid4().hex[:8]}"
+        self._world_name = world_name(spec, self._topic_prefix)
         world, spawn_poses = _build_world(
             spec, n_agents, spacing, np.random.default_rng(mass_seed), self._topic_prefix
         )
@@ -407,7 +481,20 @@ class InProcessHarnessVecEnv(VecEnv):
         if spec.action_gain_randomization > 0:
             g = spec.action_gain_randomization
             gain_rng = np.random.default_rng(gain_seed)
-            self._core.set_action_gains(gain_rng.uniform(1.0 - g, 1.0 + g, size=n_agents))
+            joints = spec.actuated_joints
+            if joints:
+                # One INDEPENDENT draw per actuator, not one shared by the
+                # whole robot. A shared gain changes how fast a differential
+                # drive goes; only a left/right mismatch changes where it
+                # ends up, and veer is what actually breaks a line follower.
+                # The rover's firmware carries separate TRIM_LEFT/TRIM_RIGHT
+                # constants because the two motors really do differ.
+                draws = gain_rng.uniform(1.0 - g, 1.0 + g, size=(n_agents, len(joints)))
+                self._core.set_action_gains(
+                    [dict(zip(joints, row, strict=True)) for row in draws.tolist()]
+                )
+            else:
+                self._core.set_action_gains(gain_rng.uniform(1.0 - g, 1.0 + g, size=n_agents))
 
         # Per-step actuator noise: population-based magnitude (each agent's
         # own fixed U(0, x) draw), but the actual noise added to the action
@@ -437,6 +524,7 @@ class InProcessHarnessVecEnv(VecEnv):
         # each agent's rewritten camera topic; _latest_obs becomes uint8
         # (n, H, W, C) and the joint read in _on_post is skipped.
         self._image_mode = spec.image_obs is not None
+        self._aux_fn = spec.aux_obs_fn if spec.aux_obs_dim > 0 else None
         if self._image_mode:
             # gz-sim's rendering/Sensors system is effectively a per-PROCESS
             # singleton: constructing a second camera-backed world while one is
@@ -593,6 +681,36 @@ class InProcessHarnessVecEnv(VecEnv):
         if self._post_ticks >= self._read_at and not self._image_mode:
             self._latest_obs = self._core.read_obs(ecm)
 
+    def _pack_obs(self, frames):
+        """Policy-visible observation: the frames, plus aux features if any.
+
+        Aux features are computed from the ALREADY-AUGMENTED frames, i.e. the
+        image the policy actually sees, because on hardware they are extracted
+        from a real compressed frame rather than from ground truth.
+        """
+        if self._aux_fn is None:
+            return frames
+        aux = np.empty((self.n_agents, self._spec.aux_obs_dim), dtype=np.float32)
+        for i in range(self.n_agents):
+            aux[i] = self._aux_fn(frames[i])
+        return {"image": frames, "track": aux}
+
+    @staticmethod
+    def _obs_copy(obs):
+        return {k: v.copy() for k, v in obs.items()} if isinstance(obs, dict) else obs.copy()
+
+    @staticmethod
+    def _obs_take(obs, i):
+        return {k: v[i] for k, v in obs.items()} if isinstance(obs, dict) else obs[i]
+
+    @staticmethod
+    def _obs_assign(dst, i, src):
+        if isinstance(dst, dict):
+            for k in dst:
+                dst[k][i] = src[k][i]
+        else:
+            dst[i] = src[i]
+
     def _augment_obs(self, obs):
         """Apply per-agent track-color + visual DR to an already-copied obs.
 
@@ -679,12 +797,38 @@ class InProcessHarnessVecEnv(VecEnv):
         self._ctl["reset"] = np.ones(self.n_agents, dtype=bool)
         self._step_server(1)
         self._post_reset_settle()
+        self._redraw_invalid_spawns(np.ones(self.n_agents, dtype=bool))
         self._agent_steps[:] = 0
         self._episode_rewards[:] = 0.0
         self._current_episode += 1
         if self._battery_enabled:
             self._draw_battery_depletion(np.ones(self.n_agents, dtype=bool))
-        return self._augment_obs(self._latest_obs.copy())
+        return self._pack_obs(self._augment_obs(self._latest_obs.copy()))
+
+    def _redraw_invalid_spawns(self, mask):
+        """Re-reset agents whose fresh spawn is already terminal.
+
+        With track_shape_reset_randomization a drawn pose can land the agent
+        where its camera sees no line at all. That episode is unwinnable from
+        step 1 rather than merely hard, so it measures nothing about the
+        policy. Redrawing costs one extra reset for the ~1% of draws that
+        need it. Validity is spec.terminated_fn, so this is not
+        line_follower-specific.
+        """
+        attempts = getattr(self._spec, "spawn_redraw_attempts", 0)
+        if not attempts or self._spec.terminated_fn is None:
+            return
+        for _ in range(attempts):
+            bad = np.zeros(self.n_agents, dtype=bool)
+            for i in np.nonzero(mask)[0]:
+                if self._spec.terminated_fn(self._latest_obs[i]):
+                    bad[i] = True
+            if not bad.any():
+                return
+            self._ctl["reset"] = bad
+            self._step_server(1)
+            self._post_reset_settle()
+            mask = bad
 
     def _reset_agents(self, mask):
         """Reset the masked agents in place.
@@ -694,7 +838,8 @@ class InProcessHarnessVecEnv(VecEnv):
         self._ctl["reset"] = mask
         self._step_server(1)
         self._post_reset_settle()
-        return self._augment_obs(self._latest_obs.copy())
+        self._redraw_invalid_spawns(mask)
+        return self._pack_obs(self._augment_obs(self._latest_obs.copy()))
 
     def step_async(self, actions):
         actions = np.asarray(actions).reshape(self.n_agents, -1)
@@ -724,7 +869,7 @@ class InProcessHarnessVecEnv(VecEnv):
         # noise into the RL objective itself (spurious line-loss/reward from
         # augmented pixels rather than the actual simulated state).
         raw_obs = self._latest_obs.copy()
-        obs = self._augment_obs(raw_obs.copy())
+        obs = self._pack_obs(self._augment_obs(raw_obs.copy()))
 
         self._agent_steps += 1
         actions = self._ctl["action"]
@@ -741,7 +886,7 @@ class InProcessHarnessVecEnv(VecEnv):
         infos = [{} for _ in range(self.n_agents)]
         done_idx = np.nonzero(dones)[0]
         if len(done_idx):
-            terminal_obs = obs.copy()
+            terminal_obs = self._obs_copy(obs)
             if self._autoreset and self._battery_enabled:
                 self._draw_battery_depletion(dones)
             reset_obs = self._reset_agents(dones.copy()) if self._autoreset else None
@@ -749,8 +894,8 @@ class InProcessHarnessVecEnv(VecEnv):
                 if truncated[i] and not terminated[i]:
                     infos[i]["TimeLimit.truncated"] = True  # bootstrap on step
                 if self._autoreset:
-                    infos[i]["terminal_observation"] = terminal_obs[i]
-                    obs[i] = reset_obs[i]  # same-step reset
+                    infos[i]["terminal_observation"] = self._obs_take(terminal_obs, i)
+                    self._obs_assign(obs, i, reset_obs)  # same-step reset
                     self._agent_steps[i] = 0
                     self._episode_rewards[i] = 0.0
             self._current_episode += len(done_idx)

@@ -1,8 +1,8 @@
 # CI for gazebo_gymnasium.
 #
 # Runs the full test suite — functional (spec/VecEnv/harness/stress, incl. the
-# in-process gz TestFixture tests, which are fully headless) plus the three
-# ament linters (flake8 / pep257 / copyright), which run as pytest tests.
+# in-process gz TestFixture tests, which are fully headless) plus lint (ruff +
+# ament_copyright), which run as pytest tests.
 #
 # Platform: ubuntu-latest (24.04 Noble) — Tier 1 for ROS 2 Jazzy per REP-2000.
 # The environment is the same Pixi (RoboStack) env developers use locally, so

@@ -1,109 +1,143 @@
 # Gazebo Gymnasium
 
-**Train reinforcement-learning agents in [Gazebo](https://gazebosim.org/docs/latest/getstarted/),
-with the standard [Gymnasium](https://gymnasium.farama.org/) API.**
+**Reinforcement-learning agents train in [Gazebo](https://gazebosim.org/docs/latest/getstarted/),
+using the standard [Gymnasium](https://gymnasium.farama.org/) API.**
 
-Gazebo Gymnasium turns a Gazebo robot into a Gymnasium environment you can train
-with [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) (or any
-Gym-speaking library). You describe one agent as a single `AgentSpec` — its
-model, observation, action, reward, and termination — and the framework runs
-*N* copies of it in one Gazebo world as a vectorized environment. Because it's
-built on real Gazebo physics and ROS 2, a policy you train in sim is a step
-away from the same robot in the real world.
+Gazebo Gymnasium turns a Gazebo robot into a Gymnasium environment,
+trainable with [Stable-Baselines3](https://stable-baselines3.readthedocs.io/)
+or any Gym-speaking library. A single agent gets described as one
+`AgentSpec`, covering its model, observation, action, reward, and
+termination, and the framework runs N copies of it in one Gazebo world as
+a vectorized environment. Because it builds on real Gazebo physics and
+Robot Operating System 2 (ROS 2), a policy trained in simulation stays one
+step away from running the same robot in the real world.
 
-Eight environments ship ready to train (CartPole, InvertedDoublePendulum,
-Hopper, Walker2d, HalfCheetah, Reacher, and a camera-based line follower), and
-[adding your own](docs/creating_your_own_agent.md) is about 15 lines of Python
-plus a model file.
+Four reinforcement-learning libraries are trained and verified against the
+real engine, not just sketched:
+[Stable-Baselines3](https://stable-baselines3.readthedocs.io/),
+[skrl](https://skrl.readthedocs.io/),
+[rl_games](https://github.com/Denys88/rl_games), and
+[rsl_rl](https://github.com/leggedrobotics/rsl_rl), the same four
+[Isaac Lab](https://isaac-sim.github.io/IsaacLab/) supports.
+`cartpole_continuous` gets solved through PPO (500 of 500) as the common
+benchmark; see [docs/rl_libraries.md](docs/rl_libraries.md) for per-library
+gotchas, supported observation and action spaces, and real reward, loss,
+and timing comparison charts.
+
+Eight environments ship ready to train, CartPole, InvertedDoublePendulum,
+Hopper, Walker2d, HalfCheetah, Reacher, and a camera-based line follower
+among them, and [adding your own](docs/creating_your_own_agent.md) takes
+about 15 lines of Python plus a model file.
 
 ```bash
 pixi run train --agent hopper --n_agents 16    # after the two install steps below
 ```
 
-**Standards & policies** (see `docs/ros2_reps_compliance.md` for the full mapping):
+Trained policies push to and pull from the
+[Hugging Face Hub](https://huggingface.co/) directly:
 
-- [Quality Declaration](QUALITY_DECLARATION.md) — [REP-2004](https://ros.org/reps/rep-2004.html) Level 4 (Demos / Tutorials / Experiments)
-- [Security Policy](SECURITY.md) — [REP-2006](https://ros.org/reps/rep-2006.html) vulnerability disclosure
-- [Contributing Guide](CONTRIBUTING.md) — code style, dep conventions, lint workflow
-- [ROS 2 REPs Compliance](docs/ros2_reps_compliance.md) — REP-by-REP status table
-- Target platform: **Ubuntu Noble 24.04 + ROS 2 Jazzy + Gazebo Harmonic** (Tier 1 per [REP-2000](https://ros.org/reps/rep-2000.html))
+```bash
+pixi run train --agent hopper --push-to-hub <user>/<repo>   # uploads model + eval-backed model card
+pixi run deploy --agent hopper --from-hub <user>/<repo>      # downloads and runs it
+```
+
+**Standards and policies** (see `docs/ros2_reps_compliance.md` for the
+full mapping):
+
+- [Quality Declaration](QUALITY_DECLARATION.md), meeting
+  [REP-2004](https://ros.org/reps/rep-2004.html) Level 4 (Demos, Tutorials,
+  Experiments)
+- [Security Policy](SECURITY.md), following
+  [REP-2006](https://ros.org/reps/rep-2006.html) vulnerability disclosure
+- [Contributing Guide](CONTRIBUTING.md), covering code style, dependency
+  conventions, and the lint workflow
+- [ROS 2 REP Compliance](docs/ros2_reps_compliance.md), a
+  Robot Enhancement Proposal (REP) by REP status table
+- Target platform: **Ubuntu Noble 24.04, ROS 2 Jazzy, Gazebo Harmonic**,
+  Tier 1 per [REP-2000](https://ros.org/reps/rep-2000.html)
 
 ## Installation
 
-**Platform:** Linux x86-64 only. `pixi.lock` is solved for `linux-64`, and the
-underlying ROS 2 Jazzy + Gazebo Harmonic conda packages are built for it —
-`pixi install` on macOS or Windows will fail to resolve. Developed and tested
-on Ubuntu 24.04 (Noble); other x86-64 Linux distributions should work, since
-Pixi brings its own ROS and Gazebo rather than using the system's. On Windows,
-use WSL2.
+**Platform: Linux x86-64 only.** `pixi.lock` is solved for `linux-64`, and
+the underlying ROS 2 Jazzy and Gazebo Harmonic conda packages are built
+for it, so `pixi install` fails to resolve on macOS or Windows. Ubuntu
+24.04 (Noble) hosts development and testing directly; other x86-64 Linux
+distributions should still work, since Pixi brings its own ROS and Gazebo
+rather than relying on the system's. Windows needs WSL2, the Windows
+Subsystem for Linux, version 2.
 
-### Pixi (recommended)
+### Pixi Installation, Recommended
 
 [Pixi](https://pixi.sh) installs ROS 2 Jazzy, Gazebo Harmonic (with its
-`gz.sim` Python bindings) **and** the RL libraries into one locked
-[conda-forge](https://conda-forge.org/) / [RoboStack](https://robostack.github.io)
-environment — a **single Python for the whole stack**. That removes the
-dual-Python split entirely: no `PYTHONPATH`/`LD_LIBRARY_PATH` lines, no separate
-venv, no source-built Gazebo. Everything is pinned in `pixi.lock`, so
-clone + `pixi install` reproduces the exact environment on any Linux machine,
-CI, or robot.
+`gz.sim` Python bindings), and the reinforcement-learning libraries into
+one locked [conda-forge](https://conda-forge.org/) and
+[RoboStack](https://robostack.github.io) environment, a single Python for
+the whole stack. That removes the dual-Python split entirely: no
+`PYTHONPATH` or `LD_LIBRARY_PATH` lines, no separate virtual environment,
+no source-built Gazebo. Everything gets pinned in `pixi.lock`, so cloning
+the repository and running `pixi install` reproduces the exact environment
+on any Linux machine, continuous-integration runner, or robot.
 
-**Install (one time):**
+**Installing, one time:**
 
 ```bash
-# 1. Install pixi
+# 1. Install pixi.
 curl -fsSL https://pixi.sh/install.sh | bash
 
-# ---> Open a NEW terminal now (or run `exec $SHELL`) so the `pixi`
-#      command is on your PATH. The installer adds it to your shell
-#      profile, but your current shell won't see it until it reloads.
+# Open a NEW terminal now (or run `exec $SHELL`) so the `pixi` command
+# lands on PATH. The installer adds it to the shell profile, but the
+# current shell will not see it until it reloads.
 
-# 2. Clone, resolve the environment (ROS 2 + Gazebo + RL libs in one solve), build
+# 2. Clone the repository, resolve the environment (ROS 2, Gazebo, and the
+#    RL libraries in one solve), and build.
 git clone https://github.com/CursedRock17/gazebo_gymnasium.git gazebo_gymnasium
 cd gazebo_gymnasium
 pixi install
 pixi run build
 ```
 
-> **First `pixi install` is a big, one-time download.** It fetches the entire
-> ROS 2 + Gazebo + PyTorch stack (several GB) and commonly takes **15–30
-> minutes** on a fresh machine — after that it's cached and near-instant. If a
-> single package download stalls on a slow mirror (LLVM is a common culprit),
-> press `Ctrl+C` and re-run `pixi install`: completed packages are cached, so
-> it resumes rather than starting over.
+> **The first `pixi install` is a big, one-time download.** It fetches the
+> entire ROS 2, Gazebo, and PyTorch stack (several gigabytes) and commonly
+> takes 15 to 30 minutes on a fresh machine; after that it stays cached and
+> near-instant. If a single package download stalls on a slow mirror
+> (LLVM is a common culprit), pressing `Ctrl+C` and re-running `pixi
+> install` resumes from the cached completed packages rather than starting
+> over.
 
-### See it run: CartPole in the Gazebo GUI
+### Seeing It Run, CartPole In The Gazebo GUI
 
-The quickest way to *see* what the library does — train the reference CartPole,
-then watch your trained policy balance the poles live in Gazebo. Three short
-steps:
+The quickest way to see what the library does is training the reference
+CartPole, then watching the trained policy balance the poles live in
+Gazebo, in three short steps.
 
 ```bash
-# 1. Train CartPole (headless, ~1–2 min — it solves quickly)
+# 1. Train CartPole (headless, roughly 1 to 2 minutes; it solves quickly).
 pixi run train
 
-# 2. Open the Gazebo GUI with 4 cartpoles
+# 2. Open the Gazebo GUI with 4 cartpoles.
 pixi run sim
 
-# 3. In a SECOND terminal, run your trained policy in that GUI
+# 3. In a SECOND terminal, run the trained policy in that GUI.
 pixi run deploy --backend harness
 ```
 
-You should see four carts nudging themselves left and right to keep their poles
-upright — the same policy you just trained, now driving the live simulator.
+Four carts should nudge themselves left and right to keep their poles
+upright, the same policy just trained, now driving the live simulator.
 
-<!-- Screenshot placeholder. Once you capture docs/images/cartpole_gui.png
+<!-- Screenshot placeholder. Once docs/images/cartpole_gui.png is captured
      (see docs/images/README.md), uncomment the next line to show it here.
-     It is commented out so the public README doesn't render a broken image.
+     It stays commented out so the public README does not render a broken
+     image.
 ![CartPole balancing in the Gazebo GUI](docs/images/cartpole_gui.png)
 -->
 
-> The GUI needs a display and a working graphics driver. On a headless server,
-> skip this and train/evaluate with the headless commands below.
+> The GUI needs a display and a working graphics driver. On a headless
+> server, skipping this and training or evaluating with the headless
+> commands below works just as well.
 
-**Train — one command, no launch needed.** The default backend hosts the
-simulator inside the training process, so a single command trains any of the
-built-in environments headlessly:
+**Training needs one command and no launch.** The default backend hosts
+the simulator inside the training process, so a single command trains any
+of the built-in environments headlessly.
 
 ```bash
 pixi run train                                 # CartPole, 4 agents (the default)
@@ -111,8 +145,8 @@ pixi run train --agent hopper --n_agents 16    # any environment, any agent coun
 pixi run train --agent walker2d --timesteps 400000
 ```
 
-Then evaluate, sweep hyperparameters, or run the tests — every flag passes
-straight through to the underlying script:
+Evaluating, sweeping hyperparameters, and running the tests all flow
+straight through the same pass-through flags.
 
 ```bash
 pixi run deploy --agent hopper --n_agents 4    # roll out a trained policy
@@ -121,55 +155,61 @@ pixi run benchmark --agent hopper --scale 1,4,16,32   # throughput / scaling
 pixi run test                                  # the full test suite (no simulator needed)
 ```
 
-See the available agents any time with `pixi run train --help`. Task
-definitions live in `pixi.toml`. (Only CartPole ships a GUI launch file today;
-every other environment trains and evaluates headless.)
+`pixi run train --help` lists the available agents any time. Task
+definitions live in `pixi.toml`. Only CartPole ships a GUI launch file
+today; every other environment trains and evaluates headless.
 
-### Next steps
+### Next Steps
 
-- [**docs/examples/cartpole.md**](docs/examples/cartpole.md) — the reference
-  environment, both backends, all launch/train arguments.
-- [**docs/creating_your_own_agent.md**](docs/creating_your_own_agent.md) —
-  add your own robot as one `AgentSpec` and train it.
-- [**docs/examples/porting_hopper.md**](docs/examples/porting_hopper.md) — an
-  annotated real port, including how each physics trap was diagnosed.
-- [**docs/examples/README.md**](docs/examples/README.md) — every environment's
-  status, verified results, and what counts as "solved".
-- [**CHANGELOG.md**](CHANGELOG.md) — release notes and known limitations.
+[**docs/examples/cartpole.md**](docs/examples/cartpole.md) is the
+reference environment: both backends, and every launch and training
+argument, worth reading next. [**docs/README.md**](docs/README.md) is
+the full documentation index from there, in reading order rather than
+alphabetical: training and reviewing results, building your own
+environment, a page per environment, and framework internals.
+[**CHANGELOG.md**](CHANGELOG.md) holds release notes and known
+limitations.
 
-### From apt + colcon (advanced)
+### The apt and colcon Path, Advanced
 
-The manual path if you'd rather use a system ROS 2 install. It uses
-`scripts/env.sh` + the `Makefile` to wrap the environment; note that this
-setup keeps the sim and training on **different Python builds** (see the
-`server`/`client` note under Run), which Pixi avoids.
+A manual path exists for using a system ROS 2 install instead. It uses
+`scripts/env.sh` and the `Makefile` to wrap the environment; note that
+this setup keeps the simulation and training on different Python builds
+(see the server and client note under Running It below), which Pixi
+avoids entirely.
 
-#### Prerequisites
-Install the following:
+**Prerequisites** include the following:
+
 - [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/Installation.html)
-- [Gazebo Harmonic](https://gazebosim.org/docs/harmonic/install_ubuntu/) from the OSRF apt repo
-- `ros-jazzy-ros-gz` — the ROS&harr;Gazebo bridge
+- [Gazebo Harmonic](https://gazebosim.org/docs/harmonic/install_ubuntu/)
+  from the OSRF apt repository
+- `ros-jazzy-ros-gz`, the ROS-to-Gazebo bridge
 
-Once the OSRF and ROS 2 apt repos are configured, the Gazebo side is a one-liner:
+Once the OSRF and ROS 2 apt repositories are configured, the Gazebo side
+reduces to one line.
+
 ```bash
 sudo apt install ros-jazzy-ros-gz gz-harmonic
 ```
 
-#### Create the workspace
+**Creating the workspace:**
+
 ```bash
 mkdir -p ~/gym_ws/src
 cd ~/gym_ws/src
 git clone https://github.com/CursedRock17/gazebo_gymnasium.git gazebo_gymnasium
 ```
 
-#### Install ROS dependencies
+**Installing ROS dependencies:**
+
 ```bash
 sudo rosdep init      # first time only
 rosdep update
 rosdep install --from-paths gazebo_gymnasium --ignore-src -r -i -y --rosdistro jazzy
 ```
 
-#### Build
+**Building:**
+
 ```bash
 cd ~/gym_ws
 source /opt/ros/jazzy/setup.bash
@@ -177,20 +217,20 @@ colcon build
 source install/setup.bash
 ```
 
-#### Python environment for the training side
-
-The training scripts (`training_scripts/train.py`, `deploy.py`) run on the
-*agent* side and need a few Python packages. We use a project-local virtualenv against
-Ubuntu's apt Python 3.12 so the `gz` bindings from `/usr/lib/python3/dist-packages`
-remain importable. If you're a conda user, the conda env stays available for
-everything else — just don't try to swap it in here, because the embedded
-Python inside `libgz-sim8.so` is hard-linked to system 3.12.
+**Setting up the Python environment for training.** The training scripts,
+`training_scripts/train.py` and `deploy.py`, run on the agent side and
+need a few Python packages. A project-local virtual environment against
+Ubuntu's apt Python 3.12 keeps the `gz` bindings from
+`/usr/lib/python3/dist-packages` importable. A conda user's existing conda
+environment stays available for everything else, but swapping it in here
+does not work, since the embedded Python inside `libgz-sim8.so` is
+hard-linked to system 3.12.
 
 ```bash
-# From the workspace root (~/gym_ws), alongside src/ / build/ / install/.
+# From the workspace root (~/gym_ws), alongside src/, build/, and install/.
 cd ~/gym_ws
 virtualenv -p /usr/bin/python3.12 --system-site-packages ./venv
-touch ./venv/COLCON_IGNORE   # keep colcon from scanning into it
+touch ./venv/COLCON_IGNORE   # keeps colcon from scanning into it
 source ./venv/bin/activate
 
 pip install \
@@ -198,46 +238,48 @@ pip install \
     cleanrl \
     mjcf2urdf
 
-# Sphinx for API docs (optional, only if you want to build them locally)
+# Sphinx builds the API docs, optional, only needed to build them locally.
 pip install sphinx sphinx_rtd_theme
 ```
 
-Currently-pinned/known-good versions of the training-side deps:
+The currently pinned, known-good versions of the training-side
+dependencies appear below.
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `stable_baselines3` | 2.7.0+ | Main RL library; PPO/SAC/etc. backends |
-| `cleanrl` | 0.4.8+ | Reference single-file RL algorithm implementations (alternative to SB3) |
-| `mjcf2urdf` | 0.0.1+ | Convert MuJoCo MJCF XMLs to URDF as the first step of porting Gymnasium MuJoCo envs |
-| `torch` | 2.10+ | PyTorch (transitive via SB3 / CleanRL) |
-| `gymnasium` | 1.2+ | Canonical Gym API |
-| `sphinx`, `sphinx_rtd_theme` | latest | API docs build |
+| `stable_baselines3` | 2.7.0+ | Main reinforcement-learning library; PPO, SAC, and other backends |
+| `cleanrl` | 0.4.8+ | Reference single-file algorithm implementations, an alternative to SB3 |
+| `mjcf2urdf` | 0.0.1+ | Converts MuJoCo MJCF XML files to URDF, the first step of porting Gymnasium MuJoCo environments |
+| `torch` | 2.10+ | PyTorch, transitive through SB3 and CleanRL |
+| `gymnasium` | 1.2+ | The canonical Gym API |
+| `sphinx`, `sphinx_rtd_theme` | latest | Building the API documentation |
 
-**Note for CleanRL:** `pip install cleanrl` pulls in the legacy `gym 0.26.2`
-package as a transitive dep alongside `gymnasium 1.2`. They coexist as
-separate Python packages without conflict — CleanRL's own scripts use the
-older API. If you write new training code, prefer `import gymnasium as gym`.
+**A note for CleanRL:** `pip install cleanrl` pulls in the legacy `gym
+0.26.2` package as a transitive dependency alongside `gymnasium 1.2`. They
+coexist as separate Python packages without conflict, since CleanRL's own
+scripts use the older API. New training code should prefer `import
+gymnasium as gym`.
 
-#### Run
-
-Everything goes through two terminals and the `Makefile`, which wraps the
-environment setup — no more pasting `PYTHONPATH` / `LD_LIBRARY_PATH` lines, and
-it strips conda/pyenv shims for you so you don't need a pristine shell:
+**Running it** goes through two terminals and the `Makefile`, which wraps
+the environment setup, so no `PYTHONPATH` or `LD_LIBRARY_PATH` lines need
+pasting, and it strips conda or pyenv shims automatically, so a pristine
+shell is not required.
 
 ```bash
-# Terminal 1 — simulator
+# Terminal 1 runs the simulator.
 make sim   AGENT=cartpole N=4  HEADLESS=true
 
-# Terminal 2 — training (single-agent is just N=1)
+# Terminal 2 runs training (single-agent is just N=1).
 make train AGENT=cartpole N=16 ALGO=ppo TIMESTEPS=200000
 
-make deploy AGENT=cartpole N=4      # evaluate a saved policy
-make test                           # run the functional test suite
+make deploy AGENT=cartpole N=4      # evaluates a saved policy
+make test                           # runs the functional test suite
 ```
 
-Under the hood each terminal sources `scripts/env.sh {server|client}` — the
-`server` env is for the gz sim (its embedded Python needs the gz bindings),
-the `client` env is the training venv. Run them directly if you prefer:
+Under the hood, each terminal sources `scripts/env.sh {server|client}`:
+the server environment serves gz sim, since its embedded Python needs the
+gz bindings, while the client environment serves the training virtual
+environment. Running them directly also works.
 
 ```bash
 source scripts/env.sh server && \
@@ -246,114 +288,123 @@ source scripts/env.sh client && \
   python3 training_scripts/train.py --agent cartpole --n_agents 16
 ```
 
-If your Gazebo source workspace isn't at `~/harmonic_ws`, set
-`GAZEBO_GYM_HARMONIC_WS` before sourcing (see `scripts/env.sh`). The dual
-`server`/`client` split exists only because the sim and training run on
-different Python builds today; collapsing that into one Python is planned.
+Setting `GAZEBO_GYM_HARMONIC_WS` before sourcing matters if the Gazebo
+source workspace is not at `~/harmonic_ws` (see `scripts/env.sh`). The
+dual server and client split exists only because the simulator and
+training run on different Python builds today; collapsing that into one
+Python is planned.
 
-Under Pixi none of this applies — one interpreter runs both the sim and
-the training. The `server`/`client` split above is only for the apt path,
-where the source-built Gazebo and the training venv are different Python
-builds. (The launch files no longer pin `PYTHONHOME`; that was a
-source-build-era workaround that breaks the homogeneous conda Python.)
+Under Pixi, none of this applies, since one interpreter runs both the
+simulator and the training. The server and client split above only
+applies to the apt path, where the source-built Gazebo and the training
+virtual environment are different Python builds. (The launch files no
+longer pin `PYTHONHOME`; that was a source-build-era workaround that
+breaks the homogeneous conda Python.)
 
 ## Troubleshooting
 
-> Most fresh-machine issues are one of the two below. The rest of this section
-> covers the manual apt path.
+> Most fresh-machine issues reduce to one of the two below. The rest of
+> this section covers the manual apt path.
 
-### Commands run, but use the wrong Gazebo/Python (system apt instead of pixi)
+### Commands Run But Use The Wrong Gazebo Or Python
 
-**Symptom:** inside `pixi run …` a launch "finishes cleanly" with no window, or
-`gz`/`python` behave as if the pixi packages aren't installed. This happens on
-machines that *also* have ROS 2 / Gazebo installed from apt: the shell resolves
-`/usr/bin/gz` (or `/usr/bin/python3`), whose system Python can't import the
-conda/pixi libraries.
+**Symptom.** Inside `pixi run …`, a launch finishes cleanly with no
+window, or `gz` and `python` behave as if the pixi packages are not
+installed. This happens on machines that also have ROS 2 or Gazebo
+installed from apt: the shell resolves `/usr/bin/gz` or
+`/usr/bin/python3`, whose system Python cannot import the conda or pixi
+libraries.
 
-**Fix:** let pixi own the whole command so its environment wins. The `pixi run`
-tasks already do this (they `source install/setup.sh` inside the pixi env).
-When running something by hand, wrap it the same way rather than calling `gz` /
-`python` from a bare shell:
+**Fix.** Letting pixi own the whole command lets its environment win. The
+`pixi run` tasks already do this, since they source `install/setup.sh`
+inside the pixi environment. Running something by hand should wrap it the
+same way, rather than calling `gz` or `python` from a bare shell.
 
 ```bash
 pixi run bash -c 'source install/setup.sh && which gz && gz sim --version'
 ```
 
-If `which gz` points at `/usr/bin/gz` *inside* that command, your apt install is
-shadowing pixi on `PATH` — start from a clean shell (no `source /opt/ros/...`
-in your `.bashrc`) and use the `pixi run` tasks. A pixi-only machine never hits
-this.
+If `which gz` points at `/usr/bin/gz` inside that command, the apt install
+is shadowing pixi on PATH; starting from a clean shell, with no `source
+/opt/ros/...` in `.bashrc`, and using the `pixi run` tasks resolves it. A
+pixi-only machine never hits this.
 
-### `Failed to load system plugin [gz-sim-python-system-loader-system] : Could not find shared library.`
+### A System Plugin Fails To Load
 
-Two things this can mean:
+The error reads `Failed to load system plugin
+[gz-sim-python-system-loader-system]: Could not find shared library`, and
+it can mean either of two things.
 
-1. **The plugin is installed but gz sim doesn't see it.** As of v0.1.0
-   the launch files prepend the standard apt + source-build paths
+1. **The plugin is installed, but gz sim does not see it.** As of v0.1.0,
+   the launch files prepend the standard apt and source-build paths
    (`/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins` and
-   `/usr/local/lib/gz-sim-8/plugins`) to `GZ_SIM_SYSTEM_PLUGIN_PATH`,
-   so this should "just work" out of a fresh shell. If you're seeing
-   the error anyway, **rebuild bringup** (`colcon build --packages-select
-   gazebo_gymnasium_bringup --symlink-install`) and `source
-   install/setup.bash` again — older installs of the launch files
-   didn't set this env var.
-
-2. **You actually don't have python-system-loader installed.** Check
+   `/usr/local/lib/gz-sim-8/plugins`) to `GZ_SIM_SYSTEM_PLUGIN_PATH`, so
+   this should just work out of a fresh shell. Seeing the error anyway
+   calls for rebuilding bringup (`colcon build --packages-select
+   gazebo_gymnasium_bringup --symlink-install`) and sourcing
+   `install/setup.bash` again, since older installs of the launch files
+   did not set this environment variable.
+2. **The python-system-loader plugin is simply not installed.** Checking
    for it:
    ```bash
    find /usr -name "libgz-sim-python-system-loader-system.so*" 2>/dev/null
    ```
-   If nothing comes back, install `gz-harmonic` from the OSRF repo
-   (instructions above). It includes the plugin.
+   Nothing coming back means installing `gz-harmonic` from the OSRF
+   repository (instructions above) resolves it, since that package
+   includes the plugin.
 
-### In-sim plugin imports fail (`ModuleNotFoundError` for `multi_agent_harness` / a controller)
+### In-Sim Plugin Imports Fail
 
-The launches prepend
+A `ModuleNotFoundError` for `multi_agent_harness` or a controller shows
+this. The launches prepend
 `<install>/gazebo_gymnasium_resources/share/gazebo_gymnasium_resources/plugins`
-to `PYTHONPATH` so the gz server can import the world-level plugin. Same fix as
-above: rebuild resources and re-source.
+to `PYTHONPATH` so the gz server can import the world-level plugin. The
+same fix as above, rebuilding resources and re-sourcing, resolves it.
 
-### gz sim segfaults inside `PyImport_ImportModule` / `PyUnicode_New`
+### gz Sim Segfaults During Python Imports
 
-The embedded libpython3.12 inside `libgz-sim8` is hard-linked to the
-apt-installed Python 3.12 at `/usr`. The segfault means something else
-in your shell is shadowing it. In order of frequency:
+A segfault inside `PyImport_ImportModule` or `PyUnicode_New` means the
+embedded libpython3.12 inside `libgz-sim8`, hard-linked to the
+apt-installed Python 3.12 at `/usr`, is getting shadowed by something else
+in the shell. In order of frequency, three causes explain most cases.
 
-**1. Stale `install/` from a previous build with a different Python
-active.** If you ever ran `colcon build` while pyenv pointed at a
-non-3.12 version, the resulting `install/setup.bash` baked in paths
-like `install/<pkg>/lib/python3.13/site-packages` that don't exist
-now. Sourcing it adds those to `PYTHONPATH` and the embedded
-interpreter crashes on import. Fix:
+**A stale `install/` directory from a previous build with a different
+Python active** is the most common. Running `colcon build` while pyenv
+pointed at a non-3.12 version bakes paths like
+`install/<pkg>/lib/python3.13/site-packages` into the resulting
+`install/setup.bash`, and those paths do not exist now. Sourcing it adds
+them to `PYTHONPATH`, and the embedded interpreter crashes on import.
 
 ```bash
 cd ~/gym_ws
-conda deactivate 2>/dev/null || true       # if you use conda
-pyenv shell system 2>/dev/null || true     # if you use pyenv
+conda deactivate 2>/dev/null || true       # if conda is in use
+pyenv shell system 2>/dev/null || true     # if pyenv is in use
 rm -rf build/ install/ log/
 source /opt/ros/jazzy/setup.bash
 colcon build
 source install/setup.bash
 ```
 
-**2. Another ROS workspace sourced on top of this one.** Check:
+**Another ROS workspace sourced on top of this one** is the second cause.
+Checking:
 
 ```bash
 echo "$AMENT_PREFIX_PATH" | tr ':' '\n'
 ```
 
-If you see entries from any workspace other than `~/gym_ws/install/*`
-and `/opt/ros/jazzy`, those will expose stale `gazebo_gymnasium_*`
-Python bindings whose ABI doesn't match the C++ libs being loaded.
-Open a fresh terminal and source only `~/gym_ws/install/setup.bash`.
+Entries from any workspace other than `~/gym_ws/install/*` and
+`/opt/ros/jazzy` expose stale `gazebo_gymnasium_*` Python bindings whose
+Application Binary Interface (ABI) does not match the C++ libraries being
+loaded. Opening a fresh terminal and sourcing only
+`~/gym_ws/install/setup.bash` resolves it.
 
-**3. Conda or pyenv active.** Conda's `libpython3.12.so` on
-`LD_LIBRARY_PATH` will get loaded before the apt one. `conda
-deactivate` and re-source the workspace.
+**Conda or pyenv staying active** is the third cause. Conda's
+`libpython3.12.so` on `LD_LIBRARY_PATH` loads before the apt one;
+`conda deactivate` followed by re-sourcing the workspace resolves it.
 
-To inspect any shell's relevant env in one shot, run
-`scripts/diagnose_env.sh`. To diff a working terminal against a broken
-one:
+Inspecting any shell's relevant environment in one shot works through
+`scripts/diagnose_env.sh`. Diffing a working terminal against a broken one
+follows the same pattern.
 
 ```bash
 scripts/diagnose_env.sh > /tmp/working.env   # in the terminal that works
@@ -361,3 +412,12 @@ scripts/diagnose_env.sh > /tmp/broken.env    # in the terminal that doesn't
 diff /tmp/working.env /tmp/broken.env
 ```
 
+## Glossary
+
+| Term | Definition |
+|---|---|
+| **Robot Operating System 2 (ROS 2)** | The middleware Gazebo Gymnasium integrates with natively |
+| **Robot Enhancement Proposal (REP)** | A ROS 2 ecosystem standards document, similar in spirit to Python's PEPs |
+| **Windows Subsystem for Linux 2 (WSL2)** | The compatibility layer Windows users need, since this project is Linux-only |
+| **Application Binary Interface (ABI)** | The compiled-code contract between Python bindings and their underlying C++ libraries |
+| **AgentSpec** | The dataclass describing one agent's model, observation, action, reward, and DR configuration |

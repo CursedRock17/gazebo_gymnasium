@@ -128,9 +128,14 @@ def test_action_gain_randomization_sets_varied_gains():
     register_spec("cp_gaintest", lambda: spec)
     env = make_inprocess("cp_gaintest", n_agents=4, seed=0)
     try:
+        # Gains are per-AGENT-per-JOINT now: {joint_name: gain} per agent, so a
+        # differential drive can be given a left/right mismatch and veer.
         gains = env._core._action_gains
-        assert len({round(g, 4) for g in gains}) == 4, "distinct per agent"
-        assert all(0.6 <= g <= 1.4 for g in gains), "within +-40%"
+        assert all(isinstance(g, dict) for g in gains), "per-joint mapping"
+        assert {j for g in gains for j in g} == set(spec.actuated_joints)
+        flat = [v for g in gains for v in g.values()]
+        assert len({round(v, 4) for v in flat}) == len(flat), "every draw independent"
+        assert all(0.6 <= v <= 1.4 for v in flat), "within +-40%"
     finally:
         env.close()
 

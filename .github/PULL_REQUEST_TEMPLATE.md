@@ -10,5 +10,5 @@
      probe-driven approach this project uses. -->
 
 - [ ] `pixi run test` passes
-- [ ] `pixi run lint` passes (flake8 / pep257 / copyright)
+- [ ] `pixi run lint` passes (ruff / copyright)
 - [ ] Docs updated if behavior or the public API changed

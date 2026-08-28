@@ -67,9 +67,13 @@ class HarnessCore:
         # when spec.reset_model_pose is set (joint resets alone can't bring a
         # free chassis home). Filled in by the world builder.
         self._spawn_poses = None
-        # Per-agent actuator gain (multiplies velocity/force commands) — the
-        # control-authority axis of domain randomization. Default 1.0 (off).
+        # Actuator gain multiplying velocity/force commands -- the
+        # control-authority axis of domain randomization. Either one scalar
+        # per agent, or a dict {joint_name: gain} per agent when the real
+        # error is per-actuator rather than whole-robot. Default 1.0 (off).
         self._action_gains = [1.0] * n_agents
+        # Hard per-joint command ceiling applied after the gain multiply.
+        self._limits = dict(getattr(spec, "command_limits", {}) or {})
 
     def set_spawn_poses(self, poses):
         """Record each agent's spawn pose(s) for model-pose restoring resets.
@@ -86,8 +90,17 @@ class HarnessCore:
         self._spawn_poses = list(poses)
 
     def set_action_gains(self, gains):
-        """Set the per-agent actuator gain multiplier (len n_agents)."""
-        self._action_gains = [float(g) for g in gains]
+        """Set the actuator gain multiplier (len n_agents).
+
+        Each entry is either a scalar applied to every joint of that agent, or
+        a ``{joint_name: gain}`` mapping for per-actuator error. The mapping
+        form matters for a differential drive: one shared gain scales both
+        wheels equally, which changes how fast the robot goes but not where it
+        goes, whereas a left/right MISMATCH makes it veer -- and veer is the
+        error that actually breaks a line follower. The real rover's firmware
+        carries separate TRIM_LEFT and TRIM_RIGHT constants for exactly this.
+        """
+        self._action_gains = [g if isinstance(g, dict) else float(g) for g in gains]
 
     # ------------------------------------------------------------------ #
 
@@ -154,11 +167,21 @@ class HarnessCore:
         for i in range(self.n_agents):
             if not self._resolved[i]:
                 continue
-            gain = self._action_gains[i]
+            gains = self._action_gains[i]
             for jn, mode, value in self.spec.action_to_commands(actions[i]):
                 joint = self._joints.get((i, jn))
                 if joint is None:
                     continue
+                gain = gains.get(jn, 1.0) if isinstance(gains, dict) else gains
+                # Clamp AFTER the gain multiply: action_to_commands bounds
+                # what the policy asked for, but action_gain_randomization
+                # scales that afterwards and can push it back out of the band
+                # the real hardware can execute (see
+                # AgentSpec.command_limits).
+                limit = self._limits.get(jn)
+                if limit is not None:
+                    value = float(np.clip(float(value) * gain, -limit, limit))
+                    gain = 1.0
                 if mode == "velocity":
                     joint.set_velocity(ecm, [float(value) * gain])
                 elif mode == "force":

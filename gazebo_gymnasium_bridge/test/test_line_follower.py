@@ -132,11 +132,20 @@ class TestLineFollowerSpecMath:
         assert spec.terminated_fn(_frame(32)) is False
 
     def test_action_maps_wheel_velocities(self):
+        # Affine onto [v_min, v_max] forward, not symmetric about zero: a
+        # smaller action is a SLOWER wheel, never a reversed one. See
+        # test_line_follower_action_maps_into_the_executable_band for the
+        # band itself.
         spec = get_spec("line_follower")
         cmds = spec.action_to_commands(np.array([1.0, -0.5]))
         assert [c[0] for c in cmds] == ["left_axle", "right_axle"]
         assert all(c[1] == "velocity" for c in cmds)
-        assert cmds[1][2] == pytest.approx(-cmds[0][2] / 2)
+        left, right = cmds[0][2], cmds[1][2]
+        assert right > 0.0, "a negative action must still drive the wheel forward"
+        assert right < left, "a smaller action must be a slower wheel"
+        # The map is affine, so the midpoint action lands on the midpoint speed.
+        mid = spec.action_to_commands(np.array([0.25, 0.25]))[0][2]
+        assert mid == pytest.approx((left + right) / 2)
 
 
 # ---- real rendering + physics (in-process, headless) ---------------------- #
@@ -235,6 +244,7 @@ N = len(shapes) * 3
 env = make_inprocess(spec.name, n_agents=N, seed=0)
 try:
     obs = env.reset()
+    obs = obs["image"] if isinstance(obs, dict) else obs
     seen = [_lf_line_centroid(obs[i]) for i in range(N)]
     print("centroids:", seen)
     if all(c is not None for c in seen):
@@ -267,6 +277,7 @@ try:
     frames = [[] for _ in range(N)]
     for _ in range(N_EPISODES):
         obs = env.reset()
+        obs = obs["image"] if isinstance(obs, dict) else obs
         for i in range(N):
             frames[i].append(obs[i].copy())
             bottom = obs[i][obs[i].shape[0] // 2:, :, :]
@@ -298,6 +309,7 @@ N = 4
 env = make_inprocess("line_follower", n_agents=N, seed=0)
 try:
     obs = env.reset()
+    obs = obs["image"] if isinstance(obs, dict) else obs
     seen = [_lf_line_centroid(obs[i]) for i in range(N)]
     print("centroids:", seen)
     if all(c is not None for c in seen):
@@ -305,6 +317,7 @@ try:
     term = np.zeros(N, dtype=int)
     for _ in range(20):
         obs, _r, dones, _i = env.step(np.tile([0.8, 0.8], (N, 1)))
+        obs = obs["image"] if isinstance(obs, dict) else obs
         term += dones.astype(int)
     print("terminations:", term.tolist())
     if term.sum() == 0:
@@ -330,6 +343,16 @@ def _rendering_works():
     except (subprocess.TimeoutExpired, OSError):
         return False
     return proc.returncode == 0
+
+
+def frames(obs):
+    """Camera frames out of an observation.
+
+    line_follower's policy observation is a Dict of {"image", "track"} since
+    the scan-band features were added; these tests are about the image, so
+    they pull it out rather than caring which form is current.
+    """
+    return obs["image"] if isinstance(obs, dict) else obs
 
 
 @pytest.fixture(scope="module")
@@ -427,17 +450,18 @@ def test_track_shape_reset_randomization_wired_on_real_env():
 
 
 def test_camera_obs_shape_and_line_visible(lf_env):
-    obs = lf_env.reset()
+    obs = frames(lf_env.reset())
     assert obs.shape == (1, 64, 64, 3) and obs.dtype == np.uint8
     c = _lf_line_centroid(obs[0])
     assert c is not None and 0.3 < c < 0.7, f"line should start near-centered, centroid={c}"
 
 
 def test_camera_is_live_while_driving(lf_env):
-    obs0 = lf_env.reset().copy()
+    obs0 = frames(lf_env.reset()).copy()
     obs = obs0
     for _ in range(15):
         obs, _r, _d, _i = lf_env.step(np.array([[0.8, 0.8]]))
+        obs = frames(obs)
     diff = float(np.abs(obs.astype(int) - obs0.astype(int)).mean())
     assert diff > 0.5, "camera frames must change as the rover drives"
 
@@ -484,6 +508,7 @@ def test_line_loss_terminates_and_pose_reset_recovers(lf_env):
     lost = None
     for k in range(150):
         obs, _r, dones, _i = lf_env.step(np.array([[1.0, -1.0]]))  # spin
+        obs = frames(obs)
         if dones[0]:
             lost = k
             break
@@ -532,3 +557,171 @@ def test_camera_topics_are_namespaced_per_process():
     assert "TOPIC_PREFIX_NAMESPACED" in proc.stdout, (
         f"camera topics are not namespaced per process:\n{proc.stdout[-600:]}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Speed clamp: the action -> wheel-velocity mapping, and the post-gain ceiling.
+# --------------------------------------------------------------------------- #
+
+
+def test_clamped_velocities_reverse_mode_band_and_deadzone():
+    from gazebo_gymnasium_bridge.envs.agent_spec import clamped_velocities
+
+    f = clamped_velocities(("j",), 10.0, v_min=2.0, deadzone=0.1)
+    assert f([0.0])[0][2] == 0.0
+    assert f([0.05])[0][2] == 0.0  # inside the deadzone: a real stop
+    # First command outside the deadzone still clears v_min, not near-zero.
+    assert f([0.1])[0][2] == pytest.approx(2.0 + 0.1 * 8.0)
+    assert f([1.0])[0][2] == pytest.approx(10.0)
+    assert f([-1.0])[0][2] == pytest.approx(-10.0)
+    # Out-of-range actions are clipped, never scaled past v_max.
+    assert f([5.0])[0][2] == pytest.approx(10.0)
+
+
+def test_clamped_velocities_forward_only_never_stops_or_reverses():
+    from gazebo_gymnasium_bridge.envs.agent_spec import clamped_velocities
+
+    f = clamped_velocities(("j",), 10.0, v_min=2.0, reverse=False)
+    assert f([-1.0])[0][2] == pytest.approx(2.0)  # slowest is still forward
+    assert f([0.0])[0][2] == pytest.approx(6.0)
+    assert f([1.0])[0][2] == pytest.approx(10.0)
+    for a in np.linspace(-1.0, 1.0, 21):
+        assert 2.0 - 1e-9 <= f([a])[0][2] <= 10.0 + 1e-9
+
+
+def test_clamped_velocities_rejects_an_inverted_band():
+    from gazebo_gymnasium_bridge.envs.agent_spec import clamped_velocities
+
+    with pytest.raises(ValueError):
+        clamped_velocities(("j",), 1.0, v_min=2.0)
+
+
+def test_line_follower_action_maps_into_the_executable_band():
+    from gazebo_gymnasium_bridge.envs.agent_spec import _LF_WHEEL_SPEED
+    from gazebo_gymnasium_bridge.envs.agent_spec import _LF_WHEEL_SPEED_MIN
+
+    spec = get_spec("line_follower")
+    # Every corner of the action space, including the ones a policy reaches
+    # by saturating: no command may fall below the floor (creeping) or below
+    # zero (reversing), which is the whole point of the forward-only clamp.
+    for a in (-1.0, -0.5, 0.0, 0.5, 1.0):
+        for _joint, mode, v in spec.action_to_commands(np.array([a, a], dtype=np.float32)):
+            assert mode == "velocity"
+            assert _LF_WHEEL_SPEED_MIN - 1e-9 <= v <= _LF_WHEEL_SPEED + 1e-9
+    # Steering is still available: the two wheels can differ by the full band.
+    left, right = (v for _j, _m, v in spec.action_to_commands(np.array([1.0, -1.0])))
+    assert left == pytest.approx(_LF_WHEEL_SPEED)
+    assert right == pytest.approx(_LF_WHEEL_SPEED_MIN)
+
+
+def test_command_limits_clamp_after_the_gain_multiply():
+    """action_gain_randomization must not push a command past the ceiling."""
+    from dataclasses import replace
+
+    from gazebo_gymnasium_bridge.harness.harness_core import HarnessCore
+
+    spec = replace(get_spec("line_follower"), command_limits={"left_axle": 5.0})
+    core = HarnessCore(spec, 1)
+
+    applied = {}
+
+    class _FakeJoint:
+        def __init__(self, name):
+            self.name = name
+
+        def set_velocity(self, _ecm, values):
+            applied[self.name] = values[0]
+
+    core._resolved = [True]
+    core._joints = {(0, "left_axle"): _FakeJoint("left_axle")}
+    core.set_action_gains([100.0])  # absurd gain, to make the clamp the only bound
+    core.apply_actions(None, np.array([[1.0, 1.0]], dtype=np.float32))
+    assert applied["left_axle"] == pytest.approx(5.0)
+
+
+def test_world_name_is_namespaced_like_the_camera_topics():
+    """Same collision class as the camera fix, for /world/<name>/* topics."""
+    spec = get_spec("line_follower")
+    assert ip.world_name(spec, "/rl/12345_deadbeef") == "line_follower_12345_deadbeef"
+    # No per-process prefix (a lone env) keeps the original name.
+    assert ip.world_name(spec, "/rl") == "line_follower_inproc"
+
+
+def test_built_world_carries_the_namespaced_name_and_45_degree_cameras(tmp_path):
+    """The world SDF the server is handed is what validate_rover.py reads."""
+    import numpy as np
+
+    spec = get_spec("line_follower")
+    sdf, _poses = ip._build_world(
+        spec, 3, spec.x_spacing, np.random.default_rng(0), topic_prefix="/rl/99_abcd1234"
+    )
+    assert 'name="line_follower_99_abcd1234"' in sdf
+
+    world = tmp_path / "world.sdf"
+    world.write_text(sdf)
+    pitches = ip.camera_pitch_degrees(world, "line_follower_")
+    assert set(pitches) == {"line_follower_0", "line_follower_1", "line_follower_2"}
+    for name, deg in pitches.items():
+        assert deg == pytest.approx(45.0, abs=0.5), f"{name} camera is {deg} deg, not 45"
+
+
+# --------------------------------------------------------------------------- #
+# Auxiliary (scan-band) observation: the features a classical tracker measures,
+# handed to the policy instead of left for the CNN to rediscover from pixels.
+# --------------------------------------------------------------------------- #
+
+
+def _lf_frame(x_by_band):
+    """Synthetic 64x64 frame with a line segment per band (None = no line)."""
+    img = np.full((64, 64, 3), 255, np.uint8)
+    for b, x in enumerate(x_by_band):  # band 0 is the NEAREST (bottom rows)
+        if x is None:
+            continue
+        y1 = 64 - b * 16
+        img[y1 - 16 : y1, max(0, x - 2) : x + 3] = 0
+    return img
+
+
+def test_aux_obs_layout_and_range():
+    from gazebo_gymnasium_bridge.envs.agent_spec import _LF_AUX_DIM
+    from gazebo_gymnasium_bridge.envs.agent_spec import _lf_aux_obs
+
+    v = _lf_aux_obs(_lf_frame([32, 32, 32, 32]))  # straight, centred
+    assert v.shape == (_LF_AUX_DIM,) and v.dtype == np.float32
+    assert np.all(np.abs(v) <= 1.0 + 1e-6), "every element must stay in [-1, 1]"
+    assert np.allclose(v[:4], 0.0, atol=0.05), "centred line -> ~0 offsets"
+    assert np.all(v[4:8] == 1.0), "all four bands visible"
+    assert abs(v[8]) < 0.05, "a straight line has ~0 heading"
+
+
+def test_aux_obs_marks_missing_bands_and_signs_heading():
+    from gazebo_gymnasium_bridge.envs.agent_spec import _lf_aux_obs
+
+    # Line only in the two nearest bands: the corner approach.
+    v = _lf_aux_obs(_lf_frame([32, 32, None, None]))
+    assert list(v[4:8]) == [1.0, 1.0, -1.0, -1.0], "absent bands flagged -1"
+    assert v[2] == 0.0 and v[3] == 0.0, "absent bands report offset 0"
+
+    # A line drifting right with distance is a non-zero heading, and the sign
+    # must follow the drift direction rather than being magnitude-only.
+    right = _lf_aux_obs(_lf_frame([32, 40, 48, 56]))
+    left = _lf_aux_obs(_lf_frame([32, 24, 16, 8]))
+    assert right[8] > 0.1 and left[8] < -0.1
+    assert right[8] == pytest.approx(-left[8], abs=0.05)
+
+
+def test_line_follower_policy_space_is_dict_and_ppo_accepts_it():
+    """The whole point: SB3 must build a MultiInputPolicy on this space."""
+    from gymnasium import spaces
+    import stable_baselines3 as sb3
+
+    from gazebo_gymnasium_bridge.envs.obs_wrap import is_dict_image_space
+
+    spec = get_spec("line_follower")
+    ps = spec.policy_observation_space
+    assert isinstance(ps, spaces.Dict) and set(ps.spaces) == {"image", "track"}
+    assert is_dict_image_space(ps)
+    # observation_space itself stays the bare frame, so reward_fn/terminated_fn
+    # and every existing caller keep working unchanged.
+    assert spec.observation_space.shape == (64, 64, 3)
+    assert sb3.PPO is not None

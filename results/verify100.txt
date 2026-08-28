@@ -1,0 +1,10 @@
+=== labeled verification 2026-08-26T07:33:50-04:00 ===
+lr2e-5_s0:ck_200000_steps.zip -> EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=5 solved=32/40 (80.0%) median_term_step=300
+lr2e-5_s1:ck_200000_steps.zip -> EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=5 solved=36/40 (90.0%) median_term_step=300
+lr5e-5_s0:ck_200000_steps.zip -> EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=5 solved=39/40 (97.5%) median_term_step=300
+lr5e-5_s1:ck_200000_steps.zip -> EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=5 solved=28/40 (70.0%) median_term_step=300
+lr2e-5_s0:ck_100000_steps.zip -> EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=5 solved=29/40 (72.5%) median_term_step=300
+lr2e-5_s1:ck_100000_steps.zip -> EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=5 solved=36/40 (90.0%) median_term_step=300
+lr5e-5_s0:ck_100000_steps.zip -> EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=5 solved=38/40 (95.0%) median_term_step=300
+lr5e-5_s1:ck_100000_steps.zip -> EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=5 solved=34/40 (85.0%) median_term_step=300
+=== verification done 2026-08-26T07:43:53-04:00 ===

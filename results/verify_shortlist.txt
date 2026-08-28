@@ -1,0 +1,6 @@
+=== shortlist verification 2026-08-26T09:42:39-04:00, 10 rounds x 8 agents = 80 episodes, idle machine ===
+VERIFY80 models/.phase5_lr3e-5_s0_trial_3_ckpts/ck_180000_steps.zip -> 74/80 (92.5%)
+VERIFY80 models/.phase5_lr3e-5_s0_trial_3_ckpts/ck_120000_steps.zip -> 78/80 (97.5%)
+VERIFY80 models/.phase5_lr3e-5_s0_trial_3_ckpts/ck_100000_steps.zip -> 74/80 (92.5%)
+VERIFY80 models/.phase5_lr5e-5_s0_trial_3_ckpts/ck_200000_steps.zip -> 77/80 (96.2%)
+=== shortlist done 2026-08-26T09:52:00-04:00 ===

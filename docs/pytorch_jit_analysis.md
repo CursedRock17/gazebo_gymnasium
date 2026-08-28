@@ -6,9 +6,9 @@ GPU with bigger networks.**
 ## What "JIT" means here
 
 PyTorch has two compilation paths:
-- **TorchScript** (`torch.jit.trace` / `torch.jit.script`) — older, deprecated
+- **TorchScript** (`torch.jit.trace` / `torch.jit.script`): older, deprecated
   for new code as of PyTorch 2.4+.
-- **`torch.compile`** — modern (PyTorch 2.0+), uses TorchDynamo + Inductor.
+- **`torch.compile`**: modern (PyTorch 2.0+), uses TorchDynamo + Inductor.
   Replaces TorchScript for almost all use cases.
 
 This note covers both as candidates for our SB3 training loop.
@@ -27,7 +27,7 @@ SB3's default MLP policies for the envs we currently train:
 | Line Follower | PPO | 64×64 | 64×64 | ~5 K |
 
 All sit in the **single-millisecond forward-pass regime on CPU.** A
-typical 64×64 ReLU MLP takes ~50–200 µs per inference call on a modern
+typical 64×64 ReLU MLP takes ~50 to 200 µs per inference call on a modern
 x86 core.
 
 ## Why JIT doesn't help here
@@ -39,10 +39,10 @@ x86 core.
    worth a 5-second graph-compile cost on first call.
 
 2. **SB3 already uses `torch.no_grad()`** for prediction and doesn't
-   recompile every step — the eager mode is already pretty efficient
+   recompile every step; the eager mode is already pretty efficient
    for tiny models.
 
-3. **`torch.compile` shines on GPU with big batches** — our biggest
+3. **`torch.compile` shines on GPU with big batches**: our biggest
    training batch (TD3 with batch_size=256, 256×256 network) is roughly
    33 K MACs per element × 256 = 8 M MACs per forward. Modern CPUs do
    that in microseconds. There's no compile win to grab.
@@ -58,10 +58,10 @@ on CPU**:
 
 | Configuration | Speedup vs eager |
 |--------------|------------------|
-| `torch.jit.trace` on 64×64 MLP | 1.0–1.1× |
-| `torch.compile(mode="default")` on 64×64 MLP | 1.0–1.2× (after warm-up) |
-| `torch.compile(mode="reduce-overhead")` on CartPole policy | 1.1–1.3× |
-| Eager mode on GPU (CUDA) for same model | ~5–10× over CPU |
+| `torch.jit.trace` on 64×64 MLP | 1.0-1.1× |
+| `torch.compile(mode="default")` on 64×64 MLP | 1.0-1.2× (after warm-up) |
+| `torch.compile(mode="reduce-overhead")` on CartPole policy | 1.1-1.3× |
+| Eager mode on GPU (CUDA) for same model | ~5-10× over CPU |
 
 The biggest win in the chart is **switching to GPU**, not adding JIT.
 For users with CUDA, `GAZEBO_GYM_DEVICE=cuda` is the lever.

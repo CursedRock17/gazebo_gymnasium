@@ -12,23 +12,39 @@ this document only lists what's project-specific.
 # Build the workspace
 pixi run build
 
-# Full test suite — functional + stress + the three ament linters
+# Auto-format every project .py file in place (ruff format, config in
+# pyproject.toml; run this before the checks below, not after — it's a
+# formatter, not a checker). Also applies auto-fixable lint findings
+# (import order, etc.).
+pixi run format
+
+# Full test suite — functional + stress + lint
 pixi run test
 
-# Just the linters (flake8 + pep257 + copyright headers)
+# Just the lint checks (ruff check + ruff format --check + copyright headers)
 pixi run lint
+
+# Static type check (ty, config in pyproject.toml's [tool.ty.rules] --
+# not wired into `pixi run test` yet, run it separately)
+pixi run typecheck
 ```
 
-`scripts/lint.sh` wraps the three ament linters with project-specific
-config:
+Python style/lint runs through [Ruff](https://docs.astral.sh/ruff/) (`test_ruff.py`),
+configured in `pyproject.toml`'s `[tool.ruff]` to mirror
+[Google's Python style guide](https://google.github.io/styleguide/pyguide.html):
+99-character lines, double quotes, one imported name per `from` line,
+alphabetized import groups (stdlib → third-party → first-party), and the
+Google docstring convention. It replaces the former `flake8` + `ament_pep257`
++ `yapf` trio (and `scripts/lint.sh`, which wrapped the old ament linters
+directly — no longer the canonical entry point; use `pixi run lint`).
+[ty](https://docs.astral.sh/ty/) adds static type checking on top,
+currently permissive (see `pyproject.toml`'s comments for why — this
+codebase has no type annotations yet and its heaviest dependencies are
+stub-incomplete) rather than blocking on every finding.
 
-- `ament_flake8.ini` overrides the bundled config to permit double quotes
-  (modern Python convention; ament defaults to single).
-- `ament_pep257` is invoked with `--add-ignore` for D212/D213 (we use
-  first-line docstring summaries, per PEP 257) and the D406-D415 section
-  rules (we don't use Google/NumPy section docstrings).
-- `ament_copyright` checks every project Python file has an Apache-2.0
-  header.
+`ament_copyright` still checks every project Python file has an
+Apache-2.0 header (`test_copyright.py`) — unrelated to style/lint, no
+Ruff equivalent, left as-is.
 
 If you add a new Python file, run `pixi run python
 scripts/add_license_headers.py` once to prepend the standard header (the
@@ -40,12 +56,14 @@ All tests must pass before review. CI runs `colcon test` on every PR.
 
 ### Python (most of the codebase)
 
-- **PEP 8 / PEP 257** via `flake8` and `ament_pep257`. The existing
-  `test_flake8.py` and `test_pep257.py` enforce this — don't disable them.
-- **88-character line limit** (matches black's default; ROS 2 default is 99
-  but we use 88 to keep the code readable in side-by-side diffs).
+- **PEP 8 / PEP 257** plus [Google's Python style guide](https://google.github.io/styleguide/pyguide.html),
+  both enforced by Ruff (`pyproject.toml`'s `[tool.ruff]`). `test_ruff.py`
+  enforces this — don't disable it.
+- **99-character line limit**, matching the ROS 2 Developer Guide default
+  (`pyproject.toml`'s `[tool.ruff] line-length` is the source of truth).
 - **Imports**: standard library → third-party → first-party, each group
-  separated by a blank line. `gz.*` and `gymnasium` are third-party.
+  separated by a blank line, alphabetized within each group (Google's
+  import-order style — `gz.*` and `gymnasium` are third-party).
 - **Type hints**: encouraged on public APIs (env constructors, plugin
   configure methods); not required everywhere.
 - **Docstrings**: every public class and module gets one. Single-line for

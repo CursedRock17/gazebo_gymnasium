@@ -126,6 +126,15 @@ class AgentSpec:
     # across the training population, but any one agent sees only the one
     # shape it originally drew for its whole lifetime.
     track_shape_reset_randomization: bool = False
+    # Redraw a spawn pose up to this many times when the drawn one is
+    # already terminal -- e.g. track_shape_reset_randomization landing the
+    # rover where its camera sees no line at all, which makes the episode
+    # unwinnable from step 1 rather than hard. Measured on line_follower:
+    # ~1% of resets spawn blank, and every one of those died at step 1,
+    # which accounted for essentially all of a 97.5% policy's residual
+    # failures. 0 (default) keeps the old behavior: take whatever is drawn.
+    # Validity reuses terminated_fn, so any spec gets this for free.
+    spawn_redraw_attempts: int = 0
     # If True the whole model's world pose is restored to its spawn pose on
     # reset (mobile bases aren't world-pinned, so joint resets alone won't
     # bring them home).
@@ -231,8 +240,73 @@ class AgentSpec:
     # randomization lives (e.g. a small random initial pole angle), since ECM
     # reset_position sets the joint coordinate directly.
     reset_joint_state: Optional[Callable] = None
+    # Auxiliary observation for image specs: a compact feature vector computed
+    # from the SAME frame the policy sees, concatenated alongside the image as
+    # a Dict observation ({"image": ..., "track": ...}, MultiInputPolicy).
+    #
+    # This exists because a CNN reading raw 64x64 pixels has to rediscover
+    # quantities a classical line follower simply measures -- lateral error,
+    # line angle, curvature, whether there is any track ahead. Handing them
+    # over directly is what every classical implementation does, and all of
+    # them are computable on the deployment laptop from the same JPEG, so
+    # nothing here is privileged simulator state.
+    #
+    # aux_obs_fn(policy_visible_frame) -> float32 vector of length aux_obs_dim,
+    # each element expected in [-1, 1]. Deliberately fed the AUGMENTED frame,
+    # not the ground-truth one: on real hardware these features come off a
+    # compressed, auto-exposed image, so they should be degraded in sim too.
+    aux_obs_fn: Optional[Callable] = None
+    aux_obs_dim: int = 0
+    # Hard per-joint command ceiling, applied by HarnessCore.apply_actions
+    # AFTER action_gain_randomization scales the command. action_to_commands
+    # can only bound what the POLICY asks for; gain DR (and, on the harness
+    # backend, anything else that scales a command downstream) can push the
+    # result back outside the band the real hardware can execute. This clamps
+    # the value that actually reaches the joint. Maps joint name -> max
+    # absolute command in that joint's own units (rad/s for "velocity", N or
+    # N*m for "force"). Empty = unclamped, the behavior every other spec has.
+    command_limits: dict = field(default_factory=dict)
+
+    @property
+    def actuated_joints(self):
+        """Joint names this spec commands, in action_to_commands order.
+
+        Probed by calling action_to_commands on a zero action, which every
+        mapping in this module tolerates. Empty when the spec is not
+        ECM-actuatable.
+        """
+        if self.action_to_commands is None:
+            return ()
+        try:
+            probe = np.zeros(int(np.prod(self.action_space.shape)), dtype=float)
+            return tuple(jn for jn, _mode, _v in self.action_to_commands(probe))
+        except Exception:  # noqa: B902 - a spec that cannot be probed has none
+            return ()
+
+    @property
+    def policy_observation_space(self):
+        """The space the POLICY sees: Dict when aux_obs_fn is configured.
+
+        `observation_space` stays the raw per-frame space so reward_fn,
+        terminated_fn and every existing caller keep working unchanged.
+        """
+        if self.aux_obs_fn is None or self.aux_obs_dim <= 0:
+            return self.observation_space
+        return spaces.Dict(
+            {
+                "image": self.observation_space,
+                "track": spaces.Box(
+                    low=-1.0, high=1.0, shape=(self.aux_obs_dim,), dtype=np.float32
+                ),
+            }
+        )
 
     def __post_init__(self):
+        if self.aux_obs_fn is not None and self.image_obs is None:
+            raise ValueError(
+                f"AgentSpec({self.name!r}): aux_obs_fn is only supported "
+                f"alongside an image observation"
+            )
         if self.image_obs is not None:
             if tuple(self.observation_space.shape) != tuple(self.image_obs):
                 raise ValueError(
@@ -325,6 +399,99 @@ def proportional_velocities(joints, speeds):
     def _cmds(action):
         a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0), len(joints))
         return [(j, "velocity", float(a[i] * s[i])) for i, j in enumerate(joints)]
+
+    return _cmds
+
+
+def clamped_velocities(joints, v_max, v_min=0.0, deadzone=0.0, reverse=True):
+    """Map a Box(-1,1) action onto a velocity band the hardware can execute.
+
+    ``proportional_velocities`` scales the action linearly onto plus/minus
+    ``v_max``, which lets a policy spend most of its action range commanding
+    speeds a real motor cannot hold, and spend half of it driving backwards.
+    Two modes here, both bounded by ``v_max``:
+
+    ``reverse=True`` maps onto {0} U +/-[v_min, v_max], keeping zero as a
+    real stop and both directions available::
+
+        |a| <  deadzone  ->  0
+        |a| >= deadzone  ->  sign(a) * (v_min + |a|*(v_max-v_min))
+
+    ``reverse=False`` maps the WHOLE action range onto [v_min, v_max]
+    forward, with no stop and no reverse at all::
+
+        a -> v_min + (a+1)/2 * (v_max - v_min)
+
+    which is the right shape for a wheel that only ever needs to drive one
+    way. It also makes creeping and back-and-forth shuffling physically
+    unreachable rather than merely lower-scoring -- see
+    docs/examples/line_follower.md. ``deadzone`` is ignored when
+    ``reverse=False`` (there is no zero to sit in).
+
+    ``v_min=0``, ``deadzone=0``, ``reverse=True`` reduces exactly to
+    ``proportional_velocities``.
+    """
+    joints = tuple(joints)
+    hi = np.resize(np.asarray(v_max, dtype=float), len(joints))
+    lo = np.resize(np.asarray(v_min, dtype=float), len(joints))
+    if np.any(lo < 0.0) or np.any(hi <= 0.0) or np.any(lo >= hi):
+        raise ValueError(f"clamped_velocities: need 0 <= v_min < v_max (got {v_min}, {v_max})")
+
+    def _cmds(action):
+        a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0), len(joints))
+        if reverse:
+            mag = np.abs(a)
+            v = np.where(mag < deadzone, 0.0, np.sign(a) * (lo + mag * (hi - lo)))
+        else:
+            v = lo + 0.5 * (a + 1.0) * (hi - lo)
+        return [(j, "velocity", float(v[i])) for i, j in enumerate(joints)]
+
+    return _cmds
+
+
+def mean_forward_velocities(joints, v_max, v_min):
+    """Differential-drive map whose MEAN wheel speed is always forward.
+
+    Each wheel is commanded over the full symmetric range ``[-v_max, v_max]``,
+    then the pair is projected onto ``mean(v) >= v_min`` by shifting both
+    wheels equally. The shift preserves the sum, so any excess above
+    ``v_max`` on one wheel is handed to the other rather than clipped away,
+    and the mean lands exactly on ``v_min`` instead of somewhere below it.
+
+    This forbids exactly the behavior that needs forbidding and nothing more.
+    Net creeping and back-and-forth shuffling are unreachable, because both
+    require a mean below ``v_min``. A tight corner pivot stays reachable,
+    because one wheel may still reverse as long as the other more than pays
+    for it.
+
+    ``clamped_velocities(reverse=False)`` is the stricter version, holding
+    EACH wheel above ``v_min``. That also removes shuffling, but it caps the
+    turn radius at ``(sep/2)*(v_max+v_min)/(v_max-v_min)``, which measured out
+    at 0.12 m for the rover: wider than the corner it had to take (see
+    docs/examples/line_follower.md, "The Corner Was The Wall"). Constraining
+    the mean instead drops the reachable radius to about 0.02 m.
+    """
+    joints = tuple(joints)
+    if len(joints) != 2:
+        raise ValueError(f"mean_forward_velocities needs exactly 2 joints, got {joints}")
+    v_max, v_min = float(v_max), float(v_min)
+    if not 0.0 <= v_min < v_max:
+        raise ValueError(f"mean_forward_velocities: need 0 <= v_min < v_max ({v_min}, {v_max})")
+
+    def _cmds(action):
+        a = np.resize(np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0), 2)
+        v = a * v_max
+        shortfall = v_min - 0.5 * (v[0] + v[1])
+        if shortfall > 0.0:
+            v = v + shortfall  # equal shift: raises the mean, keeps the turn
+            # Re-cap without losing the sum: whatever one wheel cannot take,
+            # the other absorbs. Reachable because the mean is at most v_min
+            # here, so the pair together always has room under 2*v_max.
+            for hi, lo in ((0, 1), (1, 0)):
+                excess = v[hi] - v_max
+                if excess > 0.0:
+                    v[hi], v[lo] = v_max, v[lo] + excess
+        return [(j, "velocity", float(v[i])) for i, j in enumerate(joints)]
 
     return _cmds
 
@@ -781,46 +948,296 @@ def _ant_spec() -> AgentSpec:
 # --------------------------------------------------------------------------- #
 
 _LF_IMAGE = (64, 64, 3)
-_LF_WHEEL_SPEED = 15.0  # rad/s full scale (~0.5 m/s at r=0.034)
+# Hardware units are authoritative here: the firmware talks m/s and converts
+# with WHEEL_DIAMETER_M, so the speed band is DEFINED in m/s and the joint
+# commands are derived from it, not the other way around. Getting this
+# backwards is how the sim and the rover end up disagreeing about what an
+# action means.
+#
+# 0.035 m = the firmware's WHEEL_DIAMETER_M/2. The CAD wheel's own inertia
+# implies 0.0343 (r = sqrt(2*Izz/m)), a 2 percent disagreement between the
+# drawing and the measured part; the measured one wins, because it is what
+# the rover actually converts commands with.
+_LF_WHEEL_RADIUS = 0.035
+# Speed band the PHYSICAL rover can actually execute, converted to wheel rad/s
+# here (the firmware talks m/s). See docs/examples/line_follower.md,
+# "Speed Range And Motor Response", for where each number comes from.
+#
+#   _LF_WHEEL_SPEED      0.51 m/s -- full scale. Unchanged; every shipped
+#                        checkpoint was trained at it, and it leaves ~2x
+#                        headroom under the caster-pop limit below.
+#   _LF_WHEEL_SPEED_MIN  0.10 m/s -- the slowest wheel speed this spec will
+#                        command. The firmware's own hard floor is lower
+#                        (0.013 m/s: below that FLOOR_ENABLE_TICKS=2 counts
+#                        per 50 ms tick at ENCODER_CPR_WHEEL=680 means the
+#                        PWM floor never engages and the wheel produces no
+#                        motion at all), but that gate is a control-law
+#                        threshold, not a measurement of stiction under load,
+#                        and a floor that low leaves room to creep. 0.10 m/s
+#                        is set for the TRAINING reason below instead, and
+#                        sits comfortably above the firmware gate.
+#   _LF_WHEEL_SPEED_POP  1.0 m/s -- the front caster lifts past this, the
+#                        driven wheels lose contact, and encoder counts stop
+#                        tracking ground distance. Hard ceiling, enforced
+#                        post-gain via AgentSpec.command_limits.
+_LF_SPEED_MAX_MPS = 0.50  # full scale
+_LF_SPEED_MIN_MPS = 0.10  # slowest this spec will command
+_LF_SPEED_POP_MPS = 1.00  # front caster lifts past this
+_LF_WHEEL_SPEED = _LF_SPEED_MAX_MPS / _LF_WHEEL_RADIUS  # ~14.29 rad/s
+_LF_WHEEL_SPEED_MIN = _LF_SPEED_MIN_MPS / _LF_WHEEL_RADIUS  # ~2.86 rad/s
+_LF_WHEEL_SPEED_POP = _LF_SPEED_POP_MPS / _LF_WHEEL_RADIUS  # ~28.6 rad/s
+# Forward-only actuation. A line follower never needs to reverse, and the real
+# rover's task is to complete the track, so both wheels are held in
+# [_LF_WHEEL_SPEED_MIN, _LF_WHEEL_SPEED] and the policy steers purely by the
+# difference between them. This is a deliberate task change, made because
+# "solved" was being won by not driving: on the 2026-08-26 measurement every
+# checkpoint reversed 38-45% of its steps and the BEST-scoring one covered the
+# LEAST ground (1.08 m of wheel travel, vs 4.68 m for the earliest policy).
+# terminated_fn fires only on line loss, so creeping was always safe and
+# committing to speed always risked ending the episode. Weighting forward
+# motion higher in the reward did not fix that, and an action-magnitude
+# penalty collapsed the policy outright. Removing reverse from the action
+# space makes shuffling unreachable instead of merely unattractive.
+# Consequence to watch: the tightest reachable turn radius is now
+# (wheel_sep/2)*(v_max+v_min)/(v_max-v_min) = ~0.12 m, so a sharp corner has
+# to be taken as an arc rather than a pivot.
+_LF_ALLOW_REVERSE = False
 _LF_DARK = 60  # a pixel is "line" when max(R,G,B) < this
 
 
-def _lf_line_centroid(img):
-    """Return the x-centroid (0..1) of dark pixels in the lower half, or None."""
+def _lf_band_centroid(img, y0, y1):
+    """x-centroid (0..1) of dark pixels in rows [y0, y1) of `img`, or None."""
     img = np.asarray(img)
-    bottom = img[img.shape[0] // 2 :, :, :]
-    mask = bottom.max(axis=2) < _LF_DARK
+    band = img[y0:y1, :, :]
+    mask = band.max(axis=2) < _LF_DARK
     if not mask.any():
         return None
     xs = np.nonzero(mask)[1]
-    return float(xs.mean()) / (bottom.shape[1] - 1)
+    return float(xs.mean()) / (band.shape[1] - 1)
+
+
+def _lf_line_centroid(img):
+    """Return the x-centroid (0..1) of dark pixels in the lower half, or None.
+
+    The near field: ground roughly under the rover's nose. This drives both
+    the centering reward and termination.
+    """
+    return _lf_band_centroid(img, np.asarray(img).shape[0] // 2, None)
+
+
+# Number of horizontal scan bands the frame is split into, nearest first.
+# Sampling several rows at different distances rather than one aggregate blob
+# is the standard camera line-follower feature: one row gives position only,
+# several give position, heading AND curvature, which is what lets a tracker
+# see a corner before it arrives.
+_LF_SCAN_BANDS = 4
+# Curvature (in normalized-offset units per band) treated as "as sharp as it
+# gets" when regulating speed. Beyond this the speed cap is fully damped.
+#
+# MEASURED on this track, not chosen: driving the straight reads a median
+# |curvature| of 0.091, and the 90 degree corner peaks at 0.551 (p90 across a
+# whole episode is 0.419). 0.5 therefore puts the corner at essentially full
+# damping while leaving straights almost untouched (straightness 0.82, cap
+# 0.85). The initial guess of 1.0 left the cap at 0.56 through the corner,
+# which is barely a gate at all -- and the policy duly charged the corner at
+# full throttle and overshot to 0.27 m outside the track.
+_LF_CURVATURE_FULL = 0.5
+
+
+def _lf_track_features(img):
+    """Classical line-tracker features from horizontal scan bands.
+
+    Returns ``(offsets, cross_track, heading, curvature, ahead_visible)``.
+
+    ``offsets`` holds one signed offset per band, nearest band first, each in
+    [-1, 1] with 0 centred, and None where that band sees no line.
+
+    * ``cross_track`` is the nearest band's offset: the classical lateral
+      error, the same quantity the old single-centroid reward used.
+    * ``heading`` approximates the line's angle in frame, as the difference
+      between the furthest and nearest visible offsets. A pure lateral
+      controller cannot distinguish "centred and parallel" from "centred and
+      about to leave", which is exactly the case that was killing this spec;
+      Stanley-style tracking adds this second term for that reason.
+    * ``curvature`` is the second difference across bands: how much the line
+      bends within the field of view. Used to regulate speed.
+    * ``ahead_visible`` is whether the furthest band sees any line at all.
+    """
+    img = np.asarray(img)
+    h = img.shape[0]
+    step = h // _LF_SCAN_BANDS
+    offsets = []
+    for b in range(_LF_SCAN_BANDS):  # nearest band first: bottom of the frame
+        y1 = h - b * step
+        c = _lf_band_centroid(img, y1 - step, y1)
+        offsets.append(None if c is None else 2.0 * (c - 0.5))
+
+    seen = [(i, o) for i, o in enumerate(offsets) if o is not None]
+    cross = offsets[0]
+    heading = 0.0
+    curvature = 0.0
+    if len(seen) >= 2:
+        heading = seen[-1][1] - seen[0][1]
+    if len(seen) >= 3:
+        # Second difference over the three furthest-apart visible bands.
+        (_, a), (_, b_), (_, c_) = seen[0], seen[len(seen) // 2], seen[-1]
+        curvature = c_ - 2.0 * b_ + a
+    return offsets, cross, heading, curvature, offsets[-1] is not None
+
+
+def _lf_lookahead_centroid(img):
+    """Same, for the UPPER half: the track the rover is about to reach.
+
+    Measured 2026-08-27, driving a straight into a 90 degree corner: the lower
+    half's centroid sits at 0.41 to 0.52 -- dead centre -- for the entire
+    approach, right up to the step the episode terminates. It carries no
+    warning at all, because the line does not exit sideways, it recedes and
+    shrinks straight ahead. The upper half reads 0.874 a full 20 steps (one
+    second) earlier and decays toward 0.5 as the corner leaves the field of
+    view, so the signal is strongest earliest.
+
+    Note that the FULL-frame centroid is useless for this: 0.41 and 0.87
+    average to 0.50 and cancel exactly. The two bands have to stay separate.
+    """
+    return _lf_band_centroid(img, 0, np.asarray(img).shape[0] // 2)
+
+
+# Reward. Shape taken from classical line following and from published
+# vision-based driving RL, not invented here; see
+# docs/examples/line_follower.md, "What Classical Line Followers Do".
+#
+# The reward is MULTIPLICATIVE in speed:
+#
+#     r = (v / v_max) * (w_cross * quality_cross + w_heading * quality_heading)
+#
+# Every term is gated on actually moving, so standing still scores ~0 no
+# matter how beautifully the line is centred. That structure is deliberate and
+# was arrived at the hard way. An earlier version of this reward added its
+# terms instead of multiplying, which handed out 1.75 per step for merely
+# keeping the line in view: creeping at v_min for the full 600-step episode
+# paid ~1050 while driving hard and losing the line at the first corner paid
+# ~165, so the optimal policy was to barely move. Measured, not hypothesised
+# -- that reward trained to a median episode of 257 steps covering 1.28 m,
+# which is 0.10 m/s, exactly the floor. It is the same alive-bonus local
+# optimum ROADMAP.md records for Ant, and adding survival terms to a reward
+# whose episode ends on failure will reproduce it every time.
+#
+# Kendall et al., "Learning to Drive in a Day" (arXiv:1807.00412), use
+# forward speed alone as the reward with termination on infraction, for
+# exactly this reason. The two quality terms here only shape HOW the distance
+# is earned; they can never pay for standing still.
+#
+#   cross    the nearest scan band's lateral error. The original reward was
+#            this alone (plus an unconditional speed term), and it is provably
+#            blind to a corner: measured driving a straight into a 90 degree
+#            turn, it reads 0.41-0.52, dead centre, for the whole approach and
+#            right up to the terminating step.
+#   heading  the line's angle across the scan bands -- the second term a
+#            Stanley controller adds to a pure lateral controller, and what
+#            separates "centred and parallel" from "centred and about to
+#            leave". On that same run the far band reads 0.874 a full second
+#            before the near band notices anything.
+#
+# Speed reward is CAPPED by how straight the track ahead is -- Regulated Pure
+# Pursuit's curvature heuristic, expressed as a reward.
+#
+# This gate was removed on 2026-08-28 on the argument that termination already
+# supplies the pressure: entering a corner too fast ends the episode, which a
+# ~100-step discount horizon can see. Measured, that argument is wrong. The
+# policy enters the corner at [+1.00, +1.00], full speed, and only begins
+# steering 4 steps before it dies, by which point it is committed to a 0.39 m
+# turn radius against a corner needing 0.12 m. It overshoots to 0.27 m outside
+# the track. It corners -- it just refuses to slow down for one, because every
+# step it slows costs immediate reward and the payoff is 10+ steps away.
+#
+# The cap removes the INCENTIVE to charge without paying for standing still:
+#
+#     cap = v_min_frac + (1 - v_min_frac) * straightness
+#     r   = quality * min(speed_frac, cap)
+#
+# On a straight (straightness 1) the cap is 1.0 and nothing changes. In a
+# sharp corner (straightness 0) the cap falls to v_min_frac, so full throttle
+# earns exactly what crawling earns and the rover may as well slow down.
+# Creeping stays punished everywhere, because `min` still takes speed_frac
+# when the rover is slower than the cap.
+_LF_SPEED_FRAC_MIN = _LF_WHEEL_SPEED_MIN / _LF_WHEEL_SPEED
+# Auxiliary observation layout, all in [-1, 1], nearest band first:
+#   [0:4]  per-band lateral offset (0.0 where that band sees no line)
+#   [4:8]  per-band visibility flag (1.0 seen, -1.0 not)
+#   [8]    heading: line angle across the bands
+#   [9]    curvature: how much the line bends within the field of view
+#
+# Every one of these is computable on the deployment laptop from the same
+# camera frame, so none of it is privileged simulator state. Handing the CNN
+# the quantities a classical tracker measures directly, rather than making it
+# rediscover them from 64x64 pixels, is what every classical implementation
+# does; see docs/examples/line_follower.md.
+_LF_AUX_DIM = 10
+
+
+def _lf_aux_obs(img):
+    """Scan-band feature vector for the policy, from the frame IT sees."""
+    offsets, _cross, heading, curvature, _ahead = _lf_track_features(img)
+    out = np.zeros(_LF_AUX_DIM, dtype=np.float32)
+    for i, o in enumerate(offsets[:_LF_SCAN_BANDS]):
+        out[i] = 0.0 if o is None else np.clip(o, -1.0, 1.0)
+        out[_LF_SCAN_BANDS + i] = -1.0 if o is None else 1.0
+    out[2 * _LF_SCAN_BANDS] = np.clip(heading, -1.0, 1.0)
+    out[2 * _LF_SCAN_BANDS + 1] = np.clip(curvature, -1.0, 1.0)
+    return out
+
+
+_LF_W_CROSS = 0.6
+_LF_W_HEADING = 0.4
 
 
 def _lf_reward(obs, action):
-    c = _lf_line_centroid(obs)
-    if c is None:
+    _offsets, cross, heading, _curvature, ahead = _lf_track_features(obs)
+    if cross is None:
         return 0.0
     a = np.clip(np.asarray(action, dtype=float).ravel(), -1.0, 1.0)
-    centered = 1.0 - 2.0 * abs(c - 0.5)
-    forward = float(np.resize(a, 2).mean())  # same-sign commands = forward
-    # Weighted equally with centering (was 0.5x) -- a policy that centers
-    # the line by inching backward/forward should score worse than one that
-    # actually drives the track, not just tie or barely lose.
-    #
-    # An action-magnitude penalty was tried here 2026-08-25, motivated by a
-    # real diagnostic finding (every real failure on the eighth-strength DR
-    # checkpoint came from a saturating spin/full-throttle action in the
-    # first 1-3 steps after reset -- see docs/domain_randomization.md).
-    # Continuing the existing checkpoint under the new reward for 150k
-    # steps collapsed the policy outright (0/160, a tight near-deterministic
-    # failure-step pattern -- reward hacking against the new penalty term,
-    # not a fix). Reverted. The diagnostic finding itself still stands;
-    # only this specific fix attempt didn't work, at least not as a
-    # continuation from an already-many-times-continued checkpoint.
-    return float(centered + 1.0 * forward)
+
+    # The heading term pays only when there IS track in the furthest band to
+    # be aligned with. Without this it silently defaults to "perfectly
+    # aligned" the moment the lookahead empties, which is precisely the corner
+    # approach -- a frame with the line in the near bands and nothing beyond
+    # them scored 0.99 out of 1.0, identical to an unobstructed straight. An
+    # empty lookahead is the strongest corner cue available (the dark pixel
+    # count collapses 961 -> 9 over the 16 steps before termination), so it
+    # has to cost something.
+    q_cross = 1.0 - abs(cross)
+    q_heading = (1.0 - min(1.0, abs(heading))) if ahead else 0.0
+    quality = _LF_W_CROSS * q_cross + _LF_W_HEADING * q_heading
+    # Fraction of full scale the wheels are actually turning at. Uses the
+    # spec's own action mapping rather than assuming one, so it stays correct
+    # if the mapping changes: mean wheel speed over v_max, in [v_min/v_max, 1].
+    speeds = [v for _j, _m, v in _lf_action_to_commands(a)]
+    speed_frac = max(0.0, float(np.mean(speeds)) / _LF_WHEEL_SPEED)
+    straightness = 1.0 - min(1.0, abs(_curvature) / _LF_CURVATURE_FULL)
+    cap = _LF_SPEED_FRAC_MIN + (1.0 - _LF_SPEED_FRAC_MIN) * straightness
+    return float(min(speed_frac, cap) * quality)
 
 
-_lf_action_to_commands = proportional_velocities(("left_axle", "right_axle"), _LF_WHEEL_SPEED)
+_LF_WHEELS = ("left_axle", "right_axle")
+# Per-wheel forward-only, NOT the looser mean_forward_velocities.
+#
+# The mean-constrained map was tried on 2026-08-27 to buy a tighter turn
+# radius (0.02 m against this map's 0.12 m) and was reverted the same day, for
+# two measured reasons. Turn radius was not the binding constraint: distance
+# before failure stayed at ~1.4 m under BOTH maps, across every speed and gain
+# a hand-written controller could produce. And the pivot it unlocked is
+# unphysical -- one wheel at +0.51 m/s against the other at -0.31 m/s skids
+# and flings the chassis, which showed up as instantaneous ground speeds of
+# 1.5 to 2.95 m/s against a 1.0 m/s caster-pop limit, on wheels that can only
+# deliver 0.51. A 400k sweep scored worse under it (best 102.5 vs 113.4).
+# mean_forward_velocities is kept and tested for when the policy can see a
+# corner coming and a tight turn starts being worth its instability.
+_lf_action_to_commands = clamped_velocities(
+    _LF_WHEELS,
+    _LF_WHEEL_SPEED,
+    v_min=_LF_WHEEL_SPEED_MIN,
+    reverse=_LF_ALLOW_REVERSE,
+)
 
 
 def _lf_reset_joint_state(rng):
@@ -845,9 +1262,21 @@ def _line_follower_spec() -> AgentSpec:
         spawn_z=0.085,
         x_spacing=6.0,  # each agent gets its own ~2.4 m track loop
         frame_skip=5,
-        max_episode_steps=300,
+        # 600 steps = 30 s at the 20 Hz control rate. Raised from 300 on
+        # 2026-08-27 because surviving the cap WAS the success criterion, and
+        # at 300 steps a rover creeping at the v_min floor covered 1.5 m of a
+        # ~10 m loop and still "solved" -- the cap arrived before the first
+        # corner did. At 600 steps a full loop needs a 0.33 m/s average, which
+        # creeping cannot reach, so lasting the episode now costs real ground.
+        # Read alongside the distance bar in dr_eval.py's --solved-distance:
+        # the cap makes creeping insufficient, the distance bar makes driving
+        # necessary.
+        max_episode_steps=600,
         reset_model_pose=True,  # mobile base: restore chassis pose on reset
+        aux_obs_fn=_lf_aux_obs,
+        aux_obs_dim=_LF_AUX_DIM,
         action_to_commands=_lf_action_to_commands,
+        command_limits={j: _LF_WHEEL_SPEED_POP for j in _LF_WHEELS},
         reset_joint_state=_lf_reset_joint_state,
         # Sim-to-real DR (see docs/examples/line_follower.md). No
         # mass_randomization: this spec is velocity-actuated, and mass is
@@ -897,6 +1326,47 @@ def _line_follower_spec() -> AgentSpec:
         action_noise_randomization=0.00375,
         battery_discharge_randomization=0.0125,
         track_color_randomization=0.0125,
+        # Every episode must START on visible track. With
+        # track_shape_reset_randomization, a drawn spawn pose sits on a track
+        # segment but the camera can still see no line -- at a sharp corner
+        # the line curves out of frame. Measured 2026-08-26: ~1% of resets
+        # spawn blank, and every one died at step 1, which was essentially
+        # the entire residual failure rate of a 97.5% policy. Those episodes
+        # are unwinnable rather than hard, so they teach nothing during
+        # training and measure nothing during eval. Redrawing is the only
+        # place this can be checked: validity depends on what the camera
+        # renders, which is not knowable at world-build time.
+        spawn_redraw_attempts=5,
+    )
+
+
+def _line_follower_pivot_spec() -> AgentSpec:
+    """`line_follower` with the mean-forward action map instead of per-wheel.
+
+    Registered as an A/B variant rather than swapped in, so the two action
+    spaces can be trained and evaluated against each other without editing
+    the shipped spec out from under already-recorded results.
+
+    The difference is what a corner can be taken with. The shipped map holds
+    EACH wheel above v_min, capping the turn radius at ~0.12 m. This one
+    constrains only the MEAN of the two, so one wheel may reverse and the
+    reachable radius drops to ~0.02 m, while creeping stays unreachable
+    because creeping needs a low mean by definition.
+
+    Worth re-testing specifically because the reason it was dropped on
+    2026-08-27 turned out to be wrong. Its pivots looked unphysical (chassis
+    speeds of 1.5-2.95 m/s on wheels that deliver 0.50), but that was the
+    wheel COLLISIONS being spheres: a point contact with no resistance to yaw
+    about it. Cylinders fixed that. RoboCup Junior practice for 90 degree
+    corners is explicitly to reverse the inner wheel, which the shipped map
+    forbids outright.
+    """
+    return replace(
+        _line_follower_spec(),
+        name="line_follower_pivot",
+        action_to_commands=mean_forward_velocities(
+            _LF_WHEELS, _LF_WHEEL_SPEED, v_min=_LF_WHEEL_SPEED_MIN
+        ),
     )
 
 
@@ -910,6 +1380,7 @@ _SPEC_FACTORIES = {
     "reacher": _reacher_spec,
     "ant": _ant_spec,
     "line_follower": _line_follower_spec,
+    "line_follower_pivot": _line_follower_pivot_spec,
 }
 
 

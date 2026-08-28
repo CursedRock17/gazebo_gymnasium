@@ -1,0 +1,7 @@
+=== re-score with progress 2026-08-26T18:00:19-04:00, 8 agents x 5 rounds ===
+[multitrack-published] EVAL model=multitrack_lr5e5_200k_975.zip track_shapes=reset n=8 rounds=5 solved=39/40 (97.5%) median_term_step=300 median_net_m=0.66 median_path_m=1.08 forward_efficiency=61% reversing_frac=0.45
+[phase5-lr3e-5-120k] EVAL model=ck_120000_steps.zip track_shapes=reset n=8 rounds=5 solved=39/40 (97.5%) median_term_step=300 median_net_m=0.69 median_path_m=1.52 forward_efficiency=45% reversing_frac=0.44
+[multitrack-yesterday] EVAL model=multitrack_finetune.zip track_shapes=reset n=8 rounds=5 solved=1/40 (2.5%) median_term_step=100 median_net_m=0.76 median_path_m=2.07 forward_efficiency=37% reversing_frac=0.28
+[singletrack-solved] EVAL model=retrain_2026-08-21_45deg_ppo_n4_seed0_400k.zip track_shapes=off n=8 rounds=5 solved=38/40 (95.0%) median_term_step=300 median_net_m=1.63 median_path_m=4.68 forward_efficiency=35% reversing_frac=0.39
+[singletrack-eighthDR] EVAL model=eighth_finetune.zip track_shapes=off n=8 rounds=5 solved=37/40 (92.5%) median_term_step=300 median_net_m=1.28 median_path_m=2.96 forward_efficiency=43% reversing_frac=0.38
+=== re-score done 2026-08-26T18:03:41-04:00 ===

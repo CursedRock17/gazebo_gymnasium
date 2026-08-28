@@ -1,4 +1,4 @@
-# Verbose Debug + SB3 Logging — Coexistence Audit
+# Verbose Debug + SB3 Logging: Coexistence Audit
 
 ## What each side prints
 
@@ -52,7 +52,7 @@ With **default `GAZEBO_GYM_VERBOSE=true`**, an SB3 run produces roughly:
 | Every ~70 steps | `[EpisodeSummary]` | 1 |
 | Every 256 steps | SB3 table | ~14 |
 
-So per second you get ~145 `[CartPole]` lines and the SB3 table about every 2 seconds. The table is buried in the stream — not readable in real time, but `grep '|'` on a log file still finds it.
+So per second you get ~145 `[CartPole]` lines and the SB3 table about every 2 seconds. The table is buried in the stream, not readable in real time, but `grep '|'` on a log file still finds it.
 
 ## The fix: throttle env var
 
@@ -69,7 +69,7 @@ GAZEBO_GYM_VERBOSE_EVERY=50 ros2 launch gazebo_gymnasium_bringup cartpole_sb3.la
 ros2 launch gazebo_gymnasium_bringup cartpole_sb3.launch.py verbose:=false
 ```
 
-`[EpisodeSummary]` and `[PPOTrain]` lines are NOT throttled — they're already at the right cadence (one per episode and one per training step respectively).
+`[EpisodeSummary]` and `[PPOTrain]` lines are NOT throttled; they're already at the right cadence (one per episode and one per training step respectively).
 
 ## Recommendations by mode
 

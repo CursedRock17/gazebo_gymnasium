@@ -47,6 +47,31 @@ from gazebo_gymnasium_bridge.envs.agent_spec import TRACK_SHAPE_MODES
 
 _ALGOS = {"ppo": sb3.PPO, "a2c": sb3.A2C, "ddpg": sb3.DDPG, "sac": sb3.SAC}
 
+# The checks validate_rover.py reports, in the order it prints them.
+_CHECKS = ("camera", "forward", "speed")
+
+
+def linear_schedule(initial):
+    """SB3 schedule decaying `initial` linearly to 0 across training.
+
+    SB3 calls these with progress_remaining, which runs 1.0 -> 0.0.
+
+    The PPO paper anneals BOTH the Adam stepsize and the clipping parameter
+    this way for its vision experiments (Table 5: 2.5e-4*alpha and 0.1*alpha,
+    alpha linear 1 -> 0). This project has never used it, and its training
+    history is full of the failure that annealing exists to prevent: runs that
+    peak and then destroy themselves, including four independent seeds
+    regressing from 83.3% to 60/27/0/0, and a sweep winner that regressed when
+    extended. A constant stepsize late in training keeps taking full-size
+    steps on an already-good policy.
+    """
+    initial = float(initial)
+
+    def _schedule(progress_remaining: float) -> float:
+        return progress_remaining * initial
+
+    return _schedule
+
 
 def _sweep_agent_name(args):
     """Spec name this sweep actually trains (derived when randomizing tracks)."""
@@ -534,6 +559,44 @@ def _trial_model_path(out, idx):
     return Path(out).parent / f".{Path(out).stem}_trial_{idx}.zip"
 
 
+def _validate_trial(idx, args):
+    """Run validate_rover.py against one finished trial's model.
+
+    Its own subprocess, for the same reason every trial gets one: a camera env
+    can only be built once per process (gz-sim's render scene is a
+    process-wide singleton), and the orchestrator has already spent that slot
+    if it ever built one. Returns a one-line verdict.
+    """
+    model = _trial_model_path(args.out, idx)
+    if not model.exists():
+        return "SKIPPED (no model)"
+    out_json = args.out.parent / f".{args.out.stem}_trial_{idx}_validation.json"
+    cmd = [
+        sys.executable,
+        str(Path(__file__).with_name("validate_rover.py")),
+        "--agent",
+        args.agent,
+        "--n-agents",
+        str(min(args.n_agents, 4)),
+        "--track-shapes",
+        args.track_shapes,
+        "--model",
+        str(model),
+        "--seed",
+        str(args.seed),
+        "--json-out",
+        str(out_json),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+    except subprocess.TimeoutExpired:
+        return "ERROR (validation timed out)"
+    lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    verdicts = [ln.strip() for ln in lines if ln.strip().split(":")[0].strip() in _CHECKS]
+    summary = "; ".join(verdicts) if verdicts else (proc.stderr.strip()[-200:] or "no output")
+    return ("PASS " if proc.returncode == 0 else "FAIL ") + summary
+
+
 def run_trial(idx, cfg, args, writer):
     """Train one config; save its model to a temp per-trial path.
 
@@ -564,6 +627,19 @@ def run_trial(idx, cfg, args, writer):
     env, policy = wrap_for_observations(env)
     if args.lr is not None:
         cfg = dict(cfg, learning_rate=args.lr)
+    if args.gamma is not None:
+        cfg = dict(cfg, gamma=args.gamma)
+    if args.epochs is not None:
+        # Vision PPO in the paper uses 3 epochs (Table 5); this grid's 6-10
+        # come from the continuous-control setting (Table 3), which reuses each
+        # rollout far more aggressively than an image task should.
+        cfg = dict(cfg, n_epochs=args.epochs)
+    if args.anneal and args.algo in ("ppo",):
+        cfg = dict(
+            cfg,
+            learning_rate=linear_schedule(cfg["learning_rate"]),
+            clip_range=linear_schedule(args.clip_range),
+        )
     model = _ALGOS[args.algo](policy, env, verbose=0, seed=args.seed, **cfg)
     if args.init_from:
         # Fine-tune from a real checkpoint rather than fresh weights: a short
@@ -590,7 +666,13 @@ def run_trial(idx, cfg, args, writer):
         # then throws the good policy away. Keep periodic snapshots so the
         # best point can be recovered by eval instead of hoped for.
         ckpt_dir = Path(args.out).parent / f".{Path(args.out).stem}_trial_{idx}_ckpts"
-        cb = [cb, CheckpointCallback(args.checkpoint_every, str(ckpt_dir), name_prefix="ck")]
+        # SB3 counts save_freq in CALLS, and each call advances num_timesteps
+        # by n_envs -- so passing the raw value snapshots n_agents times less
+        # often than the flag name promises (with 4 agents, --checkpoint-every
+        # 20000 really saved every 80k steps). Divide so the flag means
+        # timesteps, which is what the filenames report.
+        every = max(1, args.checkpoint_every // max(1, args.n_agents))
+        cb = [cb, CheckpointCallback(every, str(ckpt_dir), name_prefix="ck")]
     t0 = time.perf_counter()
     model.learn(total_timesteps=args.timesteps, callback=cb)
     dt = time.perf_counter() - t0
@@ -648,6 +730,46 @@ def _build_parser():
         default=0,
         help="save a snapshot every N steps so a peak-then-regress run can be "
         "recovered (0 = final model only)",
+    )
+    p.add_argument(
+        "--anneal",
+        action="store_true",
+        help="decay learning rate AND clip range linearly to 0 over training, "
+        "as the PPO paper does for its vision experiments (Table 5). PPO only",
+    )
+    p.add_argument(
+        "--clip-range",
+        type=float,
+        default=0.1,
+        help="initial PPO clip range when --anneal is set (paper's vision "
+        "value is 0.1; SB3's unannealed default is 0.2)",
+    )
+    p.add_argument(
+        "--gamma",
+        type=float,
+        default=None,
+        help="override every config's discount. The default grid uses 0.98-0.99, "
+        "whose effective horizon is 50-100 steps; a lap of this track is ~444 "
+        "steps, so reward from completing it is discounted to ~0.007 and the "
+        "value function effectively cannot see the finish. Use 0.999 (horizon "
+        "1000) when the goal is completing the track rather than surviving the "
+        "next few seconds",
+    )
+    p.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="override every config's n_epochs (the paper uses 3 for vision, "
+        "10 for state-based continuous control)",
+    )
+    p.add_argument(
+        "--validate",
+        action="store_true",
+        help="after each trial, run validate_rover.py against its model: "
+        "camera pitched 45 degrees, rover actually advancing, and doing so at "
+        "a speed the hardware could execute. Reward alone sees none of these "
+        "(a creeping policy scores well), so a trial can win the sweep and "
+        "still fail here",
     )
     p.add_argument(
         "--best-out",
@@ -751,6 +873,9 @@ def main():
             args.track_shapes,
             *(["--init-from", args.init_from] if args.init_from else []),
             *(["--lr", str(args.lr)] if args.lr is not None else []),
+            *(["--epochs", str(args.epochs)] if args.epochs is not None else []),
+            *(["--gamma", str(args.gamma)] if args.gamma is not None else []),
+            *(["--anneal", "--clip-range", str(args.clip_range)] if args.anneal else []),
             *(["--checkpoint-every", str(args.checkpoint_every)] if args.checkpoint_every else []),
             "--out",
             str(args.out),
@@ -775,6 +900,7 @@ def main():
     else:
         results = [_run_trial_proc(idx) for idx in trial_indices]
 
+    validations = {}
     for idx, proc in results:
         for line in proc.stdout.splitlines():
             if line.startswith("[trial") or "final mean_ep_reward" in line:
@@ -803,6 +929,21 @@ def main():
         )
         if final is not None and final > best:
             best, best_idx = final, idx
+
+        if args.validate:
+            validations[idx] = _validate_trial(idx, args)
+
+    if validations:
+        print("\nValidation (camera 45 deg / forward motion / realistic speed):")
+        for idx in sorted(validations):
+            print(f"  trial {idx}: {validations[idx]}")
+        failed = [i for i, v in validations.items() if not v.startswith("PASS")]
+        if failed:
+            print(
+                f"  A high mean_ep_reward from trial(s) {failed} does NOT mean the "
+                f"rover drove the track -- see docs/examples/line_follower.md, "
+                f"'Verifying The Rover Actually Drives'."
+            )
 
     best_path = None
     if best_idx >= 0:
