@@ -1,0 +1,11 @@
+=== pipeline started 2026-08-26T00:38:12-04:00 ===
+--- continuations finished 2026-08-26T01:06:13-04:00 ---
+    -> final mean_ep_reward=43.8 (500000 steps in 3394s)
+    -> final mean_ep_reward=108.6 (500000 steps in 3041s)
+    -> final mean_ep_reward=68.0 (500000 steps in 3097s)
+    -> final mean_ep_reward=67.7 (500000 steps in 3141s)
+seed1 EVAL model=multitrack_cont_seed1.zip track_shapes=reset n=8 rounds=5 solved=24/40 (60.0%) median_term_step=300
+seed0 EVAL model=multitrack_cont_seed0.zip track_shapes=reset n=8 rounds=5 solved=11/40 (27.5%) median_term_step=5
+seed2 EVAL model=multitrack_cont_seed2.zip track_shapes=reset n=8 rounds=5 solved=0/40 (0.0%) median_term_step=39
+seed3 EVAL model=multitrack_cont_seed3.zip track_shapes=reset n=8 rounds=5 solved=0/40 (0.0%) median_term_step=38
+=== pipeline done 2026-08-26T01:07:40-04:00 ===

@@ -235,3 +235,12 @@ models/**/*.gif
 models/sweep_*.csv
 models/*_replay.*
 rosbags/
+
+# Training artifacts — checkpoints are large (8.5 GB / 1400+ zips as of
+# 2026-08-28) and reproducible from the sweep scripts, so they stay local.
+models/
+# Sweep/eval logs ARE tracked (results/*.log, results/*.sh, results/STATUS.md)
+# because they are the experimental record, but staged upload payloads are not.
+results/hf_upload/
+# Extracted AppImage, not project source.
+squashfs-root/

@@ -18,7 +18,7 @@ from gz.msgs10.world_control_pb2 import WorldControl
 from gz.transport13 import Node
 
 
-class WorldController():
+class WorldController:
     """Thin client over the /world/<name>/control service.
 
     Requests retry with short per-attempt timeouts so startup races (where the service hasn't been
@@ -36,9 +36,12 @@ class WorldController():
         self.steps_per_action = steps_per_action
         self.control_service_name = "/world/" + world_name + "/control"
 
-    def _send(self, request: WorldControl,
-              attempt_timeout_ms: int = DEFAULT_ATTEMPT_TIMEOUT_MS,
-              max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> bool:
+    def _send(
+        self,
+        request: WorldControl,
+        attempt_timeout_ms: int = DEFAULT_ATTEMPT_TIMEOUT_MS,
+        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    ) -> bool:
         """Send a WorldControl request, retrying until the service responds.
 
         Returns True on success, False if all attempts exhausted.
@@ -46,8 +49,8 @@ class WorldController():
         for _ in range(max_attempts):
             response = Boolean()
             result, response = self.world_control_node.request(
-                self.control_service_name, request, WorldControl, Boolean,
-                attempt_timeout_ms)
+                self.control_service_name, request, WorldControl, Boolean, attempt_timeout_ms
+            )
             if result:
                 return True
         return False

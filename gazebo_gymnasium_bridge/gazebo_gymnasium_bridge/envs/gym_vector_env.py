@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Native ``gymnasium.vector.VectorEnv`` over the N-in-one-sim engine.
 
 This exposes the efficient batched env (N agents in ONE Gazebo world) through
@@ -34,10 +33,11 @@ import numpy as np
 
 from .agent_spec import get_spec
 
-try:                                            # gymnasium >= 1.0
+try:  # gymnasium >= 1.0
     from gymnasium.vector import AutoresetMode
+
     _SAME_STEP = AutoresetMode.SAME_STEP
-except ImportError:                             # pragma: no cover
+except ImportError:  # pragma: no cover
     _SAME_STEP = "SameStep"
 
 
@@ -46,11 +46,11 @@ class GazeboVectorEnv(VectorEnv):
 
     def __init__(self, agent: str = "cartpole", num_envs: int = 8, **kwargs):
         from .inprocess_vec_env import InProcessHarnessVecEnv
+
         spec = get_spec(agent)
         kwargs.pop("n_agents", None)
         kwargs.pop("render_mode", None)
-        self._engine = InProcessHarnessVecEnv(
-            spec, n_agents=num_envs, autoreset=True, **kwargs)
+        self._engine = InProcessHarnessVecEnv(spec, n_agents=num_envs, autoreset=True, **kwargs)
 
         self.num_envs = num_envs
         self.single_observation_space = spec.observation_space
@@ -78,10 +78,9 @@ class GazeboVectorEnv(VectorEnv):
             truncations[i] = trunc
             terminations[i] = not trunc
             infos = self._add_info(
-                infos, {"final_obs": infos_list[i]["terminal_observation"]},
-                int(i))
-        return (obs, rewards.astype(np.float64), terminations, truncations,
-                infos)
+                infos, {"final_obs": infos_list[i]["terminal_observation"]}, int(i)
+            )
+        return (obs, rewards.astype(np.float64), terminations, truncations, infos)
 
     def render(self):
         return None

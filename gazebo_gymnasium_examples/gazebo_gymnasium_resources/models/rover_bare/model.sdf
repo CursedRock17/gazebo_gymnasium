@@ -306,16 +306,35 @@
         </material>
       </visual>
       <collision name='left_wheel_collision'>
+        <!-- Cylinder, not a sphere. The wheel link's frame has the axle along
+             its local Z (see the <axis> on left_axle), which is also the axis
+             an SDF <cylinder> is built around, so no extra pose is needed.
+             Radius 0.035 m = the firmware's WHEEL_DIAMETER_M/2, the number
+             the real rover converts m/s with; length 0.0265 m is the CAD
+             wheel's own width, recovered from its inertia tensor
+             (Ixx=(1/12)m(3r^2+h^2) with the CAD r=0.0343).
+
+             This was a sphere until 2026-08-28, which gave a POINT contact
+             with no resistance to yaw about it, so the chassis could slide
+             and spin nearly freely: full throttle produced ground speeds of
+             0.79-0.86 m/s from wheels that can only deliver 0.51, and hard
+             turns flung the rover to 1.5-2.95 m/s. A cylinder's line contact
+             generates the restoring moment a real tyre does.
+
+             Friction is isotropic at 1.0, roughly rubber on a hard floor.
+             The old anisotropic 1.2/0.8 split had no <fdir1>, so the two
+             directions were whatever the contact frame happened to be. -->
         <geometry>
-          <sphere>
-            <radius>0.034</radius>
-          </sphere>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.0265</length>
+          </cylinder>
         </geometry>
         <surface>
           <friction>
             <ode>
-              <mu>1.2</mu>
-              <mu2>0.8</mu2>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -366,16 +385,35 @@
         </material>
       </visual>
       <collision name='right_wheel_collision'>
+        <!-- Cylinder, not a sphere. The wheel link's frame has the axle along
+             its local Z (see the <axis> on right_axle), which is also the axis
+             an SDF <cylinder> is built around, so no extra pose is needed.
+             Radius 0.035 m = the firmware's WHEEL_DIAMETER_M/2, the number
+             the real rover converts m/s with; length 0.0265 m is the CAD
+             wheel's own width, recovered from its inertia tensor
+             (Ixx=(1/12)m(3r^2+h^2) with the CAD r=0.0343).
+
+             This was a sphere until 2026-08-28, which gave a POINT contact
+             with no resistance to yaw about it, so the chassis could slide
+             and spin nearly freely: full throttle produced ground speeds of
+             0.79-0.86 m/s from wheels that can only deliver 0.51, and hard
+             turns flung the rover to 1.5-2.95 m/s. A cylinder's line contact
+             generates the restoring moment a real tyre does.
+
+             Friction is isotropic at 1.0, roughly rubber on a hard floor.
+             The old anisotropic 1.2/0.8 split had no <fdir1>, so the two
+             directions were whatever the contact frame happened to be. -->
         <geometry>
-          <sphere>
-            <radius>0.034</radius>
-          </sphere>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.0265</length>
+          </cylinder>
         </geometry>
         <surface>
           <friction>
             <ode>
-              <mu>1.2</mu>
-              <mu2>0.8</mu2>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -393,10 +431,10 @@
     <!-- Forward-facing camera for vision-based control. Mounted ahead of
          the front caster (rover forward = -Y in base_link frame). The
          pose rotates the camera's +X optical axis to point along rover
-         -Y, then pitches it ~28° down so it sees the ground a short
+         -Y, then pitches it 45° down so it sees the ground a short
          distance ahead — where the line track lives. -->
     <link name="camera_link">
-      <pose relative_to="base_link">0 -0.15 0.05 0 0.5 -1.5708</pose>
+      <pose relative_to="base_link">0 -0.15 0.05 0 0.7854 -1.5708</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>
@@ -428,6 +466,17 @@
              speed (that's ~7 cm of travel per frame). Lower than 30 Hz
              halves the rendering cost, which is the dominant per-step
              expense once a camera enters the world. -->
+        <!-- 30 Hz. A 12.5 Hz camera is a real 2.3x faster (the env advances
+             80 ms of sim per step, so 30 Hz renders about 2.4 frames per step
+             and the policy reads only the newest; those wasted renders are 25
+             of the 28 ms server step, and GPU rasterization does not help
+             because the cost is per-frame overhead, not pixels). It was tried
+             and reverted 2026-08-26: _post_reset_settle demands TWO new frames
+             but advances only 8 ticks (80 ms), which is exactly ONE frame at
+             12.5 Hz, so every reset burns the full frame-wait timeout. To land
+             the speedup, make that settle step advance 16 ticks first, then
+             re-validate. Solve rate itself was unaffected (95.8 percent, same
+             as this baseline). -->
         <update_rate>30</update_rate>
         <always_on>1</always_on>
         <visualize>true</visualize>

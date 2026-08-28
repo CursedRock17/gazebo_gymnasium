@@ -21,7 +21,7 @@ take on the formal change-control overhead).
 | **Versioning** | Not required | ✅ Semver in every `package.xml` (`0.1.0`) |
 | **Change control** | Not required | ✅ CI workflow (`.github/workflows/ci.yml`) runs the full suite + linters on every push/PR (Ubuntu Noble, the REP-2000 Tier 1 platform) |
 | **Documentation** | Not required | ✅ Guide + two worked tutorials in `docs/`; Sphinx API reference (`docs/sphinx/`, Read the Docs config at `.readthedocs.yaml`); `CHANGELOG.md`; `CONTRIBUTING.md` |
-| **Testing** | Not required | ✅ 260+ pytest tests — 8 envs (spec math, real-physics probes, learnability), SB3/gymnasium contract, in-sim harness, stress, vision (camera obs), SDF validity + gz-check, and flake8/pep257/copyright lint |
+| **Testing** | Not required | ✅ 260+ pytest tests — 8 envs (spec math, real-physics probes, learnability), SB3/gymnasium contract, in-sim harness, stress, vision (camera obs), SDF validity + gz-check, and ruff/copyright lint |
 | **Platform Support** | Tier 1 platforms | ✅ Tested on Ubuntu Noble 24.04 + ROS 2 Jazzy + gz Harmonic |
 | **Security** | Not required | ✅ `SECURITY.md` with disclosure contact |
 
@@ -38,9 +38,11 @@ checklist below for what still stands between us and that declaration.
   (static XML + `gz sdf --check`), and lint conformance. Level 1-2 want ≥90%
   line coverage with enforcement — not measured, but the bridge layer is
   heavily exercised.
-- **Lint & static analysis**: `ament_flake8`, `ament_pep257`, and
-  `ament_copyright` run as pytest tests and pass; `pixi run lint` runs the
-  three, and CI runs them on every push/PR and nightly.
+- **Lint & static analysis**: `ruff` (lint + format, replacing the former
+  `ament_flake8`/`ament_pep257`/`yapf` trio) and `ament_copyright` run as
+  pytest tests and pass; `pixi run lint` runs both, and CI runs them on
+  every push/PR and nightly. `ty` adds static type checking on top
+  (`pixi run typecheck`), currently permissive rather than gating CI.
 - **Public API documentation**: The reference walkthrough
   (`docs/examples/cartpole.md`), the "create your own agent" guide
   (`docs/creating_your_own_agent.md`), and an annotated porting tutorial
@@ -91,7 +93,7 @@ in the field rely on, we'd revisit.
 # Full suite (functional + stress + lint), one command:
 pixi run test
 
-# Just the three ament linters (flake8 / pep257 / copyright):
+# Just the lint checks (ruff / copyright):
 pixi run lint
 
 # Build the workspace:

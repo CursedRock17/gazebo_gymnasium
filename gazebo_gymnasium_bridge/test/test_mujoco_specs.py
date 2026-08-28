@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for the MuJoCo-ported AgentSpecs (InvertedDoublePendulum, ...).
 
 Spec math is tested offline; the physics tests run the real in-process sim
@@ -27,11 +26,9 @@ import pytest
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from gazebo_gymnasium_bridge.envs.agent_spec import (  # noqa: E402
-    _idp_tip,
-    _IDP_TIP_MAX,
-    get_spec,
-)
+from gazebo_gymnasium_bridge.envs.agent_spec import _idp_tip  # noqa: E402
+from gazebo_gymnasium_bridge.envs.agent_spec import _IDP_TIP_MAX  # noqa: E402
+from gazebo_gymnasium_bridge.envs.agent_spec import get_spec  # noqa: E402
 
 
 class TestIDPSpecMath:
@@ -41,8 +38,8 @@ class TestIDPSpecMath:
         spec = get_spec("inverted_double_pendulum")
         assert spec.observation_space.shape == (6,)
         assert spec.action_space.shape == (1,)
-        assert [j.joint for j in spec.joint_obs] == [
-            "slider_to_cart", "cart_to_pole", "pole_to_pole2"]
+        joints = [j.joint for j in spec.joint_obs]
+        assert joints == ["slider_to_cart", "cart_to_pole", "pole_to_pole2"]
 
     def test_action_proportional_and_clipped(self):
         spec = get_spec("inverted_double_pendulum")
@@ -107,8 +104,7 @@ class TestHopperSpecMath:
     def test_action_maps_three_torques(self):
         spec = get_spec("hopper")
         cmds = spec.action_to_commands(np.array([1.0, -0.5, 0.25]))
-        assert [c[0] for c in cmds] == ["thigh_joint", "leg_joint",
-                                        "foot_joint"]
+        assert [c[0] for c in cmds] == ["thigh_joint", "leg_joint", "foot_joint"]
         assert all(c[1] == "force" for c in cmds)
         assert cmds[1][2] == pytest.approx(-cmds[0][2] / 2)
         # scalar probes (used for joint discovery) must not raise
@@ -119,17 +115,17 @@ class TestHopperSpecMath:
         healthy = np.zeros(11, dtype=np.float32)
         assert spec.terminated_fn(healthy) is False
         fallen = healthy.copy()
-        fallen[0] = -0.6            # torso below min height
+        fallen[0] = -0.6  # torso below min height
         assert spec.terminated_fn(fallen) is True
         pitched = healthy.copy()
-        pitched[1] = 0.3            # beyond the pitch band
+        pitched[1] = 0.3  # beyond the pitch band
         assert spec.terminated_fn(pitched) is True
 
     def test_reward_rewards_forward_motion(self):
         spec = get_spec("hopper")
         still = np.zeros(11, dtype=np.float32)
         moving = still.copy()
-        moving[5] = 1.5             # forward velocity
+        moving[5] = 1.5  # forward velocity
         a = np.zeros(3)
         assert spec.reward_fn(moving, a) > spec.reward_fn(still, a)
         # control cost bites
@@ -153,14 +149,14 @@ class TestWalker2dSpecMath:
         cmds = spec.action_to_commands(np.array([1, 0, 0, -1, 0, 0]))
         assert len(cmds) == 6
         assert cmds[0][2] == -cmds[3][2] != 0
-        assert len(spec.action_to_commands(0)) == 6   # scalar probe safe
+        assert len(spec.action_to_commands(0)) == 6  # scalar probe safe
 
     def test_health_termination(self):
         spec = get_spec("walker2d")
         healthy = np.zeros(17, dtype=np.float32)
         assert spec.terminated_fn(healthy) is False
         low = healthy.copy()
-        low[0] = -0.5                                   # z = 0.75 < 0.8
+        low[0] = -0.5  # z = 0.75 < 0.8
         assert spec.terminated_fn(low) is True
         pitched = healthy.copy()
         pitched[1] = 1.2
@@ -212,6 +208,7 @@ class TestReacherSpecMath:
 
     def test_fingertip_kinematics(self):
         from gazebo_gymnasium_bridge.envs.agent_spec import _reacher_fingertip
+
         x, y = _reacher_fingertip(np.zeros(6))
         assert (x, y) == (pytest.approx(0.21), pytest.approx(0.0))
         x, y = _reacher_fingertip(np.array([np.pi / 2, 0, 0, 0, 0, 0]))
@@ -243,6 +240,7 @@ pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
 def test_locomotor_passive_collapse_terminates(agent, act_dim):
     # Unactuated, the legged robots must buckle and fall unhealthy quickly.
     from gazebo_gymnasium_bridge.envs import make_inprocess
+
     env = make_inprocess(agent, n_agents=1, seed=0)
     try:
         env.reset()
@@ -259,6 +257,7 @@ def test_locomotor_passive_collapse_terminates(agent, act_dim):
 
 def test_hopper_obs_finite_under_random_torques():
     from gazebo_gymnasium_bridge.envs import make_inprocess
+
     env = make_inprocess("hopper", n_agents=2, seed=1)
     try:
         env.reset()
@@ -274,6 +273,7 @@ def test_idp_is_unstable_and_terminates():
     # A genuinely inverted double pendulum must fall from a small tilt with no
     # actuation, within ~a second of sim time.
     from gazebo_gymnasium_bridge.envs import make_inprocess
+
     env = make_inprocess("inverted_double_pendulum", n_agents=1, seed=0)
     try:
         env.reset()
@@ -284,8 +284,9 @@ def test_idp_is_unstable_and_terminates():
                 fell_at = k
                 assert "terminal_observation" in infos[0]
                 break
-        assert fell_at is not None and fell_at < 60, \
+        assert fell_at is not None and fell_at < 60, (
             f"passive fall should terminate quickly, got {fell_at}"
+        )
     finally:
         env.close()
 
@@ -313,6 +314,7 @@ def test_cheetah_runs_without_termination():
     # No health check: 80 random-torque steps must neither terminate nor
     # produce non-finite state.
     from gazebo_gymnasium_bridge.envs import make_inprocess
+
     env = make_inprocess("half_cheetah", n_agents=1, seed=3)
     try:
         env.reset()
@@ -329,11 +331,12 @@ def test_reacher_goal_moves_between_episodes():
     # The goal is two prismatic joints, so per-episode randomization flows
     # through the ordinary in-place reset — verify it actually moves.
     from gazebo_gymnasium_bridge.envs import make_inprocess
+
     env = make_inprocess("reacher", n_agents=1, seed=0)
     try:
         obs = env.reset()
         g1 = obs[0, 2:4].copy()
-        for _ in range(60):                      # run past the 50-step cap
+        for _ in range(60):  # run past the 50-step cap
             obs, _r, _d, _i = env.step(np.zeros((1, 2)))
         g2 = obs[0, 2:4].copy()
         assert not np.allclose(g1, g2), "goal should re-randomize on reset"

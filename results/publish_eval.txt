@@ -1,0 +1,27 @@
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_0"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L437]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_1"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L878]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_2"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L1319]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_3"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L1760]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_4"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L2201]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_5"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L2642]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_6"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L3083]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+[1;33mWarning [Utils.cc:132][0m [/sdf/world[@name="line_follower_track_reset_inproc"]/model[@name="line_follower_track_reset_7"]/link[@name="camera_link"]/sensor[@name="camera"]/gz_frame_id:/tmp/inproc_world_mdwa39rm.sdf:L3524]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
+libEGL warning: pci id for fd 60: 10de:2d04, driver (null)
+
+pci id for fd 61: 10de:2d04, driver (null)
+pci id for fd 62: 10de:2d04, driver (null)
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: pci id for fd 60: 10de:2d04, driver (null)
+
+pci id for fd 61: 10de:2d04, driver (null)
+pci id for fd 62: 10de:2d04, driver (null)
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: pci id for fd 60: 10de:2d04, driver (null)
+
+[InProcessHarnessVecEnv] ready (agent='line_follower_track_reset', n_agents=8, frame_skip=5, headless in-process)
+  round 0: solved 8/8 term_steps=[300, 300, 300, 300, 300, 300, 300, 300]
+  round 1: solved 7/8 term_steps=[300, 300, 2, 300, 300, 300, 300, 300]
+  round 2: solved 8/8 term_steps=[300, 300, 300, 300, 300, 300, 300, 300]
+  round 3: solved 6/8 term_steps=[300, 300, 223, 300, 300, 300, 1, 300]
+  round 4: solved 6/8 term_steps=[300, 1, 300, 300, 300, 300, 300, 1]
+EVAL model=multitrack_sweep_w3_300k.zip track_shapes=reset n=8 rounds=5 solved=35/40 (87.5%) median_term_step=300

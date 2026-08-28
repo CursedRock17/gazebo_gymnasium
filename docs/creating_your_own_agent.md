@@ -1,89 +1,107 @@
-# Creating your own agent
+# Creating Your Own Agent
 
-This guide shows how to add a brand-new RL environment to Gazebo Gymnasium and
-train it. The whole library is driven by **one dataclass, `AgentSpec`** — you
-describe a single agent (its model, observation, action, reward, termination)
-and the framework runs *N* identical copies of it in one Gazebo world as a
-[Stable-Baselines3](https://stable-baselines3.readthedocs.io/) `VecEnv`. There
-is no per-environment Python class to write: "MultiCartPole", "MultiAnt",
-"MultiHopper" are just **named specs**.
+This guide shows how to add a brand-new reinforcement-learning environment to
+Gazebo Gymnasium and train it. The whole library runs on one dataclass,
+`AgentSpec`, describing a single agent through its model, observation,
+action, reward, and termination, while the framework runs N identical
+copies of it in one Gazebo world as a
+[Stable-Baselines3](https://stable-baselines3.readthedocs.io/) `VecEnv`.
+There is no per-environment Python class to write. "MultiCartPole,"
+"MultiAnt," and "MultiHopper" are just named specifications.
 
 ```python
 from gazebo_gymnasium_bridge.envs import make_inprocess
-vec_env = make_inprocess("cartpole", n_agents=16)   # 16 agents, one sim, no launch
+
+# 16 agents share one simulation, with no separate launch step.
+vec_env = make_inprocess("cartpole", n_agents=16)
 ```
 
-Registered specs are also exposed as a standard **`gymnasium.Env`**, so any
-Gymnasium-speaking tool (RLlib, CleanRL, Tianshou, TorchRL, `env_checker`) works
-out of the box — importing the package registers the ids:
+Registered specifications also expose themselves as a standard
+`gymnasium.Env`, so any Gymnasium-speaking tool, RLlib, CleanRL, Tianshou,
+or TorchRL among them, works out of the box. Importing the package alone
+registers the ids.
 
 ```python
-import gazebo_gymnasium_bridge          # registers GazeboCartPole-v0, ...
+import gazebo_gymnasium_bridge          # registers GazeboCartPole-v0, and others
 import gymnasium as gym
-env = gym.make("GazeboCartPole-v0")     # standard 5-tuple step / (obs, info) reset
+
+env = gym.make("GazeboCartPole-v0")     # a standard 5-tuple step, (obs, info) reset
 ```
 
-Two worked tutorials accompany this guide:
-[CartPole](examples/cartpole.md) (the reference environment) and
-[Porting Hopper, annotated](examples/porting_hopper.md) — the narrated story of
-a real port, including how each physics trap was diagnosed from headless
-probes. The complete reference implementation is the cartpole spec in
+Two worked tutorials accompany this guide: [CartPole](examples/cartpole.md),
+the reference environment, and
+[Porting Hopper, annotated](examples/porting_hopper.md), the narrated story
+of a real port, including how each physics trap was diagnosed from headless
+probes. The complete reference implementation is the cartpole specification
+in
 [`gazebo_gymnasium_bridge/gazebo_gymnasium_bridge/envs/agent_spec.py`](../gazebo_gymnasium_bridge/gazebo_gymnasium_bridge/envs/agent_spec.py).
-Copy it and change the parts described below.
+Copying it and changing the parts described below is the fastest way to
+start.
 
----
+Six steps take a new agent from nothing to a trained policy: writing the
+model's Simulation Description Format (SDF), defining the `AgentSpec`,
+registering it, testing it offline, wiring a world and launch file, and
+finally running it.
 
-## The three backends
+## The Three Backends
 
-Everything you write below (the spec + the model SDF) is shared. What differs
-is *how the env talks to Gazebo* — pick with `make_inprocess` / `make_harness`
-/ `make_multi` (or `train.py --backend`):
+Everything written below, the specification and the model SDF, stays
+shared across backends. What differs is how the environment talks to
+Gazebo, chosen with `make_inprocess`, `make_harness`, or `make_multi` (or
+`train.py --backend`).
 
-| | **inprocess** (default) | **harness** | **peragent** |
+| | In-Process (Default) | Harness | Per-Agent |
 |---|---|---|---|
-| Sim location | **in the training process** (TestFixture) | launched `gz sim` | launched `gz sim` |
-| Transport | none (direct ECM) | 3 topics total (O(1) in N) | 2 topics per agent |
-| Reset | in place via ECM | in place via ECM | delete + re-spawn |
-| Needs a launch? | **no** — one `python` command | yes (`ros2 launch`) | yes (`ros2 launch`) |
-| Best for | **training + CI, fastest** | a running/GUI sim you want to watch | small N, quick start |
-| Model | bare (no controllers) | bare (no controllers) | model with controllers |
+| Simulation location | In the training process (`TestFixture`) | Launched `gz sim` | Launched `gz sim` |
+| Transport | None, direct Entity Component Manager (ECM) access | 3 topics total, O(1) in N | 2 topics per agent |
+| Reset | In place via the ECM | In place via the ECM | Delete and re-spawn |
+| Needs a launch? | No, one `python` command | Yes, `ros2 launch` | Yes, `ros2 launch` |
+| Best for | Training and continuous integration, fastest | A running or GUI simulation to watch | Small N, quick starts |
+| Model | Bare, no controllers | Bare, no controllers | Model with controllers |
 
-All three are spec-driven and share the *same* `reward_fn` / `terminated_fn` /
-group-auto-reset. **Start with `inprocess`** — it needs no launch, runs headless
-anywhere the gz bindings import, and is the fastest (no IPC; set
-`<real_time_factor>0</real_time_factor>` so the sim isn't throttled to real
-time). Use **harness** when you want to *watch* a launched sim; the per-agent
-and harness paths are what you deploy against a live/visualized `gz sim`.
+All three backends stay spec-driven and share the same `reward_fn`,
+`terminated_fn`, and group-auto-reset logic. Starting with `inprocess` makes
+the most sense: it needs no launch, runs headless anywhere the Gazebo
+Python bindings import, and stays the fastest option, since there is no
+Inter-Process Communication (IPC) once `<real_time_factor>0</real_time_factor>`
+stops the simulation from throttling to real time. The harness backend
+suits watching a launched simulation live, and both the harness and
+per-agent paths are what a deployment actually runs against.
 
----
+## Writing The Model SDF
 
-## Step 1 — Write the model SDF
+Creating
+`gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/<name>/` with a
+`model.config` and a `model.sdf` starts the process. Starting from an
+existing CAD model instead of writing SDF by hand is also a real,
+tested path; see
+[Importing CAD Models](importing_cad_models.md) for the export-to-URDF,
+convert-to-SDF pipeline this project's own rover model went through,
+before returning here for the rules below. For the harness
+backend, the model should carry geometry only, with no `JointController`,
+no `JointStatePublisher`, and no `<effort>` limit on any joint meant for
+actuation, since an effort limit silently disables ECM velocity control in
+this DART build. The world-level harness plugin owns actuation and sensing
+instead.
 
-Create `gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/<name>/`
-with a `model.config` and `model.sdf`. For the **harness backend the model is
-geometry only** — no `JointController`, no `JointStatePublisher`, and **no
-`<effort>` limit on any joint you intend to actuate** (an effort limit silently
-disables ECM velocity control in this DART build). The world-level harness
-plugin owns actuation and sensing.
-
-The reference bare model is
+The reference bare model lives at
 [`models/cartpole_bare/model.sdf`](../gazebo_gymnasium_examples/gazebo_gymnasium_resources/models/cartpole_bare/model.sdf).
-Key rules:
+Three rules matter most.
 
-- Give every actuated/observed **joint a stable name** — the spec refers to
-  joints by name (`slider_to_cart`, `cart_to_pole`).
-- Every `<link>` with a `<collision>` should also have a `<visual>` (or it
-  loads physically but renders invisibly).
-- Don't pin the model to the world inside `model.sdf`. The spawner adds a
-  world-scope fixed joint (see `extra_joints` below) so the model survives
-  being `<include>`d.
+- Every actuated or observed joint needs a stable name, since the
+  specification refers to joints by name, `slider_to_cart` and
+  `cart_to_pole` for example.
+- Every `<link>` carrying a `<collision>` should also carry a `<visual>`,
+  or it loads physically but renders invisibly.
+- The model should not pin itself to the world inside `model.sdf`. The
+  spawner adds a world-scope fixed joint instead, through `extra_joints`
+  described below, so the model survives being included elsewhere.
 
----
+## Defining The AgentSpec
 
-## Step 2 — Define the `AgentSpec`
-
-An `AgentSpec` is a plain dataclass. Here is the cartpole spec annotated field
-by field — your job is to change the values, not the structure:
+An `AgentSpec` is a plain dataclass. The annotated cartpole specification
+below shows every field; the task is to change the values, not the
+structure.
 
 ```python
 from gymnasium import spaces
@@ -94,52 +112,52 @@ from gazebo_gymnasium_bridge.envs.agent_spec import AgentSpec, JointObs, registe
 def _my_agent_spec() -> AgentSpec:
     return AgentSpec(
         name="myagent",
-        # SDF <uri> merged into each spawned model wrapper:
+        # The SDF <uri> merged into each spawned model wrapper.
         model_uri="package://gazebo_gymnasium_resources/models/myagent_bare",
 
-        # Per-agent Gymnasium spaces. SB3 batches these across the N agents.
+        # Per-agent Gymnasium spaces; SB3 batches these across the N agents.
         observation_space=spaces.Box(low=-np.inf, high=np.inf,
                                      shape=(4,), dtype=np.float32),
-        action_space=spaces.Discrete(2),            # or spaces.Box(...) continuous
+        action_space=spaces.Discrete(2),            # or spaces.Box(...) for continuous
 
-        # How to build the observation from the model's joint_state message.
-        # Ordered: each JointObs contributes [position, velocity] by default.
-        # The summed widths MUST equal observation_space.shape[0] (checked).
+        # Builds the observation from the model's joint_state message,
+        # ordered so each JointObs contributes [position, velocity] by
+        # default. The summed widths must equal observation_space.shape[0].
         joint_obs=(JointObs("slider_to_cart"), JointObs("cart_to_pole")),
 
-        # Per-agent reward for a step (obs is this agent's observation row).
+        # Per-agent reward for one step; obs is this agent's own row.
         reward_fn=lambda obs, action: 1.0,
 
-        # Per-agent natural-termination test (e.g. the pole fell over).
+        # Per-agent natural-termination test, here checking the pole fell.
         terminated_fn=lambda obs: bool(abs(obs[2]) > 0.20944),
 
-        # Spawn geometry. Force-actuated models MUST spawn clear of the
-        # ground plane — resting on it pins the model with contact friction
-        # (this exact trap, at spawn_z=0.10, masked cartpole force control).
+        # Force-actuated models must spawn clear of the ground plane;
+        # resting on it pins the model with contact friction (this exact
+        # trap, at spawn_z=0.10, once masked cartpole's own force control).
         spawn_z=0.60,
 
-        # Extra world-scope joints the spawner adds around the model. Each is
-        # (joint_name, parent, child); "world" as parent pins to the world.
+        # Extra world-scope joints the spawner adds around the model, each
+        # a (joint_name, parent, child) tuple; "world" as parent pins to it.
         extra_joints=(("world_to_slider", "world", "slider"),),
 
-        # --- Harness (ECM) actuation + reset ---
-        # action -> [(joint_name, mode, value), ...]; mode in
-        # {"velocity", "force", "position"}. Applied via ECM each tick.
+        # Harness (ECM) actuation and reset.
+        # action -> [(joint_name, mode, value), ...], mode one of
+        # "velocity", "force", "position". Applied via the ECM each tick.
         action_to_commands=_my_action_to_commands,
-        # rng -> {joint_name: (position, velocity)} set at episode start,
-        # in place (no respawn). Put per-agent randomization here.
+        # rng -> {joint_name: (position, velocity)}, set at episode start,
+        # in place with no respawn. Per-agent randomization belongs here.
         reset_joint_state=_my_reset_joint_state,
     )
 ```
 
-The two harness callbacks, cartpole-style:
+The two harness callbacks, written cartpole-style, follow.
 
 ```python
 _FORCE = 10.0
 
 def _my_action_to_commands(action):
-    # np.ravel handles a scalar (offline) or a length-1 row (the harness passes
-    # each agent's action as a row of the (n_agents, act_dim) matrix).
+    # np.ravel handles both a scalar (offline) and a length-1 row (the
+    # harness passes each agent's action as one row of an (n_agents, act_dim) matrix).
     a = int(round(float(np.ravel(action)[0])))
     f = _FORCE if a == 1 else -_FORCE
     return [("slider_to_cart", "force", f)]
@@ -147,65 +165,76 @@ def _my_action_to_commands(action):
 def _my_reset_joint_state(rng):
     return {
         "slider_to_cart": (0.0, 0.0),
-        "cart_to_pole": (float(rng.uniform(-0.05, 0.05)), 0.0),   # small random tilt
+        "cart_to_pole": (float(rng.uniform(-0.05, 0.05)), 0.0),   # a small random tilt
     }
 ```
 
-> **Continuous actions** work the same way — set `action_space=spaces.Box(...)`
-> and have `action_to_commands` return force/velocity values from
-> `np.ravel(action)` (the built-in `cartpole_continuous` spec is the reference).
-> **Force-actuated models must spawn clear of the ground plane** (`spawn_z`
-> above the collision box) — a model resting on the ground is pinned by contact
-> friction, which velocity commands silently override but forces cannot.
-> (Deliberate contact like a hopper's foot is fine — there contact *is* the
-> mechanism.)
-> **Image / camera observations** are supported: set `image_obs=(H, W, C)` and
-> an uint8 Box observation space, put a `<sensor type="camera">` with
-> `<topic>camera</topic>` on the model (the world builder rewrites it to
-> `/rl/camera_<i>` per agent and loads the render system), and compute
-> reward/termination from the image in plain Python — see the built-in
-> `line_follower` spec. Mobile bases set `reset_model_pose=True` so the
-> chassis returns to its spawn pose on reset, and `per_agent_include_uri`
-> gives each agent its own static scenery (e.g. a line track) — so
-> `n_agents=16` really does build 16 tracks, one per rover, and each agent's
-> camera publishes to its own `/rl/camera_<i>` topic.
->
-> **One camera environment per process.** gz-sim's rendering scene is a
-> process-wide singleton that `close()` does not tear down, so creating a
-> second image-observation env in the same process is a hard native crash.
-> The library raises a clear `RuntimeError` instead. This is a limit on
-> *environments*, not agents: one env can host many agents, so use
-> `n_agents=16` rather than 16 separate envs. If you genuinely need two, put
-> the second in a separate process (`multiprocessing`, SB3's `SubprocVecEnv`).
->
-> Rendering costs ~50× the physics-only throughput; keep frames small (64×64).
+Continuous actions work the same way: setting `action_space=spaces.Box(...)`
+and having `action_to_commands` return force or velocity values from
+`np.ravel(action)` covers it, and the built-in `cartpole_continuous`
+specification is the reference. Force-actuated models must still
+spawn clear of the ground plane, with `spawn_z` above the collision box,
+since a model resting on the ground gets pinned by contact friction, which
+velocity commands silently override but force commands cannot. Deliberate
+contact, a hopper's foot for example, is fine, since contact is the actual
+mechanism there.
 
-### Porting MuJoCo environments
+Image and camera observations are supported too. Setting `image_obs=(H, W,
+C)` and a `uint8` Box observation space, placing a `<sensor
+type="camera">` with `<topic>camera</topic>` on the model, so the world
+builder rewrites it to `/rl/camera_<i>` per agent and loads the render
+system, and computing reward and termination from the image in plain
+Python covers the pattern; the built-in `line_follower` specification shows
+it in full. Mobile bases should set `reset_model_pose=True` so the chassis
+returns to its spawn pose on reset, and `per_agent_include_uri` gives each
+agent its own static scenery, a line track for example, so `n_agents=16`
+genuinely builds 16 tracks, one per rover, with each agent's camera
+publishing to its own `/rl/camera_<i>` topic.
 
-Three lessons from the ports (`inverted_double_pendulum`, `hopper`):
+Only one camera environment may exist per process, since gz-sim's
+rendering scene behaves as a process-wide singleton that `close()` does not
+tear down, making a second image-observation environment in the same
+process a hard native crash. The library raises a clear `RuntimeError`
+instead of crashing silently. This limit applies to environments, not
+agents, so one environment can host many agents; `n_agents=16` is the right
+call, not 16 separate environments. A genuine need for two calls for a
+second, separate process, through `multiprocessing` or SB3's
+`SubprocVecEnv`. Rendering costs roughly 50 times the physics-only
+throughput, so keeping frames small, `64x64` for example, matters.
 
-- **Planar "floating" bases are just joints.** MuJoCo's hopper/walker root is
-  a slide-slide-hinge chain, not a free joint — model it the same way in SDF
-  (world-pinned anchor → prismatic forward → prismatic vertical → revolute
-  pitch → torso) and the standard joint-based obs/reset/actuation covers the
-  whole robot. Point the forward axis along +Y so agents spaced along X never
-  collide. Only true 3D free bases (ant, humanoid) need anything beyond joints.
-- **MuJoCo joints carry hidden dynamics you must reproduce.** Its defaults add
-  `armature` (reflected rotor inertia, ~1 kg·m²) and `damping` per joint;
-  without them, MuJoCo-scale torques (gear ≈ 200) make an SDF model explode in
-  one step. SDF has no armature tag — emulate it by adding the armature value
-  to each articulated link's inertia about its hinge axis, and set
-  `<dynamics><damping>` explicitly. Keep MuJoCo's joint *range* limits too
-  (position limits are safe; it's `<effort>` limits that break ECM actuation).
-- **Derived quantities live in Python, not the sim.** Tip positions,
-  forward-progress terms, health checks — compute them from the joint
-  observation inside `reward_fn`/`terminated_fn` (see `_idp_tip`), keeping the
-  spec layer sim-free and unit-testable.
+### Porting MuJoCo Environments
 
-### The spec toolkit — don't hand-write the plumbing
+Three lessons carried over from the ports already built, `inverted_double_pendulum`
+and `hopper` among them.
 
-The patterns every port repeats are core helpers (all in `agent_spec.py`,
-exported from `envs`). A complete planar locomotor spec is ~15 lines:
+- **Planar floating bases are just joints.** MuJoCo's hopper and walker
+  root is a slide-slide-hinge chain, not a free joint, so modeling it the
+  same way in SDF, a world-pinned anchor into a prismatic forward joint
+  into a prismatic vertical joint into a revolute pitch joint into the
+  torso, lets the standard joint-based observation, reset, and actuation
+  cover the whole robot. Pointing the forward axis along the Y axis keeps
+  agents spaced along X from ever colliding. Only true three-dimensional
+  free bases, ant and humanoid for example, need anything beyond joints.
+- **MuJoCo joints carry hidden dynamics that need reproducing.** Its
+  defaults add armature, reflected rotor inertia around 1 kilogram meter
+  squared, and damping per joint; without them, MuJoCo-scale torques (gear
+  around 200) make an SDF model explode within one step. SDF carries no
+  armature tag, so emulating it means adding the armature value to each
+  articulated link's inertia about its hinge axis and setting
+  `<dynamics><damping>` explicitly. Keeping MuJoCo's joint range limits too
+  matters, since position limits stay safe while `<effort>` limits are what
+  breaks ECM actuation.
+- **Derived quantities belong in Python, not the simulator.** Tip
+  positions, forward-progress terms, and health checks should get computed
+  from the joint observation inside `reward_fn` and `terminated_fn`, `_idp_tip`
+  for example, keeping the specification layer simulator-free and
+  unit-testable.
+
+### The Spec Toolkit
+
+Hand-writing the same plumbing every port needs gets replaced by a set of
+core helpers, all living in `agent_spec.py` and exported from `envs`. A
+complete planar locomotor specification runs about 15 lines.
 
 ```python
 from gazebo_gymnasium_bridge.envs import (
@@ -225,124 +254,133 @@ spec = AgentSpec(
 )
 ```
 
-All helpers clip actions to the Box bounds and survive scalar probes; the
-built-in hopper/walker2d/half_cheetah/reacher specs are written this way.
+Every helper clips actions to the Box bounds and survives scalar probes,
+and the built-in hopper, walker2d, half_cheetah, and reacher specifications
+are all written this way.
 
-### Domain randomization (sim-to-real)
+### Domain Randomization For Sim To Real
 
-Two `AgentSpec` fields randomize dynamics *across the N agents in the one
-world* — each agent is a different sample from the distribution, so a policy
-trained across them is robust. Both are reproducible from the construction seed
-and off by default:
+Two `AgentSpec` fields randomize dynamics across the N agents in one world,
+so each agent draws a different sample from the distribution and a policy
+trained across them stays robust. Both fields reproduce from the
+construction seed and default to off.
 
 ```python
 AgentSpec(
     ...,
-    mass_randomization=0.3,          # each agent's mass+inertia scaled U(0.7, 1.3)
+    mass_randomization=0.3,          # each agent's mass and inertia scaled U(0.7, 1.3)
     action_gain_randomization=0.2,   # each agent's actuator command scaled U(0.8, 1.2)
 )
 ```
 
-`action_gain_randomization` models actuator-gain uncertainty (a nominal-trained
-policy can collapse under ±20% gain — exactly the sim-to-real brittleness DR
-exists to fix), and `mass_randomization` bites whenever actuation is
-force-based (F = ma couples them; under pure velocity control mass is largely
-masked). Per-*episode* physics DR would need a respawn path;
-observation/sensor-noise DR is available today via `TransformObservation`.
+`action_gain_randomization` models actuator-gain uncertainty, since a
+nominally trained policy can collapse under a plus-or-minus 20 percent
+gain shift, exactly the sim-to-real brittleness Domain Randomization (DR)
+exists to fix. `mass_randomization` bites whenever actuation is
+force-based, since force equals mass times acceleration couples the two,
+while pure velocity control largely masks it. Per-episode physics DR would
+need a respawn path that does not exist yet; observation and sensor-noise
+DR is available today through `TransformObservation`.
+[`domain_randomization.md`](domain_randomization.md) covers the general
+concept, why physics-level DR stays fixed per agent rather than varying
+per episode, and a worked survey of further mechanisms, friction,
+actuation latency, and visual or lighting variation among them, triaged by
+feasibility.
 
----
+## Registering The Spec
 
-## Step 3 — Register the spec
-
-Register it once at import time so `make_multi("myagent", ...)` /
-`--agent myagent` can find it. Either add your factory to `_SPEC_FACTORIES` in
-`agent_spec.py`, or call the public hook from your own module:
+Registering the specification once at import time lets `make_multi("myagent",
+...)` and `--agent myagent` find it. Adding the factory to `_SPEC_FACTORIES`
+in `agent_spec.py`, or calling the public hook from a separate module, both
+work.
 
 ```python
 from gazebo_gymnasium_bridge.envs.agent_spec import register_spec
+
 register_spec("myagent", _my_agent_spec)
 ```
 
-Verify — no launch needed, this spins the real sim in-process:
+Verifying it needs no launch, since this spins up the real simulator
+in-process.
 
 ```python
 from gazebo_gymnasium_bridge.envs import registered_specs, make_inprocess
+
 print(registered_specs())              # [..., 'myagent']
 env = make_inprocess("myagent", n_agents=4)
 obs = env.reset()                      # raises loudly if the model is broken
 ```
 
-Optionally give it a standard Gymnasium id too (any tool can then
-`gym.make` it):
+Giving it a standard Gymnasium id as well lets any tool call `gym.make` on
+it directly.
 
 ```python
 import gymnasium as gym
+
 gym.register(id="MyAgent-v0",
              entry_point="gazebo_gymnasium_bridge.envs.gym_env:GazeboEnv",
              kwargs={"agent": "myagent"})
 ```
 
----
+## Testing The Spec Offline
 
-## Step 4 — Test the spec offline (no simulator)
-
-The quickest physics check is the in-process env itself (see the probes in
+The quickest physics check is the in-process environment itself, following
+the probes in
 [`test/test_mujoco_specs.py`](../gazebo_gymnasium_bridge/test/test_mujoco_specs.py):
-passive instability, obs finiteness, determinism — copy one and swap the name).
-Below that, the spec layer is deliberately free of any `gz.*` import, so you
-can unit-test observation/reward/termination with a duck-typed fake message —
-see
+passive instability, observation finiteness, and determinism, each easy to
+copy and adapt by swapping the name. Below that layer, the specification
+stays deliberately free of any `gz.*` import, so unit-testing observation,
+reward, and termination with a duck-typed fake message is possible; see
 [`test/test_agent_spec.py`](../gazebo_gymnasium_bridge/test/test_agent_spec.py).
-To exercise real ECM actuation headlessly (no full launch), drive `HarnessCore`
-from a `gz.sim8.TestFixture` as in
+Exercising real ECM actuation headlessly, without a full launch, means
+driving `HarnessCore` from a `gz.sim8.TestFixture`, shown in
 [`test/test_harness_core.py`](../gazebo_gymnasium_bridge/test/test_harness_core.py).
-Both run under `pixi run test` without a running Gazebo.
+Both paths run under `pixi run test` without a running Gazebo instance.
 
----
+## Wiring A World And Launch
 
-## Step 5 — Wire a world + launch
+For the harness backend, copying the two cartpole files and swapping the
+model name covers it.
 
-For the **harness** backend, copy the two cartpole files and swap the model
-name:
-
-- World:
+- **World**:
   [`worlds/cartpole_harness.sdf`](../gazebo_gymnasium_examples/gazebo_gymnasium_resources/worlds/cartpole_harness.sdf)
-  — an empty world that loads the `MultiAgentHarness` plugin. It reads
-  `GAZEBO_GYM_N_AGENTS` / `GAZEBO_GYM_AGENT` from the environment, so **one
-  fixed world SDF works for any N and any agent**.
-- Launch:
+  is an empty world that loads the `MultiAgentHarness` plugin. It reads
+  `GAZEBO_GYM_N_AGENTS` and `GAZEBO_GYM_AGENT` from the environment, so one
+  fixed world SDF works for any N and any agent.
+- **Launch**:
   [`launch/cartpole_harness.launch.py`](../gazebo_gymnasium_examples/gazebo_gymnasium_bringup/launch/cartpole_harness.launch.py)
-  — sets those env vars and spawns N bare models via
+  sets those environment variables and spawns N bare models through
   `spawn_multi_cartpoles.py --model-uri package://…/models/myagent_bare`.
 
-Rebuild resources so Gazebo can find the new model/world:
+Rebuilding resources afterward lets Gazebo find the new model and world.
 
 ```bash
 pixi run build          # or: colcon build --symlink-install
 ```
 
----
+## Running It
 
-## Step 6 — Run it
-
-**Fastest path — one command, no launch** (the default in-process backend;
-policy and image wrappers are picked automatically):
+The fastest path needs one command and no launch, since the default
+in-process backend picks the right policy and image wrappers
+automatically.
 
 ```bash
 python training_scripts/train.py --agent myagent --n_agents 16
-python training_scripts/sweep.py --agent myagent --n_agents 16   # hyperparameters
-python training_scripts/deploy.py --agent myagent --n_agents 4   # evaluate
+python training_scripts/sweep.py --agent myagent --n_agents 16   # hyperparameter sweep
+python training_scripts/deploy.py --agent myagent --n_agents 4   # evaluation
 ```
 
-**Watch it live** (two terminals — the Step 5 launch, then the harness client):
+Watching it live needs two terminals, the Step 5 launch followed by the
+harness client.
 
 ```bash
 ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=4 headless:=false
 python training_scripts/deploy.py --agent myagent --n_agents 4 --backend harness
 ```
 
-Or bring your own trainer — the env is a standard SB3 `VecEnv` (agents
-auto-reset independently, same-step convention):
+Bringing an entirely different trainer also works, since the environment
+is a standard SB3 `VecEnv`, with agents auto-resetting independently under
+the same-step convention.
 
 ```python
 import stable_baselines3 as sb3
@@ -352,18 +390,30 @@ vec_env, policy = wrap_for_observations(make_inprocess("myagent", n_agents=16))
 sb3.PPO(policy, vec_env, n_steps=64).learn(total_timesteps=1_000_000)
 ```
 
----
-
 ## Checklist
 
-- [ ] `models/<name>_bare/{model.config,model.sdf}` — geometry only, no effort
-      limit on actuated joints, visuals on every collision link.
-- [ ] `AgentSpec` with `joint_obs` widths summing to `observation_space.shape[0]`.
-- [ ] `action_to_commands` + `reset_joint_state` for the harness backend.
+- [ ] `models/<name>_bare/{model.config,model.sdf}` exists, geometry only,
+      with no effort limit on actuated joints and visuals on every
+      collision link.
+- [ ] `AgentSpec` exists, with `joint_obs` widths summing to
+      `observation_space.shape[0]`.
+- [ ] `action_to_commands` and `reset_joint_state` exist for the harness
+      backend.
 - [ ] `register_spec("<name>", factory)` runs at import.
-- [ ] `pixi run build`, then `train.py --agent <name>` (in-process — no launch).
-- [ ] Optional, to watch live: world SDF loading `MultiAgentHarness` + a
-      launch that spawns N models (Step 5), then `--backend harness`.
+- [ ] `pixi run build` succeeds, followed by `train.py --agent <name>`
+      in-process, with no launch needed.
+- [ ] Optionally, to watch it live: a world SDF loading `MultiAgentHarness`
+      plus a launch that spawns N models, then `--backend harness`.
 
-See [`docs/examples/cartpole.md`](examples/cartpole.md) for the fully worked
-reference, and [`README.md`](../README.md) for environment setup.
+[`docs/examples/cartpole.md`](examples/cartpole.md) carries the fully
+worked reference, and [`README.md`](../README.md) covers environment setup.
+
+## Glossary
+
+| Term | Definition |
+|---|---|
+| **Entity Component Manager (ECM)** | Gazebo's runtime interface for reading and writing simulated joint and link state |
+| **Simulation Description Format (SDF)** | The XML format Gazebo uses to describe a world and its models |
+| **Domain Randomization (DR)** | Training across randomized simulation parameters so a policy generalizes past one fixed configuration |
+| **Inter-Process Communication (IPC)** | Data exchange between separate processes, such as the harness backend's topic-based transport |
+| **AgentSpec** | The dataclass describing one agent's model, observation, action, reward, and DR configuration |

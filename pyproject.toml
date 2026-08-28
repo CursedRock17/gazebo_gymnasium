@@ -1,0 +1,101 @@
+[tool.ruff]
+# Google's official Python style (https://google.github.io/styleguide/pyguide.html),
+# with the same one project-wide override as the yapf config it replaces:
+# 99-char lines (the ROS 2 Developer Guide default, not Google's own 80).
+line-length = 99
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+# pyflakes (F), pycodestyle (E/W), isort (I), pydocstyle (D), bugbear (B).
+# Mirrors the rule set ament_flake8.ini + ament_pep257 already enforced
+# here, not a fresh strict pass -- see the ignore list below, which carries
+# over that config's extend-ignore verbatim where a Ruff equivalent exists.
+select = ["E", "F", "W", "I", "D", "B"]
+ignore = [
+    # Missing docstrings in module/class/method/function -- never required
+    # here (ament_flake8.ini: D100-D107).
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+    # Blank line before class docstring / multi-line summary on the second
+    # line -- ament_flake8.ini: D203, D212 (this project's docstrings put
+    # the summary on the FIRST line, i.e. D212 conflicts with D213 below).
+    "D203", "D212",
+    # numpy-style docstring section checks the ament pydocstyle convention
+    # (test_pep257.py's --add-ignore) turns off; not the format used here.
+    "D407", "D413", "D416",
+    # F541: some auto-generated stub templates use f-strings with no
+    # placeholders, kept for forward-compatibility with formatted messages.
+    "F541",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "gazebo_gymnasium_bridge", "gazebo_gymnasium_resources", "gazebo_gymnasium_bringup",
+    "gazebo_gymnasium_msgs",
+]
+# flake8-import-order's "google" style (this project's prior import-order-style)
+# sorts case-insensitively; Ruff's isort defaults to case-sensitive (ASCII),
+# which would reorder every mixed-case import in the codebase.
+case-sensitive = false
+# isort's default also groups CONSTANT_CASE, then CamelCase, then
+# lower_case names ahead of straight alphabetization within a `from`
+# block; flake8-import-order's "google" style just alphabetizes.
+order-by-type = false
+# This codebase deliberately keeps one imported name per `from` line (e.g.
+# `from skrl.agents.torch.ppo import PPO` / `... import PPO_CFG` on separate
+# lines) rather than combining them -- isort's default would instead
+# collapse same-module imports onto one line, rewriting most files in the
+# project for a style question, not a real lint finding.
+force-single-line = true
+# isort's default groups all `import x` lines before all `from x import y`
+# lines within a section; this project's existing import-order-style
+# (flake8-import-order's "google") sorts strictly alphabetically by module
+# instead, mixing the two styles together. Match that instead of reordering
+# every file's imports for a grouping convention that was never in use here.
+force-sort-within-sections = true
+
+[tool.ty.rules]
+# Start permissive: this codebase has no type annotations today, and its
+# heaviest dependencies (numpy, cv2, gz-sim's Python ECM/transport bindings,
+# rclpy) are all effectively untyped or stub-incomplete from ty's point of
+# view. A first real `ty check` pass here surfaced 334 diagnostics; every
+# single one sampled across every rule below traced back to one of two
+# structural causes, not a real bug, verified by reading the actual call
+# site each time rather than assumed:
+#   1. Third-party stub gaps -- cv2's cvtColor overloads don't recognize a
+#      plain numpy array as MatLike, numpy's own ufunc overloads misfire on
+#      ordinary calls like np.isfinite(x).all(), gz's protobuf-generated
+#      message stubs and rclpy's Node aren't fully visible to ty.
+#   2. This project's own **kwargs-dict-spread pattern (e.g.
+#      AlgoCls(policy, vec_env, **algo_kwargs) in train.py, or test
+#      fixtures built via AgentSpec(**base)) -- ty can't verify individual
+#      keys against a dynamically-built dict, so it unions every possible
+#      value across every class in scope and flags the whole call. Two
+#      call sites carry inline `# ty: ignore[invalid-argument-type]`
+#      instead of a blanket rule change; the rest of that same root cause
+#      ripples into call-non-callable/unresolved-attribute findings too
+#      numerous to suppress line-by-line, so those rules are downgraded
+#      project-wide below instead.
+# Real errors stay errors; the rules below are warnings until the
+# codebase earns stricter enforcement incrementally (better stubs, or
+# rewriting the dict-spread patterns to explicit keyword calls).
+possibly-missing-attribute = "warn"
+unresolved-import = "warn"
+call-non-callable = "warn"
+unresolved-attribute = "warn"
+not-subscriptable = "warn"
+no-matching-overload = "warn"
+invalid-assignment = "warn"
+# Two call sites carry an inline `# ty: ignore[invalid-argument-type]` (the
+# clearest, most localized **kwargs-spread cases); this project-wide warn
+# covers the rest -- e.g. gymnasium's own Space.shape being typed
+# `tuple[int, ...] | None` even though every concrete Space this project
+# uses always sets it, and numpy's np.ndim() overloads not recognizing
+# SupportsFloat -- both third-party stub imprecision, not real bugs.
+invalid-argument-type = "warn"

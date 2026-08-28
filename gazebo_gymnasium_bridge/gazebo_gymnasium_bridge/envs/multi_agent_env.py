@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Generalized N-agents-in-one-sim Gymnasium VecEnv, driven by an AgentSpec.
 
 This collapses the per-model multi envs into a single class: spawn N copies
@@ -48,10 +47,9 @@ from gz.transport13 import Node
 import numpy as np
 from stable_baselines3.common.vec_env import VecEnv
 
+from ..backend.nodes import world_control
 from .agent_spec import AgentSpec
 from .agent_spec import get_spec
-from ..backend.nodes import world_control
-
 
 # Per-call timeout for gz Create/Remove service requests.
 _GZ_SERVICE_TIMEOUT_MS = 500
@@ -87,20 +85,24 @@ class MultiAgentGazeboVecEnv(VecEnv):
 
     metadata = {"render_modes": [], "render_fps": 30}
 
-    def __init__(self, spec: AgentSpec, n_agents: int = 4,
-                 world_name: Optional[str] = None,
-                 max_episode_steps: Optional[int] = None,
-                 frame_skip: Optional[int] = None,
-                 reset_timeout: float = 3.0,
-                 step_timeout: float = 1.0):
+    def __init__(
+        self,
+        spec: AgentSpec,
+        n_agents: int = 4,
+        world_name: Optional[str] = None,
+        max_episode_steps: Optional[int] = None,
+        frame_skip: Optional[int] = None,
+        reset_timeout: float = 3.0,
+        step_timeout: float = 1.0,
+    ):
         if n_agents < 1:
             raise ValueError("n_agents must be >= 1")
         self._spec = spec
         self.n_agents = n_agents
         self.world_name = world_name or f"{spec.name}_multi"
-        self.max_episode_steps = (max_episode_steps
-                                  if max_episode_steps is not None
-                                  else spec.max_episode_steps)
+        self.max_episode_steps = (
+            max_episode_steps if max_episode_steps is not None else spec.max_episode_steps
+        )
         self.frame_skip = frame_skip if frame_skip is not None else spec.frame_skip
         self.reset_timeout = reset_timeout
         self.step_timeout = step_timeout
@@ -124,8 +126,12 @@ class MultiAgentGazeboVecEnv(VecEnv):
         self._current_episode = 0
         self._episode_rewards = np.zeros(n_agents, dtype=np.float32)
 
-        self._debug = os.environ.get(
-            "GAZEBO_GYM_VERBOSE", "false").lower() in ("1", "true", "yes", "on")
+        self._debug = os.environ.get("GAZEBO_GYM_VERBOSE", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
 
         # gz transport: N action publishers + N joint_state subscribers.
         self._action_nodes = []
@@ -134,8 +140,8 @@ class MultiAgentGazeboVecEnv(VecEnv):
         for i in range(n_agents):
             anode = Node()
             self._action_pubs.append(
-                anode.advertise(f"/env/action_{i}", Float_V,
-                                AdvertiseMessageOptions()))
+                anode.advertise(f"/env/action_{i}", Float_V, AdvertiseMessageOptions())
+            )
             self._action_nodes.append(anode)
 
             jnode = Node()
@@ -143,18 +149,20 @@ class MultiAgentGazeboVecEnv(VecEnv):
             jnode.subscribe(ModelMsg, topic, self._make_joint_state_callback(i))
             self._joint_state_nodes.append(jnode)
 
-        self._world_control = world_control.WorldController(
-            self.world_name, steps_per_action=0)
+        self._world_control = world_control.WorldController(self.world_name, steps_per_action=0)
 
-        print(f"[MultiAgentGazeboVecEnv] ready (agent={spec.name!r}, "
-              f"world={self.world_name!r}, n_agents={n_agents}, "
-              f"frame_skip={self.frame_skip})")
+        print(
+            f"[MultiAgentGazeboVecEnv] ready (agent={spec.name!r}, "
+            f"world={self.world_name!r}, n_agents={n_agents}, "
+            f"frame_skip={self.frame_skip})"
+        )
 
     # ------------------------------------------------------------------ #
     # Sensor callback
     # ------------------------------------------------------------------ #
 
     def _make_joint_state_callback(self, idx: int):
+
         def _cb(msg):
             obs = self._spec.obs_from_joint_state(msg)
             with self._state_lock:
@@ -162,6 +170,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
                 self._joint_state_counts[idx] += 1
                 if self._joint_state_counts[idx] >= self.frame_skip:
                     self._state_events[idx].set()
+
         return _cb
 
     # ------------------------------------------------------------------ #
@@ -235,9 +244,11 @@ class MultiAgentGazeboVecEnv(VecEnv):
 
         if self._debug:
             step_ms = (time.perf_counter() - self._pending_step_start) * 1000.0
-            print(f"[MultiAgent step {self._steps_since_reset}] "
-                  f"alive={int((~self._dones).sum())}/{self.n_agents} "
-                  f"mean_reward={float(rewards.mean()):.2f} step_ms={step_ms:.1f}")
+            print(
+                f"[MultiAgent step {self._steps_since_reset}] "
+                f"alive={int((~self._dones).sum())}/{self.n_agents} "
+                f"mean_reward={float(rewards.mean()):.2f} step_ms={step_ms:.1f}"
+            )
 
         if group_reset:
             # SB3 VecEnv auto-reset contract: on done return the FIRST obs of
@@ -281,6 +292,8 @@ class MultiAgentGazeboVecEnv(VecEnv):
     # ------------------------------------------------------------------ #
 
     def _grid_position(self, index: int) -> tuple:
+        # Square-ish grid (cols = ceil(sqrt(n))) so N agents spread in both
+        # X and Y instead of one long line as N grows.
         n = self.n_agents
         cols = math.ceil(math.sqrt(n))
         rows = math.ceil(n / cols)
@@ -292,8 +305,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
 
     def _render_sdf(self, index: int) -> str:
         name = f"{self._spec.name}_{index}"
-        self_collide = ("<self_collide>true</self_collide>"
-                        if self._spec.self_collide else "")
+        self_collide = "<self_collide>true</self_collide>" if self._spec.self_collide else ""
         joints = "".join(
             f'<joint name="{jn}" type="fixed">'
             f"<parent>{parent}</parent><child>{child}</child></joint>"
@@ -325,8 +337,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
             req = Entity()
             req.name = f"{self._spec.name}_{i}"
             req.type = Entity.MODEL
-            transport.request(remove_service, req, Entity, Boolean,
-                              _GZ_SERVICE_TIMEOUT_MS)
+            transport.request(remove_service, req, Entity, Boolean, _GZ_SERVICE_TIMEOUT_MS)
 
         time.sleep(_REMOVE_TO_CREATE_DELAY)
 
@@ -338,8 +349,7 @@ class MultiAgentGazeboVecEnv(VecEnv):
             req.pose.position.x = x
             req.pose.position.y = y
             req.pose.position.z = self._spec.spawn_z  # clear of ground plane
-            transport.request(create_service, req, EntityFactory, Boolean,
-                              _GZ_SERVICE_TIMEOUT_MS)
+            transport.request(create_service, req, EntityFactory, Boolean, _GZ_SERVICE_TIMEOUT_MS)
 
         # Entity churn can leave the sim paused; unpause so physics ticks.
         self._world_control.unpause()
@@ -352,23 +362,23 @@ class MultiAgentGazeboVecEnv(VecEnv):
         for i, ev in enumerate(self._state_events):
             remaining = deadline - time.perf_counter()
             if remaining <= 0 or not ev.wait(timeout=remaining):
-                received = [j for j, e in enumerate(self._state_events)
-                            if e.is_set()]
-                missing = [j for j, e in enumerate(self._state_events)
-                           if not e.is_set()]
-                print(f"[MultiAgentGazeboVecEnv] _wait_all_states timeout after "
-                      f"{timeout:.1f}s: waiting on agent {i}, "
-                      f"received={received} missing={missing}")
+                received = [j for j, e in enumerate(self._state_events) if e.is_set()]
+                missing = [j for j, e in enumerate(self._state_events) if not e.is_set()]
+                print(
+                    f"[MultiAgentGazeboVecEnv] _wait_all_states timeout after "
+                    f"{timeout:.1f}s: waiting on agent {i}, "
+                    f"received={received} missing={missing}"
+                )
                 return False
         return True
 
 
-def make_multi(name: str, n_agents: int = 4,
-               world_name: Optional[str] = None, **kwargs):
+def make_multi(name: str, n_agents: int = 4, world_name: Optional[str] = None, **kwargs):
     """Build a MultiAgentGazeboVecEnv for a registered agent name.
 
     ``make_multi("cartpole", n_agents=16)`` is the canonical entry point;
     "MultiAnt", "MultiHopper", … are simply ``make_multi("ant", ...)`` etc.
     """
-    return MultiAgentGazeboVecEnv(get_spec(name), n_agents=n_agents,
-                                  world_name=world_name, **kwargs)
+    return MultiAgentGazeboVecEnv(
+        get_spec(name), n_agents=n_agents, world_name=world_name, **kwargs
+    )

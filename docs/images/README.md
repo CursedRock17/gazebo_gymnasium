@@ -21,7 +21,7 @@ pixi run deploy --backend harness
 
 Once the four poles are balancing, capture the Gazebo window and save it here
 as `cartpole_gui.png`. A short screen-recording exported as `cartpole_gui.gif`
-is even better for the README — motion sells "it's really simulating" far
+is even better for the README: motion sells "it's really simulating" far
 better than a still.
 
 Keep images reasonably small (< ~1 MB for the PNG); crop to the simulation

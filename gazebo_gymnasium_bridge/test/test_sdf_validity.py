@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Regression guard for SDF validity.
 
@@ -36,13 +35,9 @@ import re
 
 import pytest
 
-
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent.parent
-MODELS_DIR = (PROJECT_ROOT
-              / "gazebo_gymnasium_examples"
-              / "gazebo_gymnasium_resources"
-              / "models")
+MODELS_DIR = PROJECT_ROOT / "gazebo_gymnasium_examples" / "gazebo_gymnasium_resources" / "models"
 
 
 def model_sdf_paths():
@@ -65,7 +60,6 @@ def model_sdf_paths():
 
 @pytest.mark.parametrize("sdf_path", model_sdf_paths(), ids=lambda p: p.parent.name)
 class TestSdfValidity:
-
     def test_no_duplicate_named_elements(self, sdf_path):
         """No <link|joint|frame> share a name within the same model."""
         text = sdf_path.read_text()
@@ -91,8 +85,7 @@ class TestSdfValidity:
         frame_names = set(re.findall(r"<frame\s+name='([^']+)'", text))
         clashes = (link_names | joint_names) & frame_names
         assert not clashes, (
-            f"{sdf_path.name}: frame names clash with link/joint names: "
-            f"{sorted(clashes)}"
+            f"{sdf_path.name}: frame names clash with link/joint names: {sorted(clashes)}"
         )
 
     def test_link_with_collision_also_has_visual(self, sdf_path):
@@ -106,7 +99,8 @@ class TestSdfValidity:
         # Extract each <link>...</link> block and inspect its contents.
         link_blocks = re.findall(
             r"<link\s+name='([^']+)'>(.*?)</link>",
-            text, re.DOTALL,
+            text,
+            re.DOTALL,
         )
         invisible_links = []
         for name, body in link_blocks:

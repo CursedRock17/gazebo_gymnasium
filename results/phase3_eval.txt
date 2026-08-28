@@ -1,0 +1,18 @@
+=== phase3 started 2026-08-26T07:06:29-04:00 ===
+--- training done 2026-08-26T07:30:00-04:00 ---
+EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=3 solved=20/24 (83.3%) median_term_step=300
+EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=3 solved=17/24 (70.8%) median_term_step=300
+EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300
+EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=3 solved=23/24 (95.8%) median_term_step=300
+EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300
+EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=3 solved=23/24 (95.8%) median_term_step=300
+EVAL model=ck_100000_steps.zip track_shapes=reset n=8 rounds=3 solved=19/24 (79.2%) median_term_step=300
+EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=3 solved=12/24 (50.0%) median_term_step=164
+EVAL model=phase3_lr2e-5_s0_final.zip track_shapes=reset n=8 rounds=3 solved=22/24 (91.7%) median_term_step=300
+EVAL model=phase3_lr2e-5_s1_final.zip track_shapes=reset n=8 rounds=3 solved=15/24 (62.5%) median_term_step=300
+EVAL model=phase3_lr5e-5_s0_final.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300
+EVAL model=phase3_lr5e-5_s1_final.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300
+=== phase3 done 2026-08-26T07:33:32-04:00 ===
+EVAL model=phase3_lr5e-5_s1_final.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300
+EVAL model=phase3_lr5e-5_s0_final.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300
+EVAL model=ck_200000_steps.zip track_shapes=reset n=8 rounds=3 solved=24/24 (100.0%) median_term_step=300

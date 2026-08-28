@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for the native gymnasium.vector.VectorEnv (make_vec) surface."""
 
 from pathlib import Path
@@ -35,13 +34,15 @@ def test_vector_entry_point_registered():
 
 
 def _make(num_envs=4):
-    return gym.make_vec("GazeboCartPole-v0", num_envs=num_envs,
-                        vectorization_mode="vector_entry_point")
+    return gym.make_vec(
+        "GazeboCartPole-v0", num_envs=num_envs, vectorization_mode="vector_entry_point"
+    )
 
 
 def test_make_vec_returns_native_env():
     pytest.importorskip("gz.sim8", reason="gz.sim8 bindings not available")
     from gazebo_gymnasium_bridge.envs import GazeboVectorEnv
+
     venv = _make(4)
     try:
         assert isinstance(venv.unwrapped, GazeboVectorEnv)
@@ -58,8 +59,7 @@ def test_reset_step_api_and_spaces():
         obs, info = venv.reset(seed=0)
         assert venv.observation_space.contains(obs)
         assert isinstance(info, dict)
-        obs, rew, term, trunc, infos = venv.step(
-            venv.action_space.sample())
+        obs, rew, term, trunc, infos = venv.step(venv.action_space.sample())
         assert obs.shape == (4, 4)
         assert rew.shape == (4,) and rew.dtype == np.float64
         assert term.shape == (4,) and term.dtype == bool

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Batched in-sim harness — one world plugin drives all N agents.
 
 Loaded once at world scope (PythonSystemLoader). It owns actuation and sensing
@@ -39,14 +38,12 @@ import numpy as np
 from gazebo_gymnasium_bridge.envs.agent_spec import get_spec
 from gazebo_gymnasium_bridge.harness.harness_core import HarnessCore
 
-
 ACTION_TOPIC = "/rl/actions"
 RESET_TOPIC = "/rl/reset"
 OBS_TOPIC = "/rl/observations"
 
 
 class MultiAgentHarness:
-
     def __init__(self):
         self.core = None
         self.n_agents = 0
@@ -69,24 +66,26 @@ class MultiAgentHarness:
 
     def setup(self, agent_name: str, n_agents: int, seed=None):
         from gymnasium.spaces import Discrete
+
         spec = get_spec(agent_name)
         self.n_agents = int(n_agents)
         self.core = HarnessCore(spec, self.n_agents)
-        self._act_dim = (1 if isinstance(spec.action_space, Discrete)
-                         else int(spec.action_space.shape[0]))
-        self._actions = np.zeros((self.n_agents, self._act_dim),
-                                 dtype=np.float32)
+        self._act_dim = (
+            1 if isinstance(spec.action_space, Discrete) else int(spec.action_space.shape[0])
+        )
+        self._actions = np.zeros((self.n_agents, self._act_dim), dtype=np.float32)
         if seed is not None:
             self._rng = np.random.default_rng(int(seed))
 
         self._node = Node()
         self._node.subscribe(Float_V, ACTION_TOPIC, self._on_actions)
         self._node.subscribe(Float_V, RESET_TOPIC, self._on_reset)
-        self._obs_pub = self._node.advertise(
-            OBS_TOPIC, Float_V, AdvertiseMessageOptions())
-        print(f"[MultiAgentHarness] ready: agent={spec.name!r} "
-              f"n_agents={self.n_agents} act_dim={self._act_dim} "
-              f"topics={ACTION_TOPIC}/{RESET_TOPIC}->{OBS_TOPIC}")
+        self._obs_pub = self._node.advertise(OBS_TOPIC, Float_V, AdvertiseMessageOptions())
+        print(
+            f"[MultiAgentHarness] ready: agent={spec.name!r} "
+            f"n_agents={self.n_agents} act_dim={self._act_dim} "
+            f"topics={ACTION_TOPIC}/{RESET_TOPIC}->{OBS_TOPIC}"
+        )
 
     def configure(self, entity, element, ecm, event_mgr):
         # Config comes from env vars (the launch exports GAZEBO_GYM_AGENT /
@@ -95,6 +94,7 @@ class MultiAgentHarness:
         # but env vars are the single source of truth the launch already sets —
         # keeping configure trivial keeps this rarely-exercised surface small.
         import os
+
         agent = os.environ.get("GAZEBO_GYM_AGENT", "cartpole")
         n = int(os.environ.get("GAZEBO_GYM_N_AGENTS", "1"))
         self.setup(agent, n)
@@ -113,6 +113,13 @@ class MultiAgentHarness:
     def _on_reset(self, msg):
         with self._lock:
             self._pending_reset = True
+            # Without this, a stale action from before the reset (e.g. the
+            # last thing a since-disconnected client sent) keeps being
+            # re-applied on every tick after the reset tick -- pre_update
+            # only skips actuation on the reset tick itself, not after. A
+            # mobile-base agent (line_follower) can drift meters off its
+            # spawn pose before the next real action ever arrives.
+            self._actions[:] = 0.0
             if len(msg.data) > 0:
                 self._reset_seed = int(msg.data[0])
 
@@ -140,7 +147,7 @@ class MultiAgentHarness:
             return
         if not self._ready:
             return  # not all agents bound yet — don't publish zeros
-        obs = self.core.read_obs(ecm)          # (n_agents, obs_dim)
+        obs = self.core.read_obs(ecm)  # (n_agents, obs_dim)
         msg = Float_V()
         msg.data.extend(obs.reshape(-1).tolist())
         self._obs_pub.publish(msg)

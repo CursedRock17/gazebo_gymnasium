@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Backward-compatible cartpole multi env.
 
 The implementation now lives in the generalized
@@ -28,7 +27,5 @@ from .multi_agent_env import MultiAgentGazeboVecEnv
 class MultiCartPoleVecEnv(MultiAgentGazeboVecEnv):
     """N cartpoles in one gz sim (cartpole spec over the generalized VecEnv)."""
 
-    def __init__(self, n_agents: int = 4,
-                 world_name: str = "cartpole_multi", **kwargs):
-        super().__init__(get_spec("cartpole"), n_agents=n_agents,
-                         world_name=world_name, **kwargs)
+    def __init__(self, n_agents: int = 4, world_name: str = "cartpole_multi", **kwargs):
+        super().__init__(get_spec("cartpole"), n_agents=n_agents, world_name=world_name, **kwargs)

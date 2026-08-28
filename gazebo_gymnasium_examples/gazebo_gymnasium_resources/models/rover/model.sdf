@@ -306,16 +306,35 @@
         </material>
       </visual>
       <collision name='left_wheel_collision'>
+        <!-- Cylinder, not a sphere. The wheel link's frame has the axle along
+             its local Z (see the <axis> on left_axle), which is also the axis
+             an SDF <cylinder> is built around, so no extra pose is needed.
+             Radius 0.035 m = the firmware's WHEEL_DIAMETER_M/2, the number
+             the real rover converts m/s with; length 0.0265 m is the CAD
+             wheel's own width, recovered from its inertia tensor
+             (Ixx=(1/12)m(3r^2+h^2) with the CAD r=0.0343).
+
+             This was a sphere until 2026-08-28, which gave a POINT contact
+             with no resistance to yaw about it, so the chassis could slide
+             and spin nearly freely: full throttle produced ground speeds of
+             0.79-0.86 m/s from wheels that can only deliver 0.51, and hard
+             turns flung the rover to 1.5-2.95 m/s. A cylinder's line contact
+             generates the restoring moment a real tyre does.
+
+             Friction is isotropic at 1.0, roughly rubber on a hard floor.
+             The old anisotropic 1.2/0.8 split had no <fdir1>, so the two
+             directions were whatever the contact frame happened to be. -->
         <geometry>
-          <sphere>
-            <radius>0.034</radius>
-          </sphere>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.0265</length>
+          </cylinder>
         </geometry>
         <surface>
           <friction>
             <ode>
-              <mu>1.2</mu>
-              <mu2>0.8</mu2>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -366,16 +385,35 @@
         </material>
       </visual>
       <collision name='right_wheel_collision'>
+        <!-- Cylinder, not a sphere. The wheel link's frame has the axle along
+             its local Z (see the <axis> on right_axle), which is also the axis
+             an SDF <cylinder> is built around, so no extra pose is needed.
+             Radius 0.035 m = the firmware's WHEEL_DIAMETER_M/2, the number
+             the real rover converts m/s with; length 0.0265 m is the CAD
+             wheel's own width, recovered from its inertia tensor
+             (Ixx=(1/12)m(3r^2+h^2) with the CAD r=0.0343).
+
+             This was a sphere until 2026-08-28, which gave a POINT contact
+             with no resistance to yaw about it, so the chassis could slide
+             and spin nearly freely: full throttle produced ground speeds of
+             0.79-0.86 m/s from wheels that can only deliver 0.51, and hard
+             turns flung the rover to 1.5-2.95 m/s. A cylinder's line contact
+             generates the restoring moment a real tyre does.
+
+             Friction is isotropic at 1.0, roughly rubber on a hard floor.
+             The old anisotropic 1.2/0.8 split had no <fdir1>, so the two
+             directions were whatever the contact frame happened to be. -->
         <geometry>
-          <sphere>
-            <radius>0.034</radius>
-          </sphere>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.0265</length>
+          </cylinder>
         </geometry>
         <surface>
           <friction>
             <ode>
-              <mu>1.2</mu>
-              <mu2>0.8</mu2>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -387,7 +425,9 @@
          Wheel separation is the lateral distance between the wheel
          attachment points on base_link (from rover.urdf joint origins).
          Wheel radius derived from the wheel's mass + izz inertia
-         (thin-disk approximation: r = sqrt(2*Izz/m) ≈ 0.034 m). -->
+         0.035 m = the firmware's WHEEL_DIAMETER_M/2, which is what the real
+         rover converts m/s with. The CAD inertia implies 0.0343
+         (r = sqrt(2*Izz/m)); the measured part wins over the drawing. -->
     <plugin
       filename="gz-sim-diff-drive-system"
       name="gz::sim::systems::DiffDrive">
@@ -421,10 +461,10 @@
     <!-- Forward-facing camera for vision-based control. Mounted ahead of
          the front caster (rover forward = -Y in base_link frame). The
          pose rotates the camera's +X optical axis to point along rover
-         -Y, then pitches it ~28° down so it sees the ground a short
+         -Y, then pitches it 45° down so it sees the ground a short
          distance ahead — where the line track lives. -->
     <link name="camera_link">
-      <pose relative_to="base_link">0 -0.15 0.05 0 0.5 -1.5708</pose>
+      <pose relative_to="base_link">0 -0.15 0.05 0 0.7854 -1.5708</pose>
       <inertial>
         <mass>0.005</mass>
         <inertia>

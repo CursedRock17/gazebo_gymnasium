@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """gazebo_gymnasium_bridge — Gymnasium envs that drive a Gazebo (gz sim) world.
 
 Per REP-2000 we target ROS 2 Jazzy on Ubuntu Noble 24.04 (Tier 1). The
@@ -48,7 +47,6 @@ def _check_ros_distro() -> None:
 
 
 _check_ros_distro()
-
 
 # Registering the gymnasium ids (GazeboCartPole-v0, ...) makes
 # `import gazebo_gymnasium_bridge; gymnasium.make("GazeboCartPole-v0")` work.

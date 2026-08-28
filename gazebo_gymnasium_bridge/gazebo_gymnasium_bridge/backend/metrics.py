@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Shared `/env/metrics` publisher used by every env class.
 
 Replaces the older per-env gz-transport `Float_V` publisher with a real
@@ -26,10 +25,11 @@ Gracefully degrades when rclpy / the message package isn't importable
 
 from __future__ import annotations
 
-
 try:
     import rclpy
+
     from gazebo_gymnasium_msgs.msg import EnvMetrics
+
     _HAVE_ROS = True
 except Exception:  # noqa: BLE001 — any failure is "ROS not available", treat the same
     _HAVE_ROS = False
@@ -62,9 +62,16 @@ class MetricsPublisher:
             print(f"[MetricsPublisher] disabled (rclpy init failed): {exc}")
             self._enabled = False
 
-    def publish(self, *, steps_per_sec: float, mean_step_ms: float,
-                episode_reward: float, current_step: int,
-                total_steps: int, current_episode: int) -> None:
+    def publish(
+        self,
+        *,
+        steps_per_sec: float,
+        mean_step_ms: float,
+        episode_reward: float,
+        current_step: int,
+        total_steps: int,
+        current_episode: int,
+    ) -> None:
         if not self._enabled or self._pub is None:
             return
         msg = EnvMetrics()

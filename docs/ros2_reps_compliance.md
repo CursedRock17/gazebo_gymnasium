@@ -10,16 +10,16 @@ REPs are at <https://ros.org/reps/>. The TL;DR per REP:
 | REP | Topic | Our status |
 |-----|-------|-----------|
 | 2000 | Target Platforms | ✅ Compliant (Jazzy, Ubuntu Noble Tier 1) |
-| 2001 | Variants | N/A — research package, not a distro variant |
-| 2002 | Rolling Release | ⚠️ Partial — version numbering aligned, no rolling sync |
-| 2003 | Sensor + Map QoS | ⚠️ Mostly N/A — RL data flows over gz-transport, not ROS topics |
+| 2001 | Variants | N/A: research package, not a distro variant |
+| 2002 | Rolling Release | ⚠️ Partial: version numbering aligned, no rolling sync |
+| 2003 | Sensor + Map QoS | ⚠️ Mostly N/A: RL data flows over gz-transport, not ROS topics |
 | 2004 | Package Quality | ✅ Declared at **Level 4** (see `QUALITY_DECLARATION.md`) |
-| 2005 | Common Packages | N/A — not seeking inclusion |
+| 2005 | Common Packages | N/A: not seeking inclusion |
 | 2006 | Vulnerability Disclosure | ✅ Policy at `SECURITY.md` |
-| 2007 | Type Adapters | N/A — no custom adapters |
-| 2008 | Hardware Acceleration | ⚠️ Partial — `GAZEBO_GYM_DEVICE` flag for CPU/CUDA selection |
-| 2009 | Type Negotiation | N/A — fixed message types only |
-| 2014 | Benchmarking | ⚠️ Partial — throughput benchmark + per-step metrics; LTTng tracing not wired |
+| 2007 | Type Adapters | N/A: no custom adapters |
+| 2008 | Hardware Acceleration | ⚠️ Partial: `GAZEBO_GYM_DEVICE` flag for CPU/CUDA selection |
+| 2009 | Type Negotiation | N/A: fixed message types only |
+| 2014 | Benchmarking | ⚠️ Partial: throughput benchmark + per-step metrics; LTTng tracing not wired |
 
 ## REP-2000: Releases & Target Platforms
 
@@ -30,7 +30,7 @@ language version mandates (C++17 / Python 3.8+ for recent releases).
 **Our status: ✅ Compliant.**
 - Target distribution: **ROS 2 Jazzy Jalisco** (LTS, supports 2024-05 → 2029-05).
 - Target platform: **Ubuntu Noble 24.04** (Tier 1).
-- Python version: 3.12 (exceeds 3.8+ minimum). A single conda Python (via Pixi + RoboStack) serves ROS, Gazebo, and the RL libraries — no dual-interpreter split.
+- Python version: 3.12 (exceeds 3.8+ minimum). A single conda Python (via Pixi + RoboStack) serves ROS, Gazebo, and the RL libraries; no dual-interpreter split.
 - Gazebo version: Harmonic (paired with Jazzy per <https://gazebosim.org/docs/harmonic/ros_installation>).
 - C++ standard: C++17 (set in `gazebo_gymnasium_msgs/CMakeLists.txt`).
 
@@ -38,7 +38,7 @@ Documented in `CONTRIBUTING.md`.
 
 ## REP-2001: Variants
 
-**Policy:** ROS 2 distributions ship variants — `ros_core`, `ros_base`,
+**Policy:** ROS 2 distributions ship variants: `ros_core`, `ros_base`,
 `desktop`, `desktop_full`, etc. Maintainers should keep lower-tier
 variants free of GUI dependencies.
 
@@ -46,7 +46,7 @@ variants free of GUI dependencies.
 package, not a candidate for inclusion in any variant. We depend on
 `ros_gz_*` and `foxglove_bridge` (visualization-tier deps), so if we
 were ever to register a variant placement it would be at the
-`desktop_full` / `simulation` tier — not `ros_core` or `ros_base`.
+`desktop_full` / `simulation` tier, not `ros_core` or `ros_base`.
 
 ## REP-2002: Rolling Release
 
@@ -57,7 +57,7 @@ features. Release repos in `ros2-gbp` for automated bloom releases.
 **Our status: ⚠️ Partial.**
 - ✅ Semver-style numbering: all `package.xml` files at `0.1.0`. Bumping
   to `0.2.0` for next feature batch, `0.1.1` for bugfixes only.
-- ❌ Not yet released through `bloom` / `ros2-gbp` — that step happens
+- ❌ Not yet released through `bloom` / `ros2-gbp`: that step happens
   when the package matures past Level 4. Local install + colcon build
   only for now.
 
@@ -69,14 +69,14 @@ use RELIABLE + TRANSIENT_LOCAL.
 
 **Our status: ⚠️ Largely not applicable, with one reference config.**
 - **The RL data path does not use ROS topics.** Observations, actions, and
-  camera frames move over gz-transport — in-process for the default backend
+  camera frames move over gz-transport, in-process for the default backend
   (no IPC at all), and over `/rl/*` gz topics for the launched-simulator
   harness. REP-2003 governs ROS 2 sensor topics, so it does not bind the path
   that actually carries our sensor data.
 - **Where it does apply**, we follow it: the `ros_gz_bridge` config at
   `gazebo_gymnasium_bringup/config/line_follower_bridge.yaml` sets the camera
-  image topic to `ros_qos: {reliability: best_effort, durability: volatile}` —
-  REP-2003's `SensorDataQoS` recommendation. It is kept as a **reference
+  image topic to `ros_qos: {reliability: best_effort, durability: volatile}`,
+  matching REP-2003's `SensorDataQoS` recommendation. It is kept as a **reference
   template** for users bridging sensor data into ROS 2; no shipped launch
   wires it today.
 - We publish no map topics, so the map-QoS half doesn't apply.
@@ -94,7 +94,7 @@ sub-checklist. Summary:
   starting point for a research-flavored package.
 - We exceed Level 4's minimums on several axes:
   - Testing: 260+ pytest tests across 8 environments incl. stress and vision suites (Level 4 requires none).
-  - CI lint: ament_flake8 / ament_pep257 / ament_copyright all green.
+  - CI lint: ruff (lint + format) / ament_copyright all green.
   - Public API documented in `docs/sphinx/` + per-env tutorials.
 - Path to Level 3 (introspection tools): change control and nightly Tier 1
   CI are now in place; the remaining gate is the first green run on GitHub.
@@ -115,7 +115,7 @@ contact email, response SLA, safe-harbor language for researchers.
 
 **Our status: ✅ Policy at `SECURITY.md`.** Contact:
 `lwendlan@umd.edu`. Response SLA: best-effort within 5 business days
-(slower than ROS 2 core's 2 days — we're a single maintainer and don't
+(slower than ROS 2 core's 2 days; we're a single maintainer and don't
 want to over-promise). Safe-harbor mirrors REP-2006's language.
 
 ## REP-2007: Type Adapters
@@ -139,7 +139,7 @@ swap for GPUs / FPGAs / DPUs. Conditional compilation via
   `auto` opt-in) which routes PyTorch / SB3 onto a GPU when requested.
   See `docs/pytorch_jit_analysis.md` for the rationale.
 - We don't use the `ament_acceleration` CMake macros because our policy
-  network sizes (~5–130k params) don't currently benefit from GPU
+  network sizes (~5-130k params) don't currently benefit from GPU
   on-device kernels. Would revisit if we add CNN policies for the
   vision-from-pixels rover variant.
 

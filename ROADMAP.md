@@ -1,12 +1,14 @@
 # Roadmap
 
-Where `gazebo_gymnasium` is headed. Current state: the spec-driven,
-N-in-one-sim architecture is in place — one `AgentSpec` runs *N* agents in a
-single Gazebo world as an SB3 `VecEnv`, with three backends: `make_inprocess`
-(sim hosted in the training process, no launch — the default and fastest),
-`make_harness` (batched O(1) transport to a launched sim), and `make_multi`
-(per-agent). CartPole is the fully working, verified reference (PPO learns it
-from a ~210-step random baseline to the 500-step cap). See
+This document tracks where `gazebo_gymnasium` is headed. The current
+state centers on a spec-driven, N-in-one-simulation architecture: one
+`AgentSpec` runs N agents in a single Gazebo world as an SB3 `VecEnv`,
+across three backends. `make_inprocess` hosts the simulation in the
+training process with no launch needed, the default and fastest option;
+`make_harness` provides batched O(1) transport to a launched simulation;
+`make_multi` runs per-agent. CartPole stands as the fully working,
+verified reference, with PPO learning it from a roughly 210-step random
+baseline up to the 500-step cap. See
 [docs/creating_your_own_agent.md](docs/creating_your_own_agent.md).
 
 ## Near term

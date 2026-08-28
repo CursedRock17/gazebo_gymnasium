@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Compile-check + import-smoke tests.
 
@@ -29,7 +28,6 @@ import subprocess
 import sys
 
 import pytest
-
 
 # Project root = two levels up from this file (test/ -> package/ -> root).
 HERE = Path(__file__).resolve().parent
@@ -130,9 +128,14 @@ def test_import_smoke(py_path: Path):
     poison the run.
     """
     result = subprocess.run(
-        [sys.executable, "-c",
-         f"compile(open({str(py_path)!r}).read(), {str(py_path)!r}, 'exec')"],
-        capture_output=True, text=True, timeout=10,
+        [
+            sys.executable,
+            "-c",
+            f"compile(open({str(py_path)!r}).read(), {str(py_path)!r}, 'exec')",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     if result.returncode != 0:
         pytest.fail(
@@ -147,7 +150,4 @@ def test_at_least_one_file_found():
     Guards against a future refactor that moves source dirs and silently
     breaks discovery.
     """
-    assert _PY_FILES, (
-        f"No .py files discovered under {SOURCE_DIRS!r}. "
-        f"PROJECT_ROOT={PROJECT_ROOT}"
-    )
+    assert _PY_FILES, f"No .py files discovered under {SOURCE_DIRS!r}. PROJECT_ROOT={PROJECT_ROOT}"

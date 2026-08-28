@@ -20,7 +20,29 @@ huggingface_hub = ">=0.24"
 [pypi-dependencies]
 stable-baselines3 = "*"
 gymnasium = "*"
-autopep8 = ">=2.3.2, <3"
+tensorboard = "*"                 # train.py --tensorboard; local-only, no
+                                  # external account needed, unlike W&B
+                                  # (which stays an optional soft dependency)
+ruff = "*"                        # lint + format, replacing flake8/ament_pep257/
+                                  # yapf; see pyproject.toml's [tool.ruff] and
+                                  # `pixi run format`/`pixi run lint`.
+ty = "*"                          # static type checker; see pyproject.toml's
+                                  # [tool.ty.rules] and `pixi run typecheck`.
+
+# Optional: the 3 RL libraries Isaac Lab also supports alongside SB3 (see
+# docs/rl_libraries.md). Kept out of the default env deliberately -- they're
+# heavy (torch-dependent, large downloads) and most users of this repo don't
+# need them. This environment shares `solve-group = "default"` with the base
+# env so shared packages (torch, gymnasium, ...) resolve to the SAME version
+# in both -- no drift between `pixi run` and `pixi run -e rl-libs`.
+[feature.rl-libs.pypi-dependencies]
+skrl = "*"
+rl-games = "*"
+rsl-rl-lib = "*"
+
+[environments]
+default = { solve-group = "default" }
+rl-libs = { features = ["rl-libs"], solve-group = "default" }
 
 [tasks]
 # Build the ROS workspace (run once, and after editing ament_cmake pkgs).
@@ -51,11 +73,26 @@ benchmark = "bash -c 'source install/setup.sh && exec python training_scripts/be
 #   pixi run sim  (then, in another terminal) pixi run deploy --backend harness
 sim = "bash -c 'source install/setup.sh && ros2 launch gazebo_gymnasium_bringup cartpole_harness.launch.py n_agents:=4 headless:=false'"
 
-# Full suite — functional + stress + lint (flake8/pep257/copyright). No
+# Full suite — functional + stress + lint (ruff + copyright headers). No
 # simulator needed: transport is mocked and the harness/stress tests use the
 # in-process gz TestFixture (importorskip-guarded). PYTEST_DISABLE_PLUGIN_
 # AUTOLOAD stops the conda ROS launch_testing pytest plugins (old hook
 # signatures) from breaking collection; our tests only use pytest core.
 test = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/ -q'"
-# Lint only (the three ament linters), e.g. for a pre-commit check.
-lint = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/test_flake8.py gazebo_gymnasium_bridge/test/test_pep257.py gazebo_gymnasium_bridge/test/test_copyright.py -q'"
+# Lint only (ruff check + ruff format --check, config in pyproject.toml,
+# plus the ament copyright-header check), e.g. for a pre-commit check.
+lint = "bash -c 'source install/setup.sh && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest gazebo_gymnasium_bridge/test/test_ruff.py gazebo_gymnasium_bridge/test/test_copyright.py -q'"
+
+# Auto-format every project Python file in place with ruff (config in
+# pyproject.toml's [tool.ruff]). Run this before committing; `pixi run
+# lint` only checks. Also fixes auto-fixable lint findings (import order,
+# etc.) -- `ruff format` alone only handles whitespace/layout.
+format = "bash -c 'python -m ruff check --fix gazebo_gymnasium_bridge gazebo_gymnasium_examples training_scripts && python -m ruff format gazebo_gymnasium_bridge gazebo_gymnasium_examples training_scripts'"
+
+# Static type check (ty, config in pyproject.toml's [tool.ty.rules]).
+# Excludes the rl-libs-only scripts, which need `pixi run -e rl-libs
+# typecheck-rl-libs` instead -- checking them under the default env reports
+# skrl/rl_games/rsl_rl as unresolved imports (they're not installed there).
+typecheck = "bash -c 'source install/setup.sh && python -m ty check gazebo_gymnasium_bridge training_scripts --exclude \"training_scripts/train_skrl.py\" --exclude \"training_scripts/train_rl_games.py\" --exclude \"training_scripts/train_rsl_rl.py\"'"
+# Run as: pixi run -e rl-libs typecheck-rl-libs
+typecheck-rl-libs = "bash -c 'source install/setup.sh && python -m ty check training_scripts/train_skrl.py training_scripts/train_rl_games.py training_scripts/train_rsl_rl.py'"

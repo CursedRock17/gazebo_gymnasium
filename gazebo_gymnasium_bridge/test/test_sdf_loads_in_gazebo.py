@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Run `gz sdf --check` against every shipped model + world SDF.
 
@@ -49,15 +48,11 @@ import tempfile
 
 import pytest
 
-
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent.parent
-RESOURCES = (PROJECT_ROOT
-             / "gazebo_gymnasium_examples"
-             / "gazebo_gymnasium_resources")
+RESOURCES = PROJECT_ROOT / "gazebo_gymnasium_examples" / "gazebo_gymnasium_resources"
 MODELS_DIR = RESOURCES / "models"
 WORLDS_DIR = RESOURCES / "worlds"
-
 
 # Skip the whole file if `gz` isn't on PATH. Local devs without Gazebo
 # installed shouldn't fail this — the static `test_sdf_validity.py` still
@@ -109,14 +104,15 @@ def _gz_sdf_check(sdf_path: Path, resolve_uris: bool) -> tuple[bool, str]:
     try:
         if resolve_uris:
             text = _resolve_package_uris(sdf_path.read_text())
-            tmp = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".sdf", delete=False)
+            tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".sdf", delete=False)
             tmp.write(text)
             tmp.close()
             target = Path(tmp.name)
         result = subprocess.run(
             ["gz", "sdf", "--check", str(target)],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         out = result.stderr + result.stdout
     finally:
@@ -129,10 +125,7 @@ def _gz_sdf_check(sdf_path: Path, resolve_uris: bool) -> tuple[bool, str]:
 def test_model_sdf_loads(sdf_path):
     """Each model SDF must pass `gz sdf --check` cleanly."""
     ok, output = _gz_sdf_check(sdf_path, resolve_uris=False)
-    assert ok, (
-        f"{sdf_path.relative_to(PROJECT_ROOT)} failed gz sdf --check:\n"
-        f"{output}"
-    )
+    assert ok, f"{sdf_path.relative_to(PROJECT_ROOT)} failed gz sdf --check:\n{output}"
 
 
 @pytest.mark.parametrize("sdf_path", _world_paths(), ids=lambda p: p.stem)
@@ -142,7 +135,4 @@ def test_world_sdf_loads(sdf_path):
     URIs (``package://``) are resolved to their on-disk paths first.
     """
     ok, output = _gz_sdf_check(sdf_path, resolve_uris=True)
-    assert ok, (
-        f"{sdf_path.relative_to(PROJECT_ROOT)} failed gz sdf --check:\n"
-        f"{output}"
-    )
+    assert ok, f"{sdf_path.relative_to(PROJECT_ROOT)} failed gz sdf --check:\n{output}"
