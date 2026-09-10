@@ -42,6 +42,8 @@ bounds are enforced by the env's termination logic, not the joint limit.
 # Python->C++ direction), which is why this went unnoticed until base_obs's
 # read path (the first thing in this codebase to read a Pose3d/Vector3d back
 # out of the ECM) started using it.
+import math
+
 from gz.math7 import Pose3d
 from gz.math7 import Vector3d
 from gz.sim8 import Joint
@@ -67,6 +69,10 @@ class HarnessCore:
         # when spec.reset_model_pose is set (joint resets alone can't bring a
         # free chassis home). Filled in by the world builder.
         self._spawn_poses = None
+        # Which track shape each agent last spawned on, and where that copy
+        # sits: (shape name, origin x, origin y). Empty for specs whose
+        # scenery never varies.
+        self.current_tracks = {}
         # Actuator gain multiplying velocity/force commands -- the
         # control-authority axis of domain randomization. Either one scalar
         # per agent, or a dict {joint_name: gain} per agent when the real
@@ -106,7 +112,16 @@ class HarnessCore:
 
     def _collect_needed_joints(self):
         names = {j.joint for j in self.spec.joint_obs}
+        names.update(self.spec.sensor_joints)
         if self.spec.action_to_commands is not None:
+            # AgentSpec.actuated_joints probes with a correctly SHAPED zero
+            # action. The scalar probes below predate it and only work for
+            # mappings that broadcast (every one in agent_spec's toolkit
+            # resizes); a hand-written map that indexes action[1] raises on a
+            # scalar, and the resulting empty joint set leaves the model
+            # silently unactuated -- commands compute fine and are dropped,
+            # because resolve() has nothing to bind. Ask the spec first.
+            names.update(self.spec.actuated_joints)
             # sample both discrete extremes / a zero action to discover joints
             for probe in (0, 1):
                 try:
@@ -144,7 +159,7 @@ class HarnessCore:
                 joint.enable_velocity_check(ecm, True)
                 joint.enable_position_check(ecm, True)
                 self._joints[(i, jn)] = joint
-            if ok and self.spec.base_obs:
+            if ok and (self.spec.base_obs or self.spec.provide_step_state):
                 link_entity = (
                     model.link_by_name(ecm, self.spec.base_link_name)
                     if self.spec.base_link_name
@@ -200,6 +215,45 @@ class HarnessCore:
             else:
                 obs[i] = self._read_joint_obs(ecm, i)
         return obs
+
+    def read_base_poses(self, ecm):
+        """Each agent's base link as (x, y, z, yaw), (n_agents, 4) float32.
+
+        Privileged state: it exists so a spec can score progress and deviation
+        against the track, and must not be fed to a policy. Unresolved agents
+        read zeros.
+        """
+        out = np.zeros((self.n_agents, 4), dtype=np.float32)
+        for i in range(self.n_agents):
+            link = self._base_links.get(i)
+            pose = link.world_pose(ecm) if link is not None else None
+            if pose is None:
+                continue
+            p, q = pose.pos(), pose.rot()
+            yaw = math.atan2(
+                2.0 * (q.w() * q.z() + q.x() * q.y()),
+                1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z()),
+            )
+            out[i] = [p.x(), p.y(), p.z(), yaw]
+        return out
+
+    def read_sensor_joints(self, ecm):
+        """Velocities of spec.sensor_joints, (n_agents, len(sensor_joints)).
+
+        The simulated stand-in for the rover's wheel encoders. Units are the
+        joint's own (rad/s); scaling is the spec's business. Unresolved agents
+        and joints that report nothing read 0.0, matching a stopped wheel.
+        """
+        names = self.spec.sensor_joints
+        out = np.zeros((self.n_agents, len(names)), dtype=np.float32)
+        for i in range(self.n_agents):
+            if not self._resolved[i]:
+                continue
+            for k, jn in enumerate(names):
+                joint = self._joints.get((i, jn))
+                v = joint.velocity(ecm) if joint is not None else None
+                out[i, k] = v[0] if v else 0.0
+        return out
 
     def _read_joint_obs(self, ecm, i):
         """Read one agent's obs the plain way (every spec but base_obs).
@@ -278,7 +332,9 @@ class HarnessCore:
                 # A list of candidate poses (track_shape_reset_randomization):
                 # draw a fresh one this reset, not the same one every time.
                 entry = entry[rng.integers(len(entry))]
-            x, y, z, yaw = entry
+            x, y, z, yaw = entry[:4]
+            if len(entry) >= 7:
+                self.current_tracks[i] = (entry[4], float(entry[5]), float(entry[6]))
             self._models[i].set_world_pose_cmd(ecm, Pose3d(x, y, z, 0, 0, yaw))
         if self.spec.base_obs and i in self._base_links:
             # The free base has no "joint" reset_joint_state can zero -- do

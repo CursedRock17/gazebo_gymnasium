@@ -63,6 +63,27 @@ usually arrive as a same-shaped addition next to the existing two.
 | `track_color_randomization` | Software | In-process | Lightens dark line pixels toward a random target color |
 | `action_noise_randomization` | Software | In-process | Adds per-step Gaussian jitter to the raw action |
 | `battery_discharge_randomization` | Software | In-process | Decays actuator authority across an episode |
+| `encoder_noise_randomization` | Software | In-process | Fixed per-wheel calibration scale `U(1-x, 1+x)`, plus relative `N(0, x)` noise per read |
+| `encoder_latency_randomization` | Software | In-process | Fixed per-agent lag `U(0, x)` in control steps, fractional, linearly interpolated |
+| `encoder_dropout_randomization` | Software | In-process | Fixed per-agent drop probability `U(0, x)`; a dropped read HOLDS the previous value |
+| `camera_mount_randomization` | Population | In-process | Displaces each agent's `camera_link` by `U(-x, x)` metres per axis at world-build time |
+| `camera_angle_randomization` | Population | In-process | Jitters each agent's camera pitch and horizontal FOV by `U(-x, x)` degrees |
+
+The two `camera_*` fields require `AgentSpec.image_obs` and raise without it.
+They are **geometric**, and that is the point: for a policy reading extracted
+features rather than pixels, photometric randomization can be inert —
+`visual_randomization` was measured leaving `rover_line`'s feature vector
+bit-identical at strength 0.15, because brightness, noise and JPEG artifacts
+leave a dark-pixel mask alone. Moving or tilting the lens is different in
+kind: the scan bands then sample different ground, so every offset, the
+heading and the curvature shift continuously.
+
+The three `encoder_*` fields require `AgentSpec.sensor_joints` and raise if
+configured without it — there is no reading to perturb. They are separate
+fields rather than one because they fail in different ways: noise averages
+out, latency is systematically wrong in whichever direction the robot is
+accelerating, and a dropout is correct-but-stale. A policy that has only seen
+one of the three can be confidently wrong about the others.
 
 Every field except `mass_randomization` currently has exactly one real
 user, `line_follower`, so its shipped values, ranges, and full tuning

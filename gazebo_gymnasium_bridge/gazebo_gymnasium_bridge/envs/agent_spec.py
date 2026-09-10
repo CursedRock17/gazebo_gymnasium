@@ -257,6 +257,14 @@ class AgentSpec:
     # compressed, auto-exposed image, so they should be degraded in sim too.
     aux_obs_fn: Optional[Callable] = None
     aux_obs_dim: int = 0
+    # Whether the raw frame reaches the POLICY. The camera renders either way,
+    # and reward_fn/terminated_fn always see the frame; this only decides
+    # whether the network is handed pixels alongside aux_obs_fn's features.
+    # False means the policy observes the extracted features ALONE, so the
+    # perception step is a fixed, portable function rather than learned
+    # weights -- the same extractor can run on real JPEGs, and training drops
+    # from a CNN to an MLP. Requires aux_obs_fn.
+    policy_image: bool = True
     # Hard per-joint command ceiling, applied by HarnessCore.apply_actions
     # AFTER action_gain_randomization scales the command. action_to_commands
     # can only bound what the POLICY asks for; gain DR (and, on the harness
@@ -266,6 +274,128 @@ class AgentSpec:
     # absolute command in that joint's own units (rad/s for "velocity", N or
     # N*m for "force"). Empty = unclamped, the behavior every other spec has.
     command_limits: dict = field(default_factory=dict)
+    # First-order low-pass on the action, applied by the in-process backend
+    # AFTER every other action-side effect (noise, battery) and BEFORE the
+    # command map: a_t = k * a_{t-1} + (1 - k) * a_raw, with k this value.
+    # 0.0 disables it, which is what every other spec runs.
+    #
+    # It exists for hardware fidelity. The drive firmware does not step a
+    # wheel to its setpoint, it ramps toward it under a per-wheel PID loop, so
+    # a policy trained on instantly-realized setpoints learns commands the
+    # real motors smear. Filtering in simulation trains against the same
+    # smear.
+    #
+    # Enabling it also APPENDS the retained filter state (the previous
+    # applied action) to the policy observation, which is not optional: the
+    # filter makes the environment's response depend on history, and a policy
+    # that cannot see a_{t-1} is acting on a partial observation. This is the
+    # Markov break SB3's own custom-environment tips warn about, and the
+    # reference implementation this was taken from has exactly that bug. The
+    # state resets to the zero action at the start of every episode.
+    action_lowpass: float = 0.0
+    # Joints read as SENSORS rather than as observations in their own right.
+    # Their velocities (rad/s, in this order) are handed to aux_obs_fn and
+    # reward_fn as an extra argument each step, for specs whose observation is
+    # an image and whose joint_obs is therefore empty. The spec decides how to
+    # scale them; nothing normalizes on its behalf.
+    #
+    # This exists for hardware parity. The rover carries a quadrature encoder
+    # per drive wheel, so wheel speed is information the deployed policy will
+    # genuinely hold, and a reward computed from the commanded speed instead
+    # pays out for a command the motors may not have executed.
+    sensor_joints: tuple = ()
+    # Encoder domain randomization for sensor_joints specs (0.0 = off;
+    # in-process backend only, like the DR fields above). Two effects at
+    # strength x, both modeling a real quadrature encoder rather than a
+    # perfect joint-velocity read:
+    #
+    #   calibration -- each agent draws a FIXED per-wheel scale U(1-x, 1+x)
+    #     at construction. Counts become metres through an assumed wheel
+    #     diameter and counts-per-revolution, and neither is exact; the drive
+    #     firmware carries separate TRIM_LEFT/TRIM_RIGHT constants precisely
+    #     because the two wheels do not agree. A per-wheel scale error is what
+    #     makes a rover think it is driving straight while it veers.
+    #
+    #   reading noise -- every step, the scaled reading is multiplied by
+    #     1 + N(0, x). Relative rather than absolute, because a stopped
+    #     quadrature wheel reports exactly zero counts, not noise.
+    #
+    # This matters more now than a spec without sensor_joints would suggest:
+    # once the encoders are observed AND drive the reward, an unmodeled gap
+    # between the simulated joint velocity and the real reading is a gap in
+    # the policy's inputs and in its objective at the same time.
+    encoder_noise_randomization: float = 0.0
+    # Encoder LATENCY (0.0 = off; needs sensor_joints). A reply describes the
+    # wheel as it was when the firmware sampled it, not as it is now: the
+    # counts were accumulated over the previous interval, the UDP round trip
+    # costs time, and the camera frame the reading is paired with was captured
+    # at its own moment. At strength x each agent draws a fixed lag U(0, x),
+    # measured in CONTROL STEPS and allowed to be fractional (the reading is
+    # linearly interpolated between the two buffered steps it falls between),
+    # held for the rest of training.
+    #
+    # Worth separating from noise because the failure is different in kind: a
+    # noisy reading is wrong in a way that averages out, a late one is
+    # systematically wrong in the direction the rover is accelerating, and a
+    # policy that has only seen the former can be confidently wrong about the
+    # latter.
+    encoder_latency_randomization: float = 0.0
+    # Encoder DROPOUT (0.0 = off; needs sensor_joints). UDP replies go missing.
+    # At strength x each agent draws a fixed per-step drop probability U(0, x);
+    # on a dropped step the previous reading is HELD rather than zeroed,
+    # matching what the deployment client does (rover_line_deploy.py holds the
+    # last good value and aborts after a run of failures). Substituting zero
+    # would instead tell the policy the rover had stopped dead, which is a
+    # different and much rarer event than a lost packet.
+    encoder_dropout_randomization: float = 0.0
+    # Camera MOUNT randomization for image_obs specs (0.0 = off), in metres.
+    # Each agent's camera_link is displaced by U(-x, x) independently on each
+    # axis, once at world-build time, and holds it for that agent's lifetime --
+    # a printed mount's tolerance is a fixed property of one robot, not a
+    # per-step disturbance.
+    camera_mount_randomization: float = 0.0
+    # Camera ANGLE randomization for image_obs specs (0.0 = off), in degrees.
+    # Same population draw, applied to the camera_link's pitch and to the
+    # sensor's horizontal field of view, U(-x, x) on each independently.
+    #
+    # These two are the camera-side DR that actually reaches a feature-based
+    # observation. Photometric mechanisms do not: visual_randomization was
+    # measured leaving rover_line's feature vector BIT-IDENTICAL at strength
+    # 0.15, because brightness, noise and JPEG artifacts leave the dark-pixel
+    # mask alone, and track_color_randomization is a cliff rather than a
+    # gradient against a fixed threshold. Geometry is different in kind: move
+    # or tilt the lens and the scan bands sample different ground, so every
+    # offset, the heading and the curvature all shift continuously.
+    camera_angle_randomization: float = 0.0
+    # Consecutive steps `terminated_fn` must hold before the episode actually
+    # ends (0 = end on the first True, which is every other spec's behaviour).
+    #
+    # Debounced termination, for tasks where the failure condition is a
+    # sustained state rather than an instant. A line follower losing sight of
+    # the track for one frame has not failed -- a corner can swing the line out
+    # of view briefly -- so ending immediately throws away recoverable episodes
+    # and teaches the policy nothing about recovering.
+    termination_grace_steps: int = 0
+    # Whether reward_fn and terminated_fn are handed a per-step STATE mapping
+    # as one extra argument. Off by default: it changes both signatures.
+    #
+    # A mapping rather than more positional arguments, because the set of
+    # things a task might need grows and a five-argument reward is unreadable.
+    # It currently carries:
+    #
+    #   "prev_action" -- the action applied on the previous step, so a spec
+    #     can price the CHANGE in command (jerk). An alternative to
+    #     action_lowpass for the same problem: one filters the command, the
+    #     other charges for it. Filtering needs the filter state in the
+    #     observation to stay Markov; a penalty needs the previous action only
+    #     inside the reward and leaves the observation alone.
+    #
+    #   "pose" -- the base link's (x, y, z, yaw) in world coordinates. This is
+    #     privileged simulator state and must never reach the OBSERVATION; it
+    #     is here so reward and termination can be judged against the track
+    #     itself (how far round, how far off) rather than against what the
+    #     camera happens to see.
+    provide_step_state: bool = False
 
     @property
     def actuated_joints(self):
@@ -284,6 +414,20 @@ class AgentSpec:
             return ()
 
     @property
+    def policy_aux_dim(self):
+        """Width of the feature vector the POLICY sees.
+
+        aux_obs_fn's own output, plus the retained action-filter state when
+        action_lowpass is on. Single source of truth for that width, so the
+        declared space and the packed observation cannot drift apart.
+        """
+        if self.aux_obs_dim <= 0:
+            return 0
+        if self.action_lowpass <= 0.0:
+            return self.aux_obs_dim
+        return self.aux_obs_dim + int(np.prod(self.action_space.shape))
+
+    @property
     def policy_observation_space(self):
         """The space the POLICY sees: Dict when aux_obs_fn is configured.
 
@@ -292,12 +436,13 @@ class AgentSpec:
         """
         if self.aux_obs_fn is None or self.aux_obs_dim <= 0:
             return self.observation_space
+        aux_space = spaces.Box(low=-1.0, high=1.0, shape=(self.policy_aux_dim,), dtype=np.float32)
+        if not self.policy_image:
+            return aux_space
         return spaces.Dict(
             {
                 "image": self.observation_space,
-                "track": spaces.Box(
-                    low=-1.0, high=1.0, shape=(self.aux_obs_dim,), dtype=np.float32
-                ),
+                "track": aux_space,
             }
         )
 
@@ -306,6 +451,36 @@ class AgentSpec:
             raise ValueError(
                 f"AgentSpec({self.name!r}): aux_obs_fn is only supported "
                 f"alongside an image observation"
+            )
+        if not self.policy_image and (self.aux_obs_fn is None or self.aux_obs_dim <= 0):
+            raise ValueError(
+                f"AgentSpec({self.name!r}): policy_image=False leaves the policy "
+                f"with no observation at all; it requires aux_obs_fn"
+            )
+        for _field in ("camera_mount_randomization", "camera_angle_randomization"):
+            if getattr(self, _field) and self.image_obs is None:
+                raise ValueError(
+                    f"AgentSpec({self.name!r}): {_field} needs image_obs -- "
+                    f"there is no camera to move"
+                )
+        for _field in (
+            "encoder_noise_randomization",
+            "encoder_latency_randomization",
+            "encoder_dropout_randomization",
+        ):
+            if getattr(self, _field) and not self.sensor_joints:
+                raise ValueError(
+                    f"AgentSpec({self.name!r}): {_field} needs sensor_joints -- "
+                    f"there is no encoder reading to perturb"
+                )
+        if self.action_lowpass and self.aux_obs_fn is None:
+            # The filter's retained state rides in the aux vector, so without
+            # aux_obs_fn there is nowhere to put it and the policy would be
+            # left acting on a partial observation -- silently, which is the
+            # worst way for this to fail.
+            raise ValueError(
+                f"AgentSpec({self.name!r}): action_lowpass requires aux_obs_fn, "
+                f"which is where the filter state is exposed to the policy"
             )
         if self.image_obs is not None:
             if tuple(self.observation_space.shape) != tuple(self.image_obs):

@@ -253,7 +253,66 @@ def odom_enabled():
     return os.environ.get("GAZEBO_GYM_ODOM", "").strip() in ("1", "true", "True")
 
 
-def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_prefix="/rl"):
+def _jitter_camera(inner, rng, mount_m, angle_deg):
+    """Displace and re-aim one agent's camera in its inlined model text.
+
+    Population DR: called once per agent at world-build time, so the draw is a
+    fixed property of that agent for its whole lifetime -- which is what a
+    printed mount's tolerance and a lens's unit-to-unit FOV variation actually
+    are.
+
+    Only the pose inside ``<link name="camera_link">`` is touched, and only
+    its first, so the many other poses in the model are left alone.
+
+    :param inner: the model's inlined SDF text.
+    :param rng: this mechanism's own Generator.
+    :param mount_m: metres of per-axis translation jitter, U(-x, x).
+    :param angle_deg: degrees of pitch and horizontal-FOV jitter, U(-x, x).
+    :return: the SDF text with this agent's camera moved.
+    """
+    start = inner.find('<link name="camera_link">')
+    if start < 0:
+        return inner
+    end = inner.find("</link>", start)
+    block = inner[start:end]
+
+    if mount_m > 0 or angle_deg > 0:
+        # Match "<pose", not "<pose>": rover_line_bare writes
+        # `<pose relative_to="base_link">`, and matching the bare tag finds
+        # nothing while everything still runs -- the camera simply never moves.
+        # Found exactly that way, by a per-agent pitch that stayed at 45.00.
+        tag = block.find("<pose")
+        p0 = block.find(">", tag) + 1 if tag >= 0 else 0
+        p1 = block.find("</pose>", p0) if p0 else -1
+        if p0 and p1 > p0:
+            vals = [float(v) for v in block[p0:p1].split()]
+            if len(vals) >= 6:
+                if mount_m > 0:
+                    vals[0] += float(rng.uniform(-mount_m, mount_m))
+                    vals[1] += float(rng.uniform(-mount_m, mount_m))
+                    vals[2] += float(rng.uniform(-mount_m, mount_m))
+                if angle_deg > 0:
+                    # index 4 is pitch: x y z roll PITCH yaw
+                    vals[4] += float(np.radians(rng.uniform(-angle_deg, angle_deg)))
+                block = block[:p0] + " ".join(f"{v:.9g}" for v in vals) + block[p1:]
+    if angle_deg > 0:
+        f0 = block.find("<horizontal_fov>")
+        f1 = block.find("</horizontal_fov>", f0)
+        if f0 >= 0 and f1 > f0:
+            fov = float(block[f0 + 16 : f1])
+            fov += float(np.radians(rng.uniform(-angle_deg, angle_deg)))
+            block = block[: f0 + 16] + f"{fov:.9g}" + block[f1:]
+    return inner[:start] + block + inner[end:]
+
+
+def _build_world(
+    spec: AgentSpec,
+    n_agents: int,
+    spacing: float,
+    rng,
+    topic_prefix="/rl",
+    camera_rng=None,
+):
     """Build an N-agent world SDF by inlining the bare model N times.
 
     Inline (rather than <include>) sidesteps the frame-graph quirks a merged
@@ -289,6 +348,15 @@ def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_pref
             inner = inner.replace(
                 "<topic>camera</topic>", f"<topic>{topic_prefix}/camera_{i}</topic>"
             )
+            if camera_rng is not None and (
+                spec.camera_mount_randomization > 0 or spec.camera_angle_randomization > 0
+            ):
+                inner = _jitter_camera(
+                    inner,
+                    camera_rng,
+                    spec.camera_mount_randomization,
+                    spec.camera_angle_randomization,
+                )
         joints = "".join(
             f'<joint name="{jn}" type="fixed">'
             f"<parent>{parent}</parent><child>{child}</child></joint>"
@@ -317,12 +385,18 @@ def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_pref
                 )
                 for (local_x, local_y, _z, _roll, _pitch, local_yaw), _size in builder():
                     # +pi/2: see the population-based branch below.
+                    # The shape and its grid cell ride along, so whatever
+                    # reset_agent draws can be reported back: a spec measuring
+                    # progress or deviation has to know WHICH loop it is on.
                     pose_choices.append(
                         (
                             x + cell_x + local_x,
                             cell_y + local_y,
                             spec.spawn_z,
                             local_yaw + np.pi / 2,
+                            shape_name,
+                            scenery_x + cell_x,
+                            cell_y,
                         )
                     )
             poses.append(pose_choices)
@@ -348,7 +422,8 @@ def _build_world(spec: AgentSpec, n_agents: int, spacing: float, rng, topic_pref
             agent_y, agent_yaw = local_y, local_yaw + np.pi / 2
             include_uri = f"package://gazebo_gymnasium_resources/models/{model_dir_name}"
             x += local_x
-            poses.append((x, agent_y, spec.spawn_z, agent_yaw))
+            # Shape and origin ride along, as in the per-reset branch above.
+            poses.append((x, agent_y, spec.spawn_z, agent_yaw, shape_name, scenery_x, 0.0))
             models.append(
                 f"<include><uri>{include_uri}</uri>"
                 f"<name>scenery_{i}</name>"
@@ -458,9 +533,16 @@ class InProcessHarnessVecEnv(VecEnv):
         # action_gain_randomization also consumed draws first) -- a real
         # confound for comparing DR configurations against each other.
         dr_rng = np.random.default_rng(seed)
-        (mass_seed, gain_seed, visual_seed, track_color_seed, action_noise_seed, battery_seed) = (
-            dr_rng.integers(0, 2**63 - 1, size=6)
-        )
+        (
+            mass_seed,
+            gain_seed,
+            visual_seed,
+            track_color_seed,
+            action_noise_seed,
+            battery_seed,
+            encoder_seed,
+            camera_geom_seed,
+        ) = dr_rng.integers(0, 2**63 - 1, size=8)
         if spacing is None:
             spacing = spec.x_spacing
         # Rendering n_agents frames costs roughly linearly in n_agents, and the
@@ -475,9 +557,21 @@ class InProcessHarnessVecEnv(VecEnv):
         self._topic_prefix = f"/rl/{os.getpid()}_{uuid.uuid4().hex[:8]}"
         self._world_name = world_name(spec, self._topic_prefix)
         world, spawn_poses = _build_world(
-            spec, n_agents, spacing, np.random.default_rng(mass_seed), self._topic_prefix
+            spec,
+            n_agents,
+            spacing,
+            np.random.default_rng(mass_seed),
+            self._topic_prefix,
+            camera_rng=np.random.default_rng(camera_geom_seed),
         )
         self._core.set_spawn_poses(spawn_poses)
+        # Each agent gets its OWN copy of the scenery, laid out along x. A spec
+        # that measures against track geometry needs to know which copy is its
+        # own, or it projects onto a track metres away.
+        self._track_origins = np.array(
+            [[i * spacing - (n_agents - 1) * spacing / 2.0, 0.0] for i in range(n_agents)],
+            dtype=np.float32,
+        )
         if spec.action_gain_randomization > 0:
             g = spec.action_gain_randomization
             gain_rng = np.random.default_rng(gain_seed)
@@ -525,6 +619,61 @@ class InProcessHarnessVecEnv(VecEnv):
         # (n, H, W, C) and the joint read in _on_post is skipped.
         self._image_mode = spec.image_obs is not None
         self._aux_fn = spec.aux_obs_fn if spec.aux_obs_dim > 0 else None
+
+        # Action low-pass (AgentSpec.action_lowpass). The retained state is
+        # also observed, so the filter does not hide history from the policy.
+        # Sensor joints (AgentSpec.sensor_joints): read every post-tick and
+        # handed to aux_obs_fn/reward_fn. Zeros until the first tick lands.
+        self._sensor_joints = tuple(spec.sensor_joints)
+        self._sensors = np.zeros((n_agents, len(self._sensor_joints)), dtype=np.float32)
+
+        # Encoder DR: calibration scale + reading noise + latency + dropout.
+        # All three strengths share one RNG stream but independent draws off
+        # it, and all are per-agent fixed properties, like the DR above.
+        self._sensors_raw = np.zeros_like(self._sensors)
+        self._encoder_dr = spec.encoder_noise_randomization if self._sensor_joints else 0.0
+        self._encoder_lag_dr = spec.encoder_latency_randomization if self._sensor_joints else 0.0
+        self._encoder_drop_dr = spec.encoder_dropout_randomization if self._sensor_joints else 0.0
+        self._encoder_any = max(self._encoder_dr, self._encoder_lag_dr, self._encoder_drop_dr) > 0
+        if self._encoder_any:
+            e_rng = np.random.default_rng(encoder_seed)
+            self._encoder_scale = e_rng.uniform(
+                1.0 - self._encoder_dr,
+                1.0 + self._encoder_dr,
+                size=(n_agents, len(self._sensor_joints)),
+            )
+            # Fixed per-agent lag in control steps, fractional; and a fixed
+            # per-agent probability that any one step's reply goes missing.
+            self._encoder_lag = e_rng.uniform(0.0, self._encoder_lag_dr, size=n_agents)
+            self._encoder_drop_p = e_rng.uniform(0.0, self._encoder_drop_dr, size=n_agents)
+            self._encoder_rng = np.random.default_rng(e_rng.integers(0, 2**63 - 1))
+            # One slot per step of lag the deepest-lagged agent can ask for,
+            # newest first. Sized once so indexing never needs a bounds check.
+            self._encoder_depth = int(np.ceil(self._encoder_lag_dr)) + 2
+            self._encoder_hist = np.zeros(
+                (self._encoder_depth, n_agents, len(self._sensor_joints)), dtype=np.float32
+            )
+            self._encoder_held = np.zeros_like(self._sensors)
+
+        # Debounced termination: consecutive steps terminated_fn has held.
+        self._grace = int(spec.termination_grace_steps)
+        self._term_streak = np.zeros(n_agents, dtype=int)
+        # Per-step state mapping for specs that ask for one: the previous
+        # applied action, and the base link's pose. See
+        # AgentSpec.provide_step_state.
+        self._step_state = bool(spec.provide_step_state)
+        self._reward_prev_action = (
+            np.zeros((n_agents, int(np.prod(spec.action_space.shape))), dtype=np.float32)
+            if self._step_state
+            else None
+        )
+        self._base_poses = np.zeros((n_agents, 4), dtype=np.float32) if self._step_state else None
+
+        self._lowpass = float(spec.action_lowpass)
+        self._prev_action = None
+        if self._lowpass > 0.0:
+            act_dim = int(np.prod(spec.action_space.shape))
+            self._prev_action = np.zeros((n_agents, act_dim), dtype=np.float32)
         if self._image_mode:
             # gz-sim's rendering/Sensors system is effectively a per-PROCESS
             # singleton: constructing a second camera-backed world while one is
@@ -680,6 +829,74 @@ class InProcessHarnessVecEnv(VecEnv):
         self._post_ticks += 1
         if self._post_ticks >= self._read_at and not self._image_mode:
             self._latest_obs = self._core.read_obs(ecm)
+        # Sensors are read on EVERY post-tick, not gated on _read_at: an image
+        # spec never reaches that branch, and the last tick of the frame-skip
+        # is the reading that pairs with the frame the policy is handed.
+        if self._step_state:
+            self._base_poses = self._core.read_base_poses(ecm)
+        if self._sensor_joints:
+            # Raw here; the DR that models the LINK (noise, latency, dropout)
+            # is a per-CONTROL-STEP effect, so it is applied once per step in
+            # _update_sensors rather than once per physics tick.
+            self._sensors_raw = self._core.read_sensor_joints(ecm)
+            if not self._encoder_any:
+                self._sensors = self._sensors_raw
+
+    def _update_sensors(self, reset_mask=None):
+        """Advance the encoder link by one control step.
+
+        Applies, in the order the physical chain does: the per-wheel
+        calibration scale and reading noise (what the sensor gets wrong), then
+        latency (when the reading describes), then dropout (whether it arrives
+        at all). Sets self._sensors, which both the observation and the reward
+        read.
+
+        :param reset_mask: agents whose episode just restarted. Their history
+            is refilled with the current reading rather than carrying the
+            previous episode's motion across the boundary, and their held
+            value is cleared.
+        """
+        if not self._sensor_joints:
+            return
+        if not self._encoder_any:
+            self._sensors = self._sensors_raw
+            return
+
+        # What the sensor gets wrong: fixed per-wheel calibration, then noise
+        # that is relative, so a stopped quadrature wheel still reads zero.
+        reading = self._sensors_raw * self._encoder_scale
+        if self._encoder_dr > 0:
+            reading = reading * (
+                1.0 + self._encoder_rng.normal(0.0, self._encoder_dr, reading.shape)
+            )
+        reading = reading.astype(np.float32)
+
+        # When it describes: push newest-first, then read back at each agent's
+        # own fractional lag, interpolating between the two steps it falls
+        # between so a sub-step delay is representable.
+        self._encoder_hist[1:] = self._encoder_hist[:-1]
+        self._encoder_hist[0] = reading
+        if reset_mask is not None and reset_mask.any():
+            self._encoder_hist[:, reset_mask] = reading[reset_mask]
+        if self._encoder_lag_dr > 0:
+            lo = np.floor(self._encoder_lag).astype(int)
+            frac = (self._encoder_lag - lo)[:, None]
+            idx = np.arange(self.n_agents)
+            delayed = (1.0 - frac) * self._encoder_hist[lo, idx] + frac * self._encoder_hist[
+                lo + 1, idx
+            ]
+            reading = delayed.astype(np.float32)
+
+        # Whether it arrives: a dropped reply holds the last good value, which
+        # is what the deployment client does. Zeroing instead would claim the
+        # rover had stopped, a different event entirely.
+        if self._encoder_drop_dr > 0:
+            dropped = self._encoder_rng.random(self.n_agents) < self._encoder_drop_p
+            if reset_mask is not None:
+                dropped &= ~reset_mask  # a fresh episode starts with a real read
+            reading = np.where(dropped[:, None], self._encoder_held, reading).astype(np.float32)
+        self._encoder_held = reading
+        self._sensors = reading
 
     def _pack_obs(self, frames):
         """Policy-visible observation: the frames, plus aux features if any.
@@ -690,10 +907,23 @@ class InProcessHarnessVecEnv(VecEnv):
         """
         if self._aux_fn is None:
             return frames
-        aux = np.empty((self.n_agents, self._spec.aux_obs_dim), dtype=np.float32)
+        aux = np.empty((self.n_agents, self._spec.policy_aux_dim), dtype=np.float32)
         for i in range(self.n_agents):
-            aux[i] = self._aux_fn(frames[i])
-        return {"image": frames, "track": aux}
+            # Two-argument form only for specs that declare sensor_joints, so
+            # every existing single-argument aux_obs_fn keeps working.
+            aux[i, : self._spec.aux_obs_dim] = (
+                self._aux_fn(frames[i], self._sensors[i])
+                if self._sensor_joints
+                else self._aux_fn(frames[i])
+            )
+        # Append the retained filter state: with a low-pass in the loop the
+        # response depends on a_{t-1}, so the policy has to see it.
+        if self._prev_action is not None:
+            aux[:, self._spec.aux_obs_dim :] = self._prev_action
+        # policy_image=False: the features ARE the observation. Returning the
+        # bare array (not a Dict) keeps _obs_copy/_obs_take/_obs_assign on
+        # their ndarray paths and lets wrap_for_observations pick MlpPolicy.
+        return {"image": frames, "track": aux} if self._spec.policy_image else aux
 
     @staticmethod
     def _obs_copy(obs):
@@ -803,6 +1033,15 @@ class InProcessHarnessVecEnv(VecEnv):
         self._current_episode += 1
         if self._battery_enabled:
             self._draw_battery_depletion(np.ones(self.n_agents, dtype=bool))
+        if self._prev_action is not None:
+            # The zero action, not "stopped": a forward-only map has no
+            # stopping command, so this is the neutral request the rover is
+            # already being given while the reset settles.
+            self._prev_action[:] = 0.0
+        self._term_streak[:] = 0
+        if self._reward_prev_action is not None:
+            self._reward_prev_action[:] = 0.0
+        self._update_sensors(np.ones(self.n_agents, dtype=bool))
         return self._pack_obs(self._augment_obs(self._latest_obs.copy()))
 
     def _redraw_invalid_spawns(self, mask):
@@ -839,6 +1078,14 @@ class InProcessHarnessVecEnv(VecEnv):
         self._step_server(1)
         self._post_reset_settle()
         self._redraw_invalid_spawns(mask)
+        # Clear the ramp for the agents that restarted, and only those: the
+        # rest are mid-episode and their filter state is still live.
+        if self._prev_action is not None:
+            self._prev_action[mask] = 0.0
+        self._term_streak[mask] = 0
+        if self._reward_prev_action is not None:
+            self._reward_prev_action[mask] = 0.0
+        self._update_sensors(mask)
         return self._pack_obs(self._augment_obs(self._latest_obs.copy()))
 
     def step_async(self, actions):
@@ -854,6 +1101,15 @@ class InProcessHarnessVecEnv(VecEnv):
                 t = np.clip(self._agent_steps / self.max_episode_steps, 0.0, 1.0)
                 actions *= (1.0 - self._battery_depletion * t)[:, None]
             np.clip(actions, -1.0, 1.0, out=actions)
+        if self._lowpass > 0.0:
+            # Ramp toward the request instead of stepping to it, mirroring the
+            # firmware's per-wheel PID loop. Applied after noise/battery so it
+            # smooths the command the hardware would truly receive.
+            actions = (
+                self._lowpass * self._prev_action
+                + (1.0 - self._lowpass) * np.asarray(actions, dtype=np.float32)
+            ).astype(np.float32)
+            self._prev_action[:] = actions
         self._ctl["action"] = actions
 
     def step_wait(self):
@@ -869,6 +1125,7 @@ class InProcessHarnessVecEnv(VecEnv):
         # noise into the RL objective itself (spurious line-loss/reward from
         # augmented pixels rather than the actual simulated state).
         raw_obs = self._latest_obs.copy()
+        self._update_sensors()
         obs = self._pack_obs(self._augment_obs(raw_obs.copy()))
 
         self._agent_steps += 1
@@ -877,8 +1134,37 @@ class InProcessHarnessVecEnv(VecEnv):
         terminated = np.zeros(self.n_agents, dtype=bool)
         for i in range(self.n_agents):
             # pass the applied action so specs can shape reward on effort
-            rewards[i] = float(self._spec.reward_fn(raw_obs[i], actions[i]))
-            terminated[i] = bool(self._spec.terminated_fn(raw_obs[i]))
+            if self._step_state:
+                state = {
+                    "agent": i,
+                    # Steps since this agent's own reset, so a spec can cache
+                    # per-step work that both reward_fn and terminated_fn need
+                    # without doing it (or double-counting it) twice.
+                    "step": int(self._agent_steps[i]),
+                    "prev_action": self._reward_prev_action[i],
+                    "pose": self._base_poses[i],
+                    # Origin of THIS agent's copy of the scenery, and which
+                    # shape it is currently on when the scenery varies.
+                    "origin": self._track_origins[i],
+                    "track": self._core.current_tracks.get(i),
+                }
+                rewards[i] = float(
+                    self._spec.reward_fn(raw_obs[i], actions[i], self._sensors[i], state)
+                )
+                terminated[i] = bool(self._spec.terminated_fn(raw_obs[i], state))
+            elif self._sensor_joints:
+                rewards[i] = float(self._spec.reward_fn(raw_obs[i], actions[i], self._sensors[i]))
+                terminated[i] = bool(self._spec.terminated_fn(raw_obs[i]))
+            else:
+                rewards[i] = float(self._spec.reward_fn(raw_obs[i], actions[i]))
+                terminated[i] = bool(self._spec.terminated_fn(raw_obs[i]))
+        if self._reward_prev_action is not None:
+            self._reward_prev_action[:] = actions
+        if self._grace:
+            # The failure has to persist. Any non-failing step clears the
+            # streak, so only a SUSTAINED condition ends the episode.
+            self._term_streak = np.where(terminated, self._term_streak + 1, 0)
+            terminated = self._term_streak >= self._grace
         truncated = self._agent_steps >= self.max_episode_steps
         self._episode_rewards += rewards
         dones = terminated | truncated

@@ -188,6 +188,72 @@ def preset_racetrack():
 # pre-existing models/line_track/ directory (generate_line_track.py), not a
 # line_track_rectangle/ duplicate; the other six are line_track_<name>/,
 # written by scripts/generate_line_tracks.py.
+def centerline(segments, spacing=0.02):
+    """Ordered centreline polyline through a track's own segment boxes.
+
+    Every builder here lays the track as boxes end to end along the path, so
+    the centreline is already implicit in the geometry and does not have to be
+    recovered from a mesh: each box contributes points along its own axis, and
+    the boxes are then chained end to end.
+
+    Chaining is by nearest endpoint rather than by build order, because build
+    order is not path order for every shape -- ``build_racetrack`` emits both
+    straights before either arc. Adjacent boxes share a joint by construction,
+    so the nearest unused endpoint is unambiguous.
+
+    :param segments: what a build_* function returned: ((x, y, z, r, p, yaw),
+        (length, width, height)) per box.
+    :param spacing: target spacing of the returned points, in metres.
+    :return: (N, 2) float array of ordered points, first != last (closed
+        implicitly), spaced evenly along the loop.
+    """
+    strips = []
+    for (px, py, _z, _roll, _pitch, yaw), (length, _w, _h) in segments:
+        # Interior of each box only: the builders overlap neighbours slightly
+        # (1.03x on straights, 1.08x on arcs) so the joints do not gap, and
+        # sampling to the very end would zigzag back at every seam. Even
+        # resampling below bridges the small holes this leaves.
+        half = 0.4 * length
+        n = max(2, int(math.ceil(2 * half / spacing)) + 1)
+        ts = np.linspace(-half, half, n)
+        direction = np.array([math.cos(yaw), math.sin(yaw)])
+        strips.append(np.array([px, py]) + ts[:, None] * direction)
+
+    # Greedy chain: from the free end of the path so far, take whichever
+    # unused strip starts or ends nearest, flipping it if needed.
+    remaining = list(range(1, len(strips)))
+    path = [strips[0]]
+    tail = strips[0][-1]
+    while remaining:
+        best, best_d, best_flip = None, np.inf, False
+        for idx in remaining:
+            for flip in (False, True):
+                strip = strips[idx][::-1] if flip else strips[idx]
+                d = float(np.linalg.norm(strip[0] - tail))
+                if d < best_d:
+                    best, best_d, best_flip = idx, d, flip
+        strip = strips[best][::-1] if best_flip else strips[best]
+        path.append(strip)
+        tail = strip[-1]
+        remaining.remove(best)
+
+    pts = np.vstack(path)
+    # Resample evenly around the closed loop, so arc length is proportional to
+    # index and a projection onto it is well conditioned.
+    closed = np.vstack([pts, pts[0]])
+    seg = np.linalg.norm(np.diff(closed, axis=0), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    count = max(8, int(round(cum[-1] / spacing)))
+    target = np.linspace(0.0, cum[-1], count, endpoint=False)
+    return np.stack([np.interp(target, cum, closed[:, i]) for i in range(2)], axis=1)
+
+
+def perimeter(points):
+    """Closed-loop length of an ordered centreline, in metres."""
+    closed = np.vstack([points, points[0]])
+    return float(np.linalg.norm(np.diff(closed, axis=0), axis=1).sum())
+
+
 PRESETS = {
     "rectangle": (preset_rectangle, "line_track"),
     "square": (preset_square, "line_track_square"),

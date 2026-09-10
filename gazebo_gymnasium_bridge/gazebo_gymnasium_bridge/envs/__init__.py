@@ -21,6 +21,8 @@ is just ``n_agents=1`` — there are no per-model or single-agent env classes.
     env = make_multi("cartpole", n_agents=16)
 """
 
+# Side effect: registers the 'rover_line' spec.
+from . import rover_line  # noqa: F401,E402  (import order: needs agent_spec first)
 from .agent_spec import AgentSpec
 from .agent_spec import forward_progress_reward
 from .agent_spec import get_spec

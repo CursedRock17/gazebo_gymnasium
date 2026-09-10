@@ -244,3 +244,8 @@ models/
 results/hf_upload/
 # Extracted AppImage, not project source.
 squashfs-root/
+
+# sweep.py's per-trial intermediates: temp models, per-trial curve CSVs and
+# periodic checkpoints, all dot-prefixed by _trial_model_path and friends.
+# The sweep's own CSV and log next to them ARE the record and stay tracked.
+results/**/.*_trial_*

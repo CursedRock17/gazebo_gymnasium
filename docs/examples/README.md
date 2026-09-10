@@ -30,6 +30,7 @@ vec_env = make_inprocess("hopper", n_agents=16)   # one simulation, no launch ne
 | Humanoid | Continuous | Not yet built | Planned, the same free-base recipe as Ant, not yet specified |
 | Swimmer | Continuous | Not portable | Not portable faithfully, since it swims through MuJoCo's viscous fluid medium and DART has no fluid drag |
 | [Line follower](line_follower.md) | `Box(2,)` wheels / `Box(64,64,3)` camera | in-process and harness | Verified, PPO solves to the 300-step cap, domain-randomization tuned for sim-to-real |
+| [Rover line](rover_line.md) | `Box(2,)` speed+turn / `Box(10,)` line features | in-process | Verified, PPO drives 3.2 laps at the 600-step cap (100 percent), and holds zero-shot under domain randomization; the sim-to-real target |
 
 ## Solved Bars Explained
 
@@ -47,6 +48,7 @@ stricter, per-environment bar.
 | Reacher | Mean episode reward at or above −5 (near the goal for most of the episode) | PPO reached −13 at 100,000 steps and **−10.4 at 200,000 steps** with real published hyperparameters (rl-baselines3-zoo's `Reacher-v2`). **SAC's −8.48 at 100,000 steps remains the best known result**: a fresh, properly tuned SAC sweep (rl-baselines3-zoo's own "mostly defaults" finding for SAC on real MuJoCo environments) did not beat it, reaching only −9.9 at best. |
 | Ant | Open-ended, reporting sustained forward meters per second | 0.0 meters per second, confirmed under both PPO at 150,000 steps and a real SAC sweep at 300,000 steps (960.3 reward, but verified 0.00 meters per second sustained, mean absolute action 0.06, alive the whole episode; SAC found a more stable version of the exact same stand-still-and-collect-the-alive-bonus solution, not a walking gait). This rules out a PPO-specific exploration failure as the explanation: the reward shaping itself, `alive_bonus=1.0`, MuJoCo Ant-v4's own default, makes standing still a genuine local optimum independent of algorithm. Fixing this needs a reward change, lowering or removing the alive bonus or adding an explicit standing-still penalty, rather than a different algorithm; see `ROADMAP.md`. |
 | Line follower | Mean episode length at the 300-step cap (never losing the line, meaning it takes every corner) | **300.0, solved** (swept PPO, 400,000 steps, domain-randomization tuned for sim-to-real); see [line_follower.md](line_follower.md). |
+| Rover line | Completing a lap (9.31 meters of odometry-measured ground) inside the 600-step cap without losing the line | **30.06 meters, 3.2 laps, 16 of 16 episodes** (PPO, 200,000 steps, 4 agents), matching a classical proportional controller's 30.13 meters, against 1.64 meters for random actions. Holds 8 of 8 zero-shot under domain randomization. Distances are odometry, not commanded; see [rover_line.md](rover_line.md). |
 
 InvertedDoublePendulum, Hopper, and Walker2d closed with real,
 research-informed sweeps, rl-baselines3-zoo's own tuned hyperparameters as

@@ -428,3 +428,7 @@ diff /tmp/working.env /tmp/broken.env
 | **Windows Subsystem for Linux 2 (WSL2)** | The compatibility layer Windows users need, since this project is Linux-only |
 | **Application Binary Interface (ABI)** | The compiled-code contract between Python bindings and their underlying C++ libraries |
 | **AgentSpec** | The dataclass describing one agent's model, observation, action, reward, and DR configuration |
+
+## Credits
+This project is a joint effort between [UMD's ECE department](https://ece.umd.edu/) and [MATRIX Lab](https://matrix.umd.edu/)
+Feel free to reach out to either organizations or individuals on the project (lwendlan@umd.edu) for more info.

@@ -29,7 +29,9 @@ unthrottled, a full sweep runs in minutes on a laptop CPU.
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import csv
+import json
 from pathlib import Path
+import subprocess
 import sys
 import time
 
@@ -579,6 +581,7 @@ def _validate_trial(idx, args):
         str(min(args.n_agents, 4)),
         "--track-shapes",
         args.track_shapes,
+        f"--forward-axis={args.forward_axis}",
         "--model",
         str(model),
         "--seed",
@@ -596,12 +599,87 @@ def _validate_trial(idx, args):
     return ("PASS " if proc.returncode == 0 else "FAIL ") + summary
 
 
+def _trial_csv_path(out, idx):
+    """Per-trial curve CSV, merged into the sweep's own CSV by the parent."""
+    return Path(out).parent / f".{Path(out).stem}_trial_{idx}.csv"
+
+
+def _trial_json_path(out, idx):
+    """Per-trial result handoff: final score and curve, parent-readable."""
+    return Path(out).parent / f".{Path(out).stem}_trial_{idx}.json"
+
+
+def _spawn_trial(idx, args):
+    """Run one trial in a CHILD PROCESS and read back its result.
+
+    Not an optimization. A camera-backed env can only be built once per
+    process -- gz-sim's rendering scene is a process-wide singleton that
+    close() does not tear down -- so a sweep that trained every trial in the
+    orchestrator would raise on its second image-agent trial. Every trial
+    therefore gets a fresh interpreter, and results cross the boundary on disk
+    (the model via _trial_model_path, the score and curve via a small JSON).
+
+    :param idx: index into the config grid.
+    :param args: the parsed sweep arguments.
+    :return: (final score, curve) -- the model stays on disk.
+    """
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--agent",
+        args.agent,
+        "--algo",
+        args.algo,
+        "--n-agents",
+        str(args.n_agents),
+        "--seed",
+        str(args.seed),
+        "--timesteps",
+        str(args.timesteps),
+        "--track-shapes",
+        args.track_shapes,
+        "--out",
+        str(args.out),
+        "--only-trial",
+        str(idx),
+        "--run-one-trial",  # the child marker; without it this would recurse
+    ]
+    for flag, value in (
+        ("--lr", args.lr),
+        ("--gamma", args.gamma),
+        ("--epochs", args.epochs),
+        ("--clip-range", args.clip_range),
+        ("--checkpoint-every", args.checkpoint_every),
+        ("--init-from", args.init_from),
+    ):
+        if value is not None:
+            cmd += [flag, str(value)]
+    if args.anneal:
+        cmd.append("--anneal")
+    # "=" form, not two tokens: a value like "-y" is read as a FLAG when passed
+    # separately, and argparse rejects the whole command.
+    cmd.append(f"--forward-axis={args.forward_axis}")
+    proc = subprocess.run(cmd, text=True)
+    result = _trial_json_path(args.out, idx)
+    if proc.returncode != 0 or not result.exists():
+        print(f"[trial {idx}] FAILED (rc={proc.returncode}); skipped")
+        return None, None
+    payload = json.loads(result.read_text())
+    return payload["final"], payload["curve"]
+
+
 def run_trial(idx, cfg, args, writer):
     """Train one config; save its model to a temp per-trial path.
 
-    Returns the final score, not the model object -- this always runs as its
-    own subprocess (see main()), so the model has to cross that boundary via
-    disk, not memory.
+    Returns the final score and curve, not the model object -- this always
+    runs as its own subprocess (see _spawn_trial), so the model has to cross
+    that boundary via disk, not memory.
+
+    :param idx: index into the config grid, used for every per-trial path.
+    :param cfg: the hyperparameter dict for this trial.
+    :param args: the parsed sweep arguments.
+    :param writer: csv.DictWriter the CurveLogger snapshots into.
+    :return: (final mean episode reward, learning curve).
     """
     wb = None
     if args.wandb:
@@ -681,12 +759,15 @@ def run_trial(idx, cfg, args, writer):
     env.close()
     if wb is not None:
         wb.finish()
-    print(f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
-          f"({args.timesteps} steps in {dt:.0f}s)")
-    return final, model, cb.curve
+    print(
+        f"[trial {idx}] {cfg}\n    -> final mean_ep_reward={final:.1f} "
+        f"({args.timesteps} steps in {dt:.0f}s)"
+    )
+    curve = cb[0].curve if isinstance(cb, list) else cb.curve
+    return float(final), curve
 
 
-def _build_parser():
+def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--agent", default="cartpole")
     p.add_argument("--algo", default="ppo", choices=sorted(_ALGOS))
@@ -769,6 +850,13 @@ def _build_parser():
         "still fail here",
     )
     p.add_argument(
+        "--forward-axis",
+        default="y",
+        help="body axis the chassis advances along, passed to validate_rover.py "
+        "with --validate. rover_bare is +y; rover_line_bare carries its lens on "
+        "the other end and drives along -y, so its check FAILS on the default",
+    )
+    p.add_argument(
         "--best-out",
         default=None,
         metavar="PATH",
@@ -791,61 +879,120 @@ def _build_parser():
         metavar="CHECKPOINT",
         help="fine-tune every trial from this .zip instead of fresh weights",
     )
+    p.add_argument(
+        "--run-one-trial",
+        action="store_true",
+        help=argparse.SUPPRESS,  # internal: marks a child spawned by _spawn_trial
+    )
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--project", default="gazebo-cartpole")
     p.add_argument("--out", default=None, help="CSV path (default: models/)")
-    p.add_argument("--push-to-hub", metavar="REPO_ID", default=None,
-                   help="upload the BEST model + its config and learning curve "
-                        "to this Hugging Face Hub repo (user/name)")
-    p.add_argument("--hub-private", action="store_true",
-                   help="create the Hub repo as private (with --push-to-hub)")
+    p.add_argument(
+        "--push-to-hub",
+        metavar="REPO_ID",
+        default=None,
+        help="upload the BEST model + its config and learning curve "
+        "to this Hugging Face Hub repo (user/name)",
+    )
+    p.add_argument(
+        "--hub-private",
+        action="store_true",
+        help="create the Hub repo as private (with --push-to-hub)",
+    )
     args = p.parse_args()
 
     models = Path(__file__).resolve().parent.parent / "models"
     models.mkdir(exist_ok=True)
-    out = Path(args.out) if args.out else models / \
-        f"sweep_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+    # Resolved here and written back onto args, because run_trial,
+    # _trial_model_path and _validate_trial all index args.out as a Path.
+    args.out = (
+        Path(args.out) if args.out else models / f"sweep_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+    )
+    out = args.out
 
-    print(f"Sweep: {len(CONFIGS)} configs x {args.timesteps} steps, "
-          f"n_agents={args.n_agents}. Logging to {out}")
-    best, best_model, best_idx = -1.0, None, -1
-    best_cfg, best_curve = None, None
+    # CONFIGS is keyed by ALGO; the per-agent grid is what a sweep runs over.
+    grid = _configs_for(args.agent, args.algo)
+    chosen = (
+        [(args.only_trial, grid[args.only_trial])]
+        if args.only_trial is not None
+        else list(enumerate(grid))
+    )
+
+    # --- child: train exactly one trial, hand the result back on disk. ---
+    if args.run_one_trial:
+        idx, cfg = chosen[0]
+        with open(_trial_csv_path(out, idx), "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=["trial", "step", "mean_ep_reward"])
+            writer.writeheader()
+            final, curve = run_trial(idx, cfg, args, writer)
+        _trial_json_path(out, idx).write_text(json.dumps({"final": final, "curve": curve}))
+        return
+
+    # --- parent: one child process per trial, --jobs of them at a time. ---
+    print(
+        f"Sweep: {len(chosen)} configs x {args.timesteps} steps, "
+        f"n_agents={args.n_agents}, jobs={args.jobs}. Logging to {out}"
+    )
+    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+        # Threads, not processes: each one only waits on a child subprocess.
+        results = list(pool.map(lambda ic: _spawn_trial(ic[0], args), chosen))
+
+    # Merge the children's curve CSVs into the sweep's own, in trial order.
     with open(out, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["trial", "step",
-                                                "mean_ep_reward"])
+        writer = csv.DictWriter(fh, fieldnames=["trial", "step", "mean_ep_reward"])
         writer.writeheader()
-        for idx, cfg in enumerate(CONFIGS):
-            final, model, curve = run_trial(idx, cfg, args, writer)
-            fh.flush()
-            if final > best:
-                best, best_model, best_idx = final, model, idx
-                best_cfg, best_curve = cfg, curve
+        for idx, _cfg in chosen:
+            child_csv = _trial_csv_path(out, idx)
+            if not child_csv.exists():
+                continue
+            with open(child_csv, newline="") as cf:
+                for row in csv.DictReader(cf):
+                    writer.writerow(row)
 
-    if best_model is not None:
-        best_path = models / f"{args.agent}_sweep_best.zip"
-        best_model.save(best_path)
+    best, best_idx, best_cfg, best_curve = -1.0, -1, None, None
+    for (idx, cfg), (final, curve) in zip(chosen, results, strict=True):
+        if final is not None and final > best:
+            best, best_idx, best_cfg, best_curve = final, idx, cfg, curve
+
+    if best_idx >= 0:
+        best_path = (
+            Path(args.best_out) if args.best_out else models / f"{args.agent}_sweep_best.zip"
+        )
+        best_path.parent.mkdir(parents=True, exist_ok=True)
+        # The winner is on disk, saved by its own child; copy it into place.
+        best_path.write_bytes(_trial_model_path(out, best_idx).read_bytes())
         status = "SOLVED" if best >= args.solved else "did not reach bar"
         print(
             f"\nBest: trial {best_idx} mean_ep_reward={best:.1f} [{status} "
             f"@ {args.solved}] -> saved {best_path}"
         )
-        print(f"Curves in {args.out}")
-    else:
-        print("\nNo trial produced a usable model.")
-
+        print(f"Curves in {out}")
+        if args.validate:
+            # Reward cannot see whether the rover actually drove; this can.
+            for idx, _cfg in chosen:
+                print(f"[validate trial {idx}] {_validate_trial(idx, args)}")
         if args.push_to_hub:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             from hub import push_to_hub
+
             hp = dict(best_cfg)
             hp["timesteps"] = args.timesteps
             url = push_to_hub(
-                best_path, args.push_to_hub, agent=args.agent, algo="ppo",
-                n_agents=args.n_agents, hyperparams=hp, curve=best_curve,
-                eval_result=f"**Best of {len(CONFIGS)} swept configs** "
-                            f"(trial {best_idx}): mean episode reward "
-                            f"{best:.1f} [{status} @ {args.solved}].",
-                private=args.hub_private)
+                best_path,
+                args.push_to_hub,
+                agent=args.agent,
+                algo=args.algo,
+                n_agents=args.n_agents,
+                hyperparams=hp,
+                curve=best_curve,
+                eval_result=f"**Best of {len(chosen)} swept configs** "
+                f"(trial {best_idx}): mean episode reward "
+                f"{best:.1f} [{status} @ {args.solved}].",
+                private=args.hub_private,
+            )
             print(f"Pushed best model to Hugging Face Hub: {url}")
+    else:
+        print("\nNo trial produced a usable model.")
 
 
 if __name__ == "__main__":

@@ -31,11 +31,26 @@ from pathlib import Path
 MODEL_FILENAME = "model.zip"
 
 
-def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result,
-          video_filename=None, curve=None):
+def _card(
+    repo_id,
+    agent,
+    algo,
+    env_id,
+    n_agents,
+    hyperparams,
+    eval_result,
+    video_filename=None,
+    curve=None,
+):
     """Build the model-card markdown (with a YAML metadata header)."""
-    tags = ["reinforcement-learning", "stable-baselines3", "gazebo",
-            "gymnasium", "robotics", agent]
+    tags = [
+        "reinforcement-learning",
+        "stable-baselines3",
+        "gazebo",
+        "gymnasium",
+        "robotics",
+        agent,
+    ]
     lines = [
         "---",
         "library_name: stable-baselines3",
@@ -70,8 +85,7 @@ def _card(repo_id, agent, algo, env_id, n_agents, hyperparams, eval_result,
         "",
         "| Setting | Value |",
         "| --- | --- |",
-        f"| Environment | `{agent}`" + (f" (`{env_id}`)" if env_id else "") +
-        " |",
+        f"| Environment | `{agent}`" + (f" (`{env_id}`)" if env_id else "") + " |",
         f"| Algorithm | {algo.upper()} |",
         f"| Agents in sim | {n_agents} |",
     ]
@@ -118,18 +132,23 @@ def evaluate_model(model, env, n_eval_episodes=20):
     readable too.
     """
     from stable_baselines3.common.evaluation import evaluate_policy
-    mean, std = evaluate_policy(model, env, n_eval_episodes=n_eval_episodes,
-                                deterministic=True, warn=False)
-    result = (f"**Mean episode reward: {mean:.1f} ± {std:.1f}** over "
-              f"{n_eval_episodes} deterministic episodes.")
-    metrics = {"eval_mean_reward": round(float(mean), 2),
-               "eval_std_reward": round(float(std), 2),
-               "eval_episodes": n_eval_episodes}
+
+    mean, std = evaluate_policy(
+        model, env, n_eval_episodes=n_eval_episodes, deterministic=True, warn=False
+    )
+    result = (
+        f"**Mean episode reward: {mean:.1f} ± {std:.1f}** over "
+        f"{n_eval_episodes} deterministic episodes."
+    )
+    metrics = {
+        "eval_mean_reward": round(float(mean), 2),
+        "eval_std_reward": round(float(std), 2),
+        "eval_episodes": n_eval_episodes,
+    }
     return result, metrics
 
 
-def record_replay(model, wrapped_env, spec, out_path, max_steps=400,
-                  fps=20):
+def record_replay(model, wrapped_env, spec, out_path, max_steps=400, fps=20):
     """Write a replay video of the policy; return the path, or None if N/A.
 
     Only camera (image-observation) environments have headless RGB frames to
@@ -142,12 +161,13 @@ def record_replay(model, wrapped_env, spec, out_path, max_steps=400,
     if spec.image_obs is None:
         return None
     base = wrapped_env
-    while hasattr(base, "venv"):          # unwrap VecTranspose/VecFrameStack
+    while hasattr(base, "venv"):  # unwrap VecTranspose/VecFrameStack
         base = base.venv
     if not hasattr(base, "_latest_obs"):
         return None
 
     import numpy as np
+
     frames = []
     obs = wrapped_env.reset()
     for _ in range(max_steps):
@@ -162,15 +182,28 @@ def record_replay(model, wrapped_env, spec, out_path, max_steps=400,
     # no extra video package (imageio/ffmpeg) is needed. GIF embeds directly in
     # a Hugging Face model card.
     from PIL import Image
+
     imgs = [Image.fromarray(np.asarray(f, dtype=np.uint8)) for f in frames]
-    imgs[0].save(out_path, save_all=True, append_images=imgs[1:],
-                 duration=max(1, int(1000 / fps)), loop=0)
+    imgs[0].save(
+        out_path, save_all=True, append_images=imgs[1:], duration=max(1, int(1000 / fps)), loop=0
+    )
     return out_path
 
 
-def push_to_hub(model_path, repo_id, *, agent, algo, env_id=None,
-                n_agents=1, hyperparams=None, eval_result=None,
-                video_path=None, curve=None, private=False):
+def push_to_hub(
+    model_path,
+    repo_id,
+    *,
+    agent,
+    algo,
+    env_id=None,
+    n_agents=1,
+    hyperparams=None,
+    eval_result=None,
+    video_path=None,
+    curve=None,
+    private=False,
+):
     """Upload a trained model ``.zip`` and a generated model card.
 
     Parameters
@@ -196,25 +229,35 @@ def push_to_hub(model_path, repo_id, *, agent, algo, env_id=None,
         raise FileNotFoundError(f"model not found: {model_path}")
 
     api = HfApi()
-    api.create_repo(repo_id, repo_type="model", private=private,
-                    exist_ok=True)
-    api.upload_file(path_or_fileobj=str(model_path),
-                    path_in_repo=MODEL_FILENAME, repo_id=repo_id)
+    api.create_repo(repo_id, repo_type="model", private=private, exist_ok=True)
+    api.upload_file(path_or_fileobj=str(model_path), path_in_repo=MODEL_FILENAME, repo_id=repo_id)
 
     video_filename = None
     if video_path is not None and Path(video_path).exists():
         video_filename = Path(video_path).name
-        api.upload_file(path_or_fileobj=str(video_path),
-                        path_in_repo=video_filename, repo_id=repo_id)
+        api.upload_file(
+            path_or_fileobj=str(video_path), path_in_repo=video_filename, repo_id=repo_id
+        )
 
-    card = _card(repo_id, agent, algo, env_id, n_agents, hyperparams,
-                 eval_result, video_filename=video_filename, curve=curve)
-    api.upload_file(path_or_fileobj=card.encode("utf-8"),
-                    path_in_repo="README.md", repo_id=repo_id)
+    card = _card(
+        repo_id,
+        agent,
+        algo,
+        env_id,
+        n_agents,
+        hyperparams,
+        eval_result,
+        video_filename=video_filename,
+        curve=curve,
+    )
+    api.upload_file(
+        path_or_fileobj=card.encode("utf-8"), path_in_repo="README.md", repo_id=repo_id
+    )
     return f"https://huggingface.co/{repo_id}"
 
 
 def pull_from_hub(repo_id, *, filename=MODEL_FILENAME):
     """Download a model ``.zip`` from the Hub; return the local path."""
     from huggingface_hub import hf_hub_download
+
     return hf_hub_download(repo_id=repo_id, filename=filename)
