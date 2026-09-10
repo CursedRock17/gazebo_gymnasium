@@ -33,10 +33,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up pixi (cached ROS 2 Jazzy + Gazebo Harmonic + RL env)
-        uses: prefix-dev/setup-pixi@v0.8.10
+        uses: prefix-dev/setup-pixi@v0.10.2
         with:
           cache: true
 
