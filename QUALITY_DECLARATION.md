@@ -61,9 +61,10 @@ Level 3 ("development / introspection tools" — same tier as `rviz`,
       `.github/workflows/ci.yml` (pixi env, full suite + linters on every
       push/PR), plus issue/PR templates under `.github/`.
 - [x] **Documented Tier 1 platform CI**: the workflow runs on Ubuntu Noble
-      + ROS 2 Jazzy (Tier 1), on every push/PR **and nightly**
-      (`schedule: 0 7 * * *`), so upstream conda/RoboStack breakage surfaces
-      without waiting for a push.
+      (pinned `ubuntu-24.04`) + ROS 2 Jazzy (Tier 1), on every push/PR **and
+      nightly** (`schedule: 0 7 * * *`) for both the `jazzy` branch and `main`,
+      so upstream conda/RoboStack breakage surfaces without waiting for a
+      push. Branch-to-distro mapping: `docs/ros2_reps_compliance.md`.
 - [x] **Quality declaration linked from README** (see the Standards &
       policies list at the top of `README.md`).
 - [x] **First green CI run on GitHub** — the workflow runs green on pushes to

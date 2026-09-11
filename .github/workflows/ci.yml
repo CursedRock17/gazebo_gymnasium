@@ -4,38 +4,60 @@
 # in-process gz TestFixture tests, which are fully headless) plus lint (ruff +
 # ament_copyright), which run as pytest tests.
 #
-# Platform: ubuntu-latest (24.04 Noble) — Tier 1 for ROS 2 Jazzy per REP-2000.
-# The environment is the same Pixi (RoboStack) env developers use locally, so
-# CI exercises exactly what `pixi run build && pixi run test` does; pixi.lock
-# keeps it reproducible. This workflow is the change-control gate REP-2004
-# Quality Level 3 asks for (see QUALITY_DECLARATION.md).
+# Branches: one per ROS 2 + Gazebo LTS pairing (REP-2000, and the pairing table
+# at https://gazebosim.org/docs/latest/ros_installation/); see the Branches
+# section of docs/ros2_reps_compliance.md.
+#   jazzy — ROS 2 Jazzy + Gazebo Harmonic, Tier 1 on Ubuntu 24.04 Noble.
+#   main  — development line, moving to ROS 2 Lyrical + Gazebo Jetty.
+#
+# Platform: ubuntu-24.04 (Noble) — Tier 1 for ROS 2 Jazzy per REP-2000. Pinned
+# rather than ubuntu-latest, which will move to 26.04 and silently change the
+# platform the Tier 1 claim rests on. The environment is the same Pixi
+# (RoboStack) env developers use locally, so CI exercises exactly what
+# `pixi run build && pixi run test` does; pixi.lock keeps it reproducible. This
+# workflow is the change-control gate REP-2004 Quality Level 3 asks for (see
+# QUALITY_DECLARATION.md).
 
 name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, jazzy]
   pull_request:
   # Nightly run on the Tier 1 platform. REP-2004 Quality Level 3 asks for
   # documented Tier 1 platform CI, not just per-change CI: a scheduled build
   # catches breakage from upstream conda/RoboStack updates that a quiet week
-  # would otherwise hide until someone pushed.
+  # would otherwise hide until someone pushed. GitHub only runs schedules from
+  # the default branch, so the job matrix below fans the nightly out to every
+  # supported branch.
   schedule:
     - cron: "0 7 * * *"   # 07:00 UTC daily
-  workflow_dispatch:      # allow manual runs from the Actions tab
+  workflow_dispatch:      # manual run from the Actions tab: same fan-out as nightly
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # event_name keeps a push to main from cancelling the nightly, which also
+  # covers jazzy.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    # Push/PR: one job on the triggering commit (ref "" is checkout's default),
+    # named plain "build-and-test" so branch protection can require it.
+    # Nightly/manual: one job per supported branch tip.
+    name: build-and-test${{ matrix.ref && format(' ({0})', matrix.ref) || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["main", "jazzy"]' || '[""]') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.ref }}
 
-      - name: Set up pixi (cached ROS 2 Jazzy + Gazebo Harmonic + RL env)
+      - name: Set up pixi (cached ROS 2 + Gazebo + RL env from pixi.lock)
         uses: prefix-dev/setup-pixi@v0.10.2
         with:
           cache: true

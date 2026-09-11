@@ -52,6 +52,20 @@ helper is idempotent — already-headered files are skipped).
 
 All tests must pass before review. CI runs `colcon test` on every PR.
 
+## Which branch to target
+
+| Branch | Stack |
+|--------|-------|
+| `main` | Development. Moving to ROS 2 Lyrical + Gazebo Jetty. |
+| `jazzy` | Stable: ROS 2 Jazzy + Gazebo Harmonic on Ubuntu 24.04 (REP-2000 Tier 1). |
+
+Open PRs against `main`. If a fix also applies to Jazzy, say so in the PR;
+once it merges it is cherry-picked onto `jazzy` with `git cherry-pick -x <sha>`
+in a separate PR, so the `jazzy` history records where each change came from.
+Changes that only make sense on Jazzy (e.g. a Harmonic-specific workaround) go
+straight to `jazzy`. Support windows are in
+[`docs/ros2_reps_compliance.md`](docs/ros2_reps_compliance.md#branches).
+
 ## Code style
 
 ### Python (most of the codebase)

@@ -9,7 +9,7 @@ REPs are at <https://ros.org/reps/>. The TL;DR per REP:
 
 | REP | Topic | Our status |
 |-----|-------|-----------|
-| 2000 | Target Platforms | ✅ Compliant (Jazzy, Ubuntu Noble Tier 1) |
+| 2000 | Target Platforms | ✅ Compliant (Jazzy + Harmonic, Ubuntu Noble Tier 1; one branch per LTS pairing) |
 | 2001 | Variants | N/A: research package, not a distro variant |
 | 2002 | Rolling Release | ⚠️ Partial: version numbering aligned, no rolling sync |
 | 2003 | Sensor + Map QoS | ⚠️ Mostly N/A: RL data flows over gz-transport, not ROS topics |
@@ -35,6 +35,25 @@ language version mandates (C++17 / Python 3.8+ for recent releases).
 - C++ standard: C++17 (set in `gazebo_gymnasium_msgs/CMakeLists.txt`).
 
 Documented in `CONTRIBUTING.md`.
+
+### Branches
+
+One branch per ROS 2 + Gazebo LTS pairing, following REP-2000 and the
+[Gazebo/ROS pairing table](https://gazebosim.org/docs/latest/ros_installation/):
+
+| Branch | ROS 2 | Gazebo | Tier 1 platform | Supported until | Status |
+|--------|-------|--------|-----------------|-----------------|--------|
+| `jazzy` | Jazzy Jalisco (LTS) | Harmonic (LTS) | Ubuntu 24.04 Noble | May 2029 | Stable; fixes backported from `main` |
+| `main` | Lyrical Luth (LTS) | Jetty (LTS) | Ubuntu 26.04 (REP-2000 has no Lyrical table yet) | May 2031 (Jetty) | Development; still on Jazzy + Harmonic until the Lyrical port lands |
+
+Fixes land on `main` first and are cherry-picked onto `jazzy`
+(`git cherry-pick -x`) in a separate PR. CI runs on pushes and PRs to both
+branches, and nightly on both: GitHub only runs schedules from the default
+branch, so `main`'s workflow fans the nightly out to `jazzy` as well.
+
+Humble + Fortress is deliberately not a branch: Fortress uses the older
+`ignition` Python namespace (a port, not a pin change) and Humble reaches
+end of life in May 2027.
 
 ## REP-2001: Variants
 
